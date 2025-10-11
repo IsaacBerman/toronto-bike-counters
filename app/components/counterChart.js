@@ -23,10 +23,10 @@ export default function CounterChart({ data, title }) {
             })}
           </p>
           <p className="text-sm text-blue-600">
-            Daily: <span className="font-semibold">{payload[2].value} bicycles</span>
+            Daily: <span className="font-semibold">{payload && payload.length > 2 ? payload[2].value : ""} bicycles</span>
           </p>
           <p className="text-sm text-green-600">
-            14-day Avg: <span className="font-semibold">{payload[0].value} bicycles</span>
+            14-day Avg: <span className="font-semibold">{payload && payload.length > 0 ? payload[0].value: ""} bicycles</span>
           </p>
         </div>
       );
