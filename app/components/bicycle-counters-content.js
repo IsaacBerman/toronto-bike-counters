@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loadCSVData, processCounterData } from '../lib/dataUtils';
+import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter } from '../lib/dataUtils';
 import CounterChart from './counterChart';
 
 export default function BicycleCountersContent() {
@@ -14,27 +14,52 @@ export default function BicycleCountersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+// Update the fetchData function in your existing component
+
   useEffect(() => {
     async function fetchData() {
-      const rawData = await loadCSVData();
-      const processedData = processCounterData(rawData);
-      
-      const sortedCounters = processedData.sort((a, b) => {
-        if (a.isOperational && !b.isOperational) return -1;
-        if (!a.isOperational && b.isOperational) return 1;
-        return a.location.localeCompare(b.location);
-      });
-      
-      setCounters(sortedCounters);
-      setLoading(false);
-      
-      const urlCounter = searchParams.get('counter');
-      const isValidCounter = sortedCounters.some(counter => counter.location === urlCounter);
-      
-      if (urlCounter && isValidCounter) {
-        setSelectedCounter(urlCounter);
-      } else if (sortedCounters.length > 0) {
-        setSelectedCounter(sortedCounters[0].location);
+      try {
+        // Load both CSV data and bikeshare data in parallel
+        const [rawCSVData, rawBikeshareData] = await Promise.all([
+          loadCSVData(),
+          loadBikeshareData()
+        ]);
+        
+        const processedCSVData = processCounterData(rawCSVData);
+        const processedBikeshareData = processBikeshareCounter(rawBikeshareData);
+        
+        // Combine both data sources
+        const allCounters = [processedBikeshareData, ...processedCSVData];
+        
+        const sortedCounters = allCounters.sort((a, b) => {
+          // Keep bikeshare at the top of operational counters
+          if (a.location === "Bike Share Toronto") return -1;
+          if (b.location === "Bike Share Toronto") return 1;
+          
+          // Operational counters first
+          if (a.isOperational && !b.isOperational) return -1;
+          if (!a.isOperational && b.isOperational) return 1;
+          
+          // Then sort alphabetically by location
+          return a.location.localeCompare(b.location);
+        });
+        
+        setCounters(sortedCounters);
+        setLoading(false);
+        
+        const urlCounter = searchParams.get('counter');
+        const isValidCounter = sortedCounters.some(counter => counter.location === urlCounter);
+        
+        if (urlCounter && isValidCounter) {
+          setSelectedCounter(urlCounter);
+        } else if (sortedCounters.length > 0) {
+          // Auto-select Bike Share Toronto first, then first counter
+          const defaultCounter = sortedCounters.find(c => c.location === "Bike Share Toronto") || sortedCounters[0];
+          setSelectedCounter(defaultCounter.location);
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setLoading(false);
       }
     }
 
@@ -107,8 +132,15 @@ export default function BicycleCountersContent() {
                 onChange={(e) => handleCounterChange(e.target.value)}
                 className="w-full border-2 border-gray-200 rounded-xl px-5 py-4 text-lg focus:outline-none focus:ring-4 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white shadow-sm hover:border-gray-300 font-sans text-gray-900"
               >
+                <optgroup label="🚴 Bike Share" className="font-semibold text-gray-700">
+                  {counters.filter(counter => counter.location === "Bike Share Toronto").map(counter => (
+                    <option key={counter.location} value={counter.location} className="py-2 text-gray-900">
+                      {counter.location}
+                    </option>
+                  ))}
+                </optgroup>
                 <optgroup label="🚲 Current Counters" className="font-semibold text-gray-700">
-                  {counters.filter(counter => counter.isOperational).map(counter => (
+                  {counters.filter(counter => counter.isOperational && counter.location !== "Bike Share Toronto").map(counter => (
                     <option key={counter.location} value={counter.location} className="py-2 text-gray-900">
                       {counter.location}
                     </option>
