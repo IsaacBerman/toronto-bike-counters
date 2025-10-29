@@ -221,6 +221,18 @@ export default function BicycleCountersContent() {
               </a>
               . Last Updated: October 7, 2025
             </p>
+             <p className="text-gray-600 font-sans text-sm">
+              Bike share data from {' '}
+              <a 
+                href="https://github.com/mjarrett/bikeraccoon" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 underline transition-colors duration-200 font-medium"
+              >
+                bikeracoon api
+              </a>
+              . All bike share data are estimates and not official counts. They are inferred from station counts and tend to undercount trips by about 2%.
+            </p>
           </div>
         </div>
       </div>
