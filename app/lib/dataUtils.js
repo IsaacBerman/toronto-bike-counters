@@ -114,7 +114,7 @@ export async function loadBikeshareData() {
     const today = new Date();
     const endDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}00`;
     
-    const apiUrl = `https://api.raccoon.bike/activity?system=bike_share_toronto&start=${startDate}&end=${endDate}&frequency=d`;
+    const apiUrl = `https://api.raccoon.bike/activity?system=bike_share_toronto&start=${startDate}&end=${endDate}&frequency=d&key=YIOJaaLtLdazfrG7GVwcyAybB2WfpmSaxtCUx6gxLBw`;
     
     const response = await fetch(apiUrl);
     
