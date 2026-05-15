@@ -268,8 +268,6 @@ export default function CounterChart({ data, title }) {
             >
               {allVisible ? 'Hide All' : 'Show All'}
             </button>
-            <span className="text-sm text-gray-500">|</span>
-            <span className="text-sm text-gray-600 font-medium">Toggle years:</span>
           </div>
           <div className="flex flex-wrap gap-4 mb-3">
             {availableYears.map(year => (
