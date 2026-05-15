@@ -3,7 +3,7 @@ import Papa from 'papaparse';
 
 export async function loadCSVData() {
   try {
-    const response = await fetch('/cycling_counts.csv');
+    const response = await fetch('/cycling_counts_may_26.csv');
     const csvText = await response.text();
     
     return new Promise((resolve, reject) => {
