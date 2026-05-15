@@ -219,7 +219,7 @@ export default function BicycleCountersContent() {
               >
                 City of Toronto Open Data Portal
               </a>
-              . Last Updated: April 15th, 2026
+              . Last Updated: May 11th, 2026
             </p>
              <p className="text-gray-600 font-sans text-sm">
               Bike share data from {' '}
