@@ -7,6 +7,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 export default function CounterChart({ data, title }) {
   const [visibleYears, setVisibleYears] = useState({});
   const [isChartReady, setIsChartReady] = useState(false);
+  const [showCumulative, setShowCumulative] = useState(false);
 
   useEffect(() => {
     // Reset chart ready state when data changes
@@ -103,12 +104,32 @@ export default function CounterChart({ data, title }) {
     return result;
   };
 
+  // Calculate cumulative totals for each year
+  const calculateCumulativeForYear = (yearData) => {
+    if (!yearData || yearData.length === 0) return [];
+    
+    const sortedData = [...yearData].sort((a, b) => a.dayOfYear - b.dayOfYear);
+    let cumulativeSum = 0;
+    const result = [];
+    
+    for (let i = 0; i < sortedData.length; i++) {
+      cumulativeSum += sortedData[i].volume;
+      result.push({
+        ...sortedData[i],
+        cumulativeVolume: cumulativeSum
+      });
+    }
+    
+    return result;
+  };
+
   // Prepare year-over-year comparison data with daily points and rolling averages
   const getYearOverYearData = () => {
     const years = availableYears;
     const allDays = new Set();
     const yearsData = {};
     const yearsRollingAvg = {};
+    const yearsCumulative = {};
 
     // Initialize data structure for each year
     years.forEach(year => {
@@ -131,12 +152,14 @@ export default function CounterChart({ data, title }) {
       }
     });
 
-    // Calculate rolling averages for each year
+    // Calculate rolling averages and cumulative totals for each year
     years.forEach(year => {
       if (yearsData[year] && yearsData[year].length > 0) {
         yearsRollingAvg[year] = calculateRollingAverageForYear(yearsData[year]);
+        yearsCumulative[year] = calculateCumulativeForYear(yearsData[year]);
       } else {
         yearsRollingAvg[year] = [];
+        yearsCumulative[year] = [];
       }
     });
 
@@ -150,14 +173,21 @@ export default function CounterChart({ data, title }) {
         displayDate: getDateFromDayOfYear(day)
       };
       
-      // Add daily volume data for each year (for scatter plot)
+      // Add data for each year
       years.forEach(year => {
         const dailyPoint = yearsData[year]?.find(p => p.dayOfYear === day);
-        dataPoint[`daily_${year}`] = dailyPoint ? dailyPoint.volume : null;
         
-        // Add rolling average for each year (for line chart)
-        const rollingPoint = yearsRollingAvg[year]?.find(p => p.dayOfYear === day);
-        dataPoint[`rolling_${year}`] = rollingPoint ? rollingPoint.rollingAverage : null;
+        if (showCumulative) {
+          // Show cumulative data
+          const cumulativePoint = yearsCumulative[year]?.find(p => p.dayOfYear === day);
+          dataPoint[`cumulative_${year}`] = cumulativePoint ? cumulativePoint.cumulativeVolume : null;
+        } else {
+          // Show daily data with rolling averages
+          dataPoint[`daily_${year}`] = dailyPoint ? dailyPoint.volume : null;
+          
+          const rollingPoint = yearsRollingAvg[year]?.find(p => p.dayOfYear === day);
+          dataPoint[`rolling_${year}`] = rollingPoint ? rollingPoint.rollingAverage : null;
+        }
       });
       
       return dataPoint;
@@ -182,16 +212,22 @@ export default function CounterChart({ data, title }) {
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
     if (active && payload && payload.length) {
-      // Filter to get unique years with their rolling average values
+      // Filter to get unique years with their values
       const yearData = [];
       availableYears.forEach(year => {
         if (visibleYears[year]) {
-          const rollingEntry = payload.find(p => p.dataKey === `rolling_${year}`);
-          const dailyEntry = payload.find(p => p.dataKey === `daily_${year}`);
-          if (rollingEntry && rollingEntry.value !== null && rollingEntry.value > 0) {
+          let entry;
+          if (showCumulative) {
+            entry = payload.find(p => p.dataKey === `cumulative_${year}`);
+          } else {
+            entry = payload.find(p => p.dataKey === `rolling_${year}`);
+          }
+          const dailyEntry = !showCumulative ? payload.find(p => p.dataKey === `daily_${year}`) : null;
+          
+          if (entry && entry.value !== null && entry.value > 0) {
             yearData.push({
               year,
-              rollingValue: rollingEntry.value,
+              value: entry.value,
               dailyValue: dailyEntry?.value
             });
           }
@@ -207,12 +243,18 @@ export default function CounterChart({ data, title }) {
           <p className="font-semibold text-gray-800 text-sm mb-2">
             {label}
           </p>
-          {yearData.map(({year, rollingValue, dailyValue}) => (
+          {yearData.map(({year, value, dailyValue}) => (
             <div key={year} className="mb-1">
               <p className="text-sm" style={{ color: getYearColor(year) }}>
                 <span className="font-semibold">{year}:</span>
-                <span className="ml-2">14-day avg: <span className="font-semibold">{rollingValue.toLocaleString()}</span></span>
-                {dailyValue && dailyValue > 0 && (
+                <span className="ml-2">
+                  {showCumulative ? (
+                    <>Cumulative: <span className="font-semibold">{value.toLocaleString()}</span></>
+                  ) : (
+                    <>14-day avg: <span className="font-semibold">{value.toLocaleString()}</span></>
+                  )}
+                </span>
+                {!showCumulative && dailyValue && dailyValue > 0 && (
                   <span className="ml-2 text-gray-600">(daily: {dailyValue.toLocaleString()})</span>
                 )}
               </p>
@@ -225,18 +267,26 @@ export default function CounterChart({ data, title }) {
   };
 
   // Get colors for different years
-  const getYearColor = (year) => {
-    const colors = {
-      2020: '#8884d8',
-      2021: '#82ca9d',
-      2022: '#ff0000',
-      2023: '#ff7300',
-      2024: '#0088fe',
-      2025: '#00ff00',
-      2026: '#ffbb28'
-    };
-    return colors[year] || '#aaa';
+ // Get colors for different years
+const getYearColor = (year) => {
+  const colors = {
+    2020: '#8884d8',
+    2021: '#82ca9d',
+    2022: '#ff0000',
+    2023: '#ff7300',
+    2024: '#0088fe',
+    2025: '#00ff00',
+    2026: '#ffbb28'
   };
+  
+  // If year has predefined color, use it
+  if (colors[year]) return colors[year];
+  
+  // Otherwise generate a consistent random color based on year
+  const hash = year.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const hue = hash % 360;
+  return `hsl(${hue}, 70%, 50%)`;
+};
 
   const yearOverYearData = getYearOverYearData();
   
@@ -244,47 +294,97 @@ export default function CounterChart({ data, title }) {
   const hasVisibleYears = Object.values(visibleYears).some(v => v === true);
   const allVisible = Object.values(visibleYears).length > 0 && Object.values(visibleYears).every(v => v === true);
 
- 
+  // Get Y-axis label based on mode
+  const getYAxisLabel = () => {
+    if (showCumulative) {
+      return { 
+        value: 'Cumulative Year-to-Date Count', 
+        angle: -90, 
+        position: 'insideLeft',
+        offset: -5,
+        style: { textAnchor: 'middle' }
+      };
+    } else {
+      return { 
+        value: 'Daily Bicycle Count (14-day avg shown as line)', 
+        angle: -90, 
+        position: 'insideLeft',
+        offset: -5,
+        style: { textAnchor: 'middle' }
+      };
+    }
+  };
 
   return (
-    <div 
-      className="touch-pan-y relative"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      style={{ touchAction: 'pan-y' }}
-    >
-      {/* Loading Modal */}
+  <div 
+    className="touch-pan-y relative"
+    onTouchStart={handleTouchStart}
+    onTouchMove={handleTouchMove}
+    style={{ touchAction: 'pan-y' }}
+  >
+    {/* Chart content with fade-in effect */}
+    <div className={`transition-opacity duration-300 ${isChartReady ? 'opacity-100' : 'opacity-0'}`}>
+      {title && <h3 className="text-lg font-semibold mb-4">{title}</h3>}
       
-      {/* Chart content with fade-in effect */}
-      <div className={`transition-opacity duration-300 ${isChartReady ? 'opacity-100' : 'opacity-0'}`}>
-        {title && <h3 className="text-lg font-semibold mb-4">{title}</h3>}
-        
-        {/* Year Checkboxes */}
-        <div className="mb-6 px-4 pt-2 border-b border-gray-200">
-          <div className="flex flex-wrap items-center gap-3 mb-3">
+      {/* Year Checkboxes and Toggle */}
+      <div className="mb-6 px-4 pt-2 border-b border-gray-200">
+        {/* Row 1: Cumulative Toggle and Show/Hide All button */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          {/* Toggle Switch */}
+          <div className="flex items-center gap-3">
+            <span className={`text-sm font-medium ${!showCumulative ? 'text-blue-600' : 'text-gray-500'}`}>
+              Daily
+            </span>
             <button
-              onClick={toggleAllYears}
-              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors duration-200 font-medium text-gray-700"
+              onClick={() => setShowCumulative(!showCumulative)}
+              className={`
+                relative inline-flex h-6 w-11 items-center rounded-full
+                transition-colors duration-200 focus:outline-none focus:ring-2 
+                focus:ring-blue-500 focus:ring-offset-2
+                ${showCumulative ? 'bg-blue-600' : 'bg-gray-300'}
+              `}
+              role="switch"
+              aria-checked={showCumulative}
             >
-              {allVisible ? 'Hide All' : 'Show All'}
+              <span
+                className={`
+                  inline-block h-4 w-4 transform rounded-full bg-white
+                  transition-transform duration-200
+                  ${showCumulative ? 'translate-x-6' : 'translate-x-1'}
+                `}
+              />
             </button>
+            <span className={`text-sm font-medium ${showCumulative ? 'text-blue-600' : 'text-gray-500'}`}>
+              Cumulative
+            </span>
           </div>
-          <div className="flex flex-wrap gap-4 mb-3">
-            {availableYears.map(year => (
-              <label key={year} className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={visibleYears[year] || false}
-                  onChange={() => toggleYear(year)}
-                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                />
-                <span className="text-sm font-medium" style={{ color: getYearColor(year) }}>
-                  {year}
-                </span>
-              </label>
-            ))}
-          </div>
+          
+          {/* Show/Hide All button */}
+          <button
+            onClick={toggleAllYears}
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors duration-200 font-medium text-gray-700"
+          >
+            {allVisible ? 'Hide All' : 'Show All'}
+          </button>
         </div>
+        
+        {/* Row 2: Year checkboxes */}
+        <div className="flex flex-wrap gap-4 mb-3">
+          {availableYears.map(year => (
+            <label key={year} className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={visibleYears[year] || false}
+                onChange={() => toggleYear(year)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <span className="text-sm font-medium" style={{ color: getYearColor(year) }}>
+                {year}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
         
         {!hasVisibleYears ? (
           <div className="text-center py-16 text-gray-500">
@@ -306,54 +406,75 @@ export default function CounterChart({ data, title }) {
                 interval={Math.floor(yearOverYearData.length / 15)}
               />
               <YAxis 
-                label={{ 
-                  value: 'Daily Bicycle Count (14-day avg shown as line)', 
-                  angle: -90, 
-                  position: 'insideLeft',
-                  offset: -5,
-                  style: { textAnchor: 'middle' }
-                }}
+                label={getYAxisLabel()}
               />
               <Tooltip content={<CustomTooltip />} />
               
-              {/* Daily data as transparent scatter points */}
-              {availableYears.map(year => (
-                visibleYears[year] && (
-                  <Scatter
-                    key={`daily_${year}`}
-                    dataKey={`daily_${year}`}
-                    fill={getYearColor(year)}
-                    fillOpacity={0.15}
-                    name={`${year} Daily`}
-                    legendType="none"
-                    isAnimationActive={false}
-                  />
-                )
-              ))}
-              
-              {/* Rolling average lines with animation disabled */}
-              {availableYears.map(year => (
-                visibleYears[year] && (
-                  <Line
-                    key={`rolling_${year}`}
-                    type="monotone"
-                    dataKey={`rolling_${year}`}
-                    stroke={getYearColor(year)}
-                    strokeWidth={2.5}
-                    dot={false}
-                    name={`rolling_${year}`}
-                    connectNulls={false}
-                    isAnimationActive={false}
-                    animationDuration={0}
-                  />
-                )
-              ))}
+              {showCumulative ? (
+                // Cumulative view - show as lines
+                availableYears.map(year => (
+                  visibleYears[year] && (
+                    <Line
+                      key={`cumulative_${year}`}
+                      type="monotone"
+                      dataKey={`cumulative_${year}`}
+                      stroke={getYearColor(year)}
+                      strokeWidth={2.5}
+                      dot={false}
+                      name={`cumulative_${year}`}
+                      connectNulls={false}
+                      isAnimationActive={false}
+                      animationDuration={0}
+                    />
+                  )
+                ))
+              ) : (
+                // Daily view with scatter points and rolling average lines
+                <>
+                  {/* Daily data as transparent scatter points */}
+                  {availableYears.map(year => (
+                    visibleYears[year] && (
+                      <Scatter
+                        key={`daily_${year}`}
+                        dataKey={`daily_${year}`}
+                        fill={getYearColor(year)}
+                        fillOpacity={0.15}
+                        name={`${year} Daily`}
+                        legendType="none"
+                        isAnimationActive={false}
+                      />
+                    )
+                  ))}
+                  
+                  {/* Rolling average lines */}
+                  {availableYears.map(year => (
+                    visibleYears[year] && (
+                      <Line
+                        key={`rolling_${year}`}
+                        type="monotone"
+                        dataKey={`rolling_${year}`}
+                        stroke={getYearColor(year)}
+                        strokeWidth={2.5}
+                        dot={false}
+                        name={`rolling_${year}`}
+                        connectNulls={false}
+                        isAnimationActive={false}
+                        animationDuration={0}
+                      />
+                    )
+                  ))}
+                </>
+              )}
             </LineChart>
           </ResponsiveContainer>
         )}
         
         <div className="text-center text-sm text-gray-500 mt-4 px-4 pb-4">
-          <p>Showing year-over-year comparison by day of year. Dots represent daily counts (transparent), lines show 14-day rolling average.</p>
+          {showCumulative ? (
+            <p>Showing cumulative year-to-date bicycle counts. Lines show total trips accumulated throughout each year.</p>
+          ) : (
+            <p>Showing year-over-year comparison by day of year. Dots represent daily counts (transparent), lines show 14-day rolling average.</p>
+          )}
         </div>
       </div>
     </div>
