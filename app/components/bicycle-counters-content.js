@@ -2,13 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter } from '../lib/dataUtils';
+import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData } from '../lib/dataUtils';
 import CounterChart from './counterChart';
+import HourlyBarChart from './hourlyBarChart'; // We'll create this component
 
 export default function BicycleCountersContent() {
   const [counters, setCounters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCounter, setSelectedCounter] = useState('');
+  const [hourlyData, setHourlyData] = useState(null);
+  const [viewMode, setViewMode] = useState('daily'); // 'daily' or 'hourly'
+
+
   
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,6 +68,18 @@ export default function BicycleCountersContent() {
     fetchData();
   }, [searchParams]);
 
+  // Fetch hourly data when Bike Share Toronto is selected and view mode is hourly
+  useEffect(() => {
+    async function fetchHourlyData() {
+      if (selectedCounter === "Bike Share Toronto" && viewMode === 'hourly') {
+        const hourlyDataResult = await loadBikeshareHourlyData();
+        setHourlyData(hourlyDataResult);
+      }
+    }
+    
+    fetchHourlyData();
+  }, [selectedCounter, viewMode]);
+
   useEffect(() => {
     if (selectedCounter && !loading) {
       const params = new URLSearchParams();
@@ -73,6 +90,8 @@ export default function BicycleCountersContent() {
 
   const handleCounterChange = (counterLocation) => {
     setSelectedCounter(counterLocation);
+    // Reset to daily view when changing counters
+    setViewMode('daily');
   };
 
   if (loading) {
@@ -84,6 +103,7 @@ export default function BicycleCountersContent() {
   }
 
   const selectedCounterData = counters.find(counter => counter.location === selectedCounter);
+  const isBikeShare = selectedCounter === "Bike Share Toronto";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-8">
@@ -100,7 +120,7 @@ export default function BicycleCountersContent() {
         
         {/* Control Panel */}
         <div className="mb-4 bg-white p-4 rounded-2xl shadow-lg border border-gray-100 backdrop-blur-sm bg-opacity-95">
-          <div className="grid grid-cols-1 lg:grid-cols-1 gap-4">
+          <div className="flex flex-col gap-3">
             <div>
               <label htmlFor="counterSelect" className="block text-sm font-semibold text-gray-700 mb-1 uppercase tracking-wide">
                 Select Counter
@@ -134,13 +154,60 @@ export default function BicycleCountersContent() {
                 </optgroup>
               </select>
             </div>
+
+            {/* Daily/Hourly toggle + cumulative checkbox — only for Bike Share Toronto */}
+            {isBikeShare && (
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1">
+                {/* Daily / Hourly toggle */}
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-medium ${viewMode === 'daily' ? 'text-blue-600' : 'text-gray-500'}`}>
+                    Daily
+                  </span>
+                  <button
+                    onClick={() => setViewMode(viewMode === 'daily' ? 'hourly' : 'daily')}
+                    className={`
+                      relative inline-flex h-6 w-11 items-center rounded-full
+                      transition-colors duration-200 focus:outline-none focus:ring-2
+                      focus:ring-blue-500 focus:ring-offset-2
+                      ${viewMode === 'hourly' ? 'bg-blue-600' : 'bg-gray-300'}
+                    `}
+                    role="switch"
+                    aria-checked={viewMode === 'hourly'}
+                  >
+                    <span
+                      className={`
+                        inline-block h-4 w-4 transform rounded-full bg-white
+                        transition-transform duration-200
+                        ${viewMode === 'hourly' ? 'translate-x-6' : 'translate-x-1'}
+                      `}
+                    />
+                  </button>
+                  <span className={`text-sm font-medium ${viewMode === 'hourly' ? 'text-blue-600' : 'text-gray-500'}`}>
+                    Hourly
+                  </span>
+                </div>
+
+              </div>
+            )}
           </div>
         </div>
+
+
+         
 
         {/* Chart Display */}
         {!selectedCounterData ? (
           <div className="text-center py-16 bg-white rounded-2xl shadow-lg">
             <p className="text-gray-500 text-xl font-sans">Please select a counter to view data.</p>
+          </div>
+        ) : viewMode === 'hourly' && isBikeShare ? (
+           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div className="p-4 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-600 font-sans mb-1">
+                {selectedCounterData.location} - Hourly Comparison (Today vs Recent Average vs Last Year Average)
+              </h2>
+            </div>
+            <HourlyBarChart data={hourlyData} />
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">

@@ -193,9 +193,6 @@ function removeOutliers(dataPoints) {
       : currentPoint.volume;
     // Check if current value is less than 30% of the 7-day average
     if (currentPoint.volume < previousAverage * 0.3 || currentPoint.volume < afterAverage * 0.3) {
-      console.log(previousAverage)
-      console.log(afterAverage)
-      console.log(currentPoint.volume)
       // Replace outlier with the 7-day average
       cleanedData[i] = {
         ...currentPoint,
@@ -374,4 +371,149 @@ function calculateGapInterpolation(missingDate, gap, dataPoints) {
     const seasonalVariation = 1 + 0.1 * Math.sin(positionInGap * 2 * Math.PI / 30); // Monthly cycle
     return Math.round(midpoint * seasonalVariation * (0.9 + Math.random() * 0.2));
   }
+}
+
+// Add this new function to fetch hourly data for last year
+export async function loadBikeshareHourlyDataForDateRange(startDate, endDate) {
+  try {
+    const startDateStr = `${startDate.getFullYear()}${String(startDate.getMonth() + 1).padStart(2, '0')}${String(startDate.getDate()).padStart(2, '0')}00`;
+    const endDateStr = `${endDate.getFullYear()}${String(endDate.getMonth() + 1).padStart(2, '0')}${String(endDate.getDate()).padStart(2, '0')}23`;
+    
+    const apiUrl = `https://api.raccoon.bike/activity?system=bike_share_toronto&start=${startDateStr}&end=${endDateStr}&frequency=h&key=YIOJaaLtLdazfrG7GVwcyAybB2WfpmSaxtCUx6gxLBw`;
+    
+    const response = await fetch(apiUrl);
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch hourly bikeshare data');
+    }
+    
+    const data = await response.json();
+    return data.data || [];
+  } catch (error) {
+    console.error('Error loading hourly bikeshare data:', error);
+    return [];
+  }
+}
+
+// Update the loadBikeshareHourlyData function
+export async function loadBikeshareHourlyData() {
+  try {
+    // Calculate date range for last 2 weeks
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 14); // 2 weeks ago
+    
+    const currentYearData = await loadBikeshareHourlyDataForDateRange(startDate, endDate);
+    
+    // Calculate same period last year
+    const lastYearStartDate = new Date(startDate);
+    const lastYearEndDate = new Date(endDate);
+    lastYearStartDate.setFullYear(lastYearStartDate.getFullYear() - 1);
+    lastYearEndDate.setFullYear(lastYearEndDate.getFullYear() - 1);
+    
+    const lastYearData = await loadBikeshareHourlyDataForDateRange(lastYearStartDate, lastYearEndDate);
+    
+    // Process both datasets
+    const processedCurrentYear = processBikeshareHourlyData(currentYearData, 'current');
+    const processedLastYear = processBikeshareHourlyData(lastYearData, 'lastYear');
+    
+    return {
+      currentYear: processedCurrentYear,
+      lastYear: processedLastYear
+    };
+  } catch (error) {
+    console.error('Error loading hourly bikeshare data:', error);
+    return { currentYear: [], lastYear: [] };
+  }
+}
+
+// Update processBikeshareHourlyData to handle the data correctly
+export function processBikeshareHourlyData(rawData, yearType = 'current') {
+  // Check if rawData is an array
+  if (!rawData || !Array.isArray(rawData)) {
+    console.error('processBikeshareHourlyData received non-array data:', rawData);
+    return [];
+  }
+  
+  if (rawData.length === 0) {
+    return [];
+  }
+
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const currentHour = now.getHours();
+
+  // Convert API data to our standard format
+  const dataPoints = rawData.map(point => {
+    const datetime = point.datetime; // Format: "2024-01-15T14:00:00"
+    const date = datetime.split('T')[0];
+    const hour = new Date(datetime).getHours();
+    const isCurrentDay = date === today && yearType === 'current';
+    const isFutureHour = isCurrentDay && hour > currentHour;
+    
+    return {
+      datetime: datetime,
+      date: date,
+      hour: hour,
+      volume: point.trips,
+      timestamp: new Date(datetime).getTime(),
+      displayLabel: `${date} ${hour}:00`,
+      isCurrentDay: isCurrentDay,
+      isFutureHour: isFutureHour,
+      yearType: yearType,
+      // Don't include future hours in calculations
+      volumeForAverage: isFutureHour ? null : point.trips
+    };
+  }).sort((a, b) => a.timestamp - b.timestamp);
+  
+  return dataPoints;
+}
+
+// Calculate average by hour for a given period
+export function calculateHourlyAveragesForPeriod(dataPoints, excludeCurrentDay = true) {
+  const hourMap = {};
+  for (let i = 0; i < 24; i++) {
+    hourMap[i] = { total: 0, count: 0 };
+  }
+  
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  
+  dataPoints.forEach(point => {
+    // Exclude current day if requested, and exclude future hours
+    if ((!excludeCurrentDay || point.date !== today) && point.volumeForAverage !== null && point.volume > 0) {
+      hourMap[point.hour].total += point.volume;
+      hourMap[point.hour].count++;
+    }
+  });
+  
+  return Object.keys(hourMap).map(hour => ({
+    hour: parseInt(hour),
+    displayHour: `${hour}:00`,
+    averageTrips: hourMap[hour].count > 0 ? Math.round(hourMap[hour].total / hourMap[hour].count) : 0
+  }));
+}
+
+// Get current day data by hour
+export function getCurrentDayData(dataPoints) {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const currentHour = now.getHours();
+  
+  const currentDayData = {};
+  for (let i = 0; i <= currentHour; i++) {
+    currentDayData[i] = 0;
+  }
+  
+  dataPoints.forEach(point => {
+    if (point.date === today && point.hour <= currentHour && point.volume > 0) {
+      currentDayData[point.hour] = point.volume;
+    }
+  });
+  
+  return Object.keys(currentDayData).map(hour => ({
+    hour: parseInt(hour),
+    displayHour: `${hour}:00`,
+    currentTrips: currentDayData[hour]
+  }));
 }

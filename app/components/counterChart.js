@@ -330,34 +330,16 @@ const getYearColor = (year) => {
       <div className="mb-6 px-4 pt-2 border-b border-gray-200">
         {/* Row 1: Cumulative Toggle and Show/Hide All button */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          {/* Toggle Switch */}
-          <div className="flex items-center gap-3">
-            <span className={`text-sm font-medium ${!showCumulative ? 'text-blue-600' : 'text-gray-500'}`}>
-              Daily
-            </span>
-            <button
-              onClick={() => setShowCumulative(!showCumulative)}
-              className={`
-                relative inline-flex h-6 w-11 items-center rounded-full
-                transition-colors duration-200 focus:outline-none focus:ring-2 
-                focus:ring-blue-500 focus:ring-offset-2
-                ${showCumulative ? 'bg-blue-600' : 'bg-gray-300'}
-              `}
-              role="switch"
-              aria-checked={showCumulative}
-            >
-              <span
-                className={`
-                  inline-block h-4 w-4 transform rounded-full bg-white
-                  transition-transform duration-200
-                  ${showCumulative ? 'translate-x-6' : 'translate-x-1'}
-                `}
-              />
-            </button>
-            <span className={`text-sm font-medium ${showCumulative ? 'text-blue-600' : 'text-gray-500'}`}>
-              Cumulative
-            </span>
-          </div>
+          {/* Cumulative Checkbox */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showCumulative}
+              onChange={() => setShowCumulative(!showCumulative)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            />
+            <span className="text-sm font-medium text-gray-700">Show cumulative</span>
+          </label>
           
           {/* Show/Hide All button */}
           <button
