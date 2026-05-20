@@ -96,8 +96,52 @@ export default function BicycleCountersContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-xl font-sans">Loading bicycle counter data...</div>
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-2">
+        <style>{`
+          @keyframes bike-ride {
+            0%   { transform: translateX(-100px); }
+            100% { transform: translateX(calc(100vw + 100px)); }
+          }
+          .bike-rider-anim { animation: bike-ride 4s linear infinite; }
+        `}</style>
+        <div style={{ position: 'relative', width: '100%', height: '80px', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', bottom: '10px', left: 0, right: 0, height: '2px', backgroundColor: '#d1d5db' }} />
+          <div className="bike-rider-anim" style={{ position: 'absolute', bottom: '12px' }}>
+            <svg width="70" height="55" viewBox="0 0 70 55" fill="none" xmlns="http://www.w3.org/2000/svg">
+              {/* Rear wheel */}
+              <circle cx="12" cy="42" r="12" stroke="#374151" strokeWidth="2.5" fill="none"/>
+              {/* Front wheel */}
+              <circle cx="58" cy="42" r="12" stroke="#374151" strokeWidth="2.5" fill="none"/>
+              {/* Frame: BB to seat tube top */}
+              <line x1="30" y1="42" x2="24" y2="22" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
+              {/* Frame: top tube */}
+              <line x1="24" y1="22" x2="50" y2="20" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
+              {/* Frame: down tube */}
+              <line x1="50" y1="20" x2="30" y2="42" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
+              {/* Frame: chain stay */}
+              <line x1="30" y1="42" x2="12" y2="42" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
+              {/* Frame: seat stay */}
+              <line x1="24" y1="22" x2="12" y2="42" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
+              {/* Fork */}
+              <line x1="50" y1="20" x2="58" y2="42" stroke="#374151" strokeWidth="2" strokeLinecap="round"/>
+              {/* Saddle */}
+              <line x1="18" y1="18" x2="28" y2="18" stroke="#374151" strokeWidth="3" strokeLinecap="round"/>
+              {/* Handlebar */}
+              <line x1="52" y1="14" x2="60" y2="16" stroke="#374151" strokeWidth="3" strokeLinecap="round"/>
+              <line x1="54" y1="20" x2="54" y2="13" stroke="#374151" strokeWidth="2" strokeLinecap="round"/>
+              {/* Rider head */}
+              <circle cx="50" cy="7" r="3" fill="#f59e0b" stroke="#b45309" strokeWidth="1.5"/>
+              {/* Rider body */}
+              <line x1="50" y1="13" x2="46" y2="24" stroke="#1d4ed8" strokeWidth="3" strokeLinecap="round"/>
+              {/* Rider arm */}
+              <line x1="48" y1="18" x2="56" y2="16" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round"/>
+              {/* Rider legs */}
+              <line x1="46" y1="24" x2="36" y2="36" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round"/>
+              <line x1="46" y1="24" x2="30" y2="34" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
+            </svg>
+          </div>
+        </div>
+        <div className="text-xl font-sans text-black">Loading bicycle counter data...</div>
       </div>
     );
   }
@@ -204,7 +248,7 @@ export default function BicycleCountersContent() {
            <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
             <div className="p-4 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-600 font-sans mb-1">
-                {selectedCounterData.location} - Hourly Comparison (Today vs Recent Average vs Last Year Average)
+                {selectedCounterData.location} - Hourly Comparison (Last 2 Weeks)
               </h2>
             </div>
             <HourlyBarChart data={hourlyData} />
