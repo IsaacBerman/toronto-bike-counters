@@ -8,6 +8,7 @@ export default function CounterChart({ data, title }) {
   const [visibleYears, setVisibleYears] = useState({});
   const [isChartReady, setIsChartReady] = useState(false);
   const [showCumulative, setShowCumulative] = useState(false);
+  const [activeTooltip, setActiveTooltip] = useState(null);
 
   useEffect(() => {
     // Reset chart ready state when data changes
@@ -207,6 +208,24 @@ export default function CounterChart({ data, title }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  // Handle tooltip visibility for mobile
+  const handleChartMouseMove = (state) => {
+    if (state && state.isTooltipActive) {
+      setActiveTooltip(true);
+    } else if (activeTooltip) {
+      // Small delay to allow for finger lift detection
+      setTimeout(() => {
+        if (!state || !state.isTooltipActive) {
+          setActiveTooltip(false);
+        }
+      }, 50);
+    }
+  };
+
+  const handleChartMouseLeave = () => {
+    setActiveTooltip(false);
+  };
+
   // Custom tooltip formatter
   const CustomTooltip = ({ active, payload, label }) => {
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -267,26 +286,25 @@ export default function CounterChart({ data, title }) {
   };
 
   // Get colors for different years
- // Get colors for different years
-const getYearColor = (year) => {
-  const colors = {
-    2020: '#8884d8',
-    2021: '#82ca9d',
-    2022: '#ff0000',
-    2023: '#ff7300',
-    2024: '#0088fe',
-    2025: '#00ff00',
-    2026: '#ffbb28'
+  const getYearColor = (year) => {
+    const colors = {
+      2020: '#8884d8',
+      2021: '#82ca9d',
+      2022: '#ff0000',
+      2023: '#ff7300',
+      2024: '#0088fe',
+      2025: '#00ff00',
+      2026: '#ffbb28'
+    };
+    
+    // If year has predefined color, use it
+    if (colors[year]) return colors[year];
+    
+    // Otherwise generate a consistent random color based on year
+    const hash = year.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const hue = hash % 360;
+    return `hsl(${hue}, 70%, 50%)`;
   };
-  
-  // If year has predefined color, use it
-  if (colors[year]) return colors[year];
-  
-  // Otherwise generate a consistent random color based on year
-  const hash = year.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const hue = hash % 360;
-  return `hsl(${hue}, 70%, 50%)`;
-};
 
   const yearOverYearData = getYearOverYearData();
   
@@ -316,58 +334,58 @@ const getYearColor = (year) => {
   };
 
   return (
-  <div 
-    className="touch-pan-y relative"
-    onTouchStart={handleTouchStart}
-    onTouchMove={handleTouchMove}
-    style={{ touchAction: 'pan-y' }}
-  >
-    {/* Chart content with fade-in effect */}
-    <div className={`transition-opacity duration-300 ${isChartReady ? 'opacity-100' : 'opacity-0'}`}>
-      {title && <h3 className="text-lg font-semibold mb-4">{title}</h3>}
-      
-      {/* Year Checkboxes and Toggle */}
-      <div className="mb-6 px-4 pt-2 border-b border-gray-200">
-        {/* Row 1: Cumulative Toggle and Show/Hide All button */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          {/* Cumulative Checkbox */}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={showCumulative}
-              onChange={() => setShowCumulative(!showCumulative)}
-              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-            />
-            <span className="text-sm font-medium text-gray-700">Show cumulative</span>
-          </label>
-          
-          {/* Show/Hide All button */}
-          <button
-            onClick={toggleAllYears}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors duration-200 font-medium text-gray-700"
-          >
-            {allVisible ? 'Hide All' : 'Show All'}
-          </button>
-        </div>
+    <div 
+      className="touch-pan-y relative"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      style={{ touchAction: 'pan-y' }}
+    >
+      {/* Chart content with fade-in effect */}
+      <div className={`transition-opacity duration-300 ${isChartReady ? 'opacity-100' : 'opacity-0'}`}>
+        {title && <h3 className="text-lg font-semibold mb-4">{title}</h3>}
         
-        {/* Row 2: Year checkboxes */}
-        <div className="flex flex-wrap gap-4 mb-3">
-          {availableYears.map(year => (
-            <label key={year} className="flex items-center gap-2 cursor-pointer select-none">
+        {/* Year Checkboxes and Toggle */}
+        <div className="mb-6 px-4 pt-2 border-b border-gray-200">
+          {/* Row 1: Cumulative Toggle and Show/Hide All button */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            {/* Cumulative Checkbox */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
               <input
                 type="checkbox"
-                checked={visibleYears[year] || false}
-                onChange={() => toggleYear(year)}
+                checked={showCumulative}
+                onChange={() => setShowCumulative(!showCumulative)}
                 className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
               />
-              <span className="text-sm font-medium" style={{ color: getYearColor(year) }}>
-                {year}
-              </span>
+              <span className="text-sm font-medium text-gray-700">Show cumulative</span>
             </label>
-          ))}
+            
+            {/* Show/Hide All button */}
+            <button
+              onClick={toggleAllYears}
+              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors duration-200 font-medium text-gray-700"
+            >
+              {allVisible ? 'Hide All' : 'Show All'}
+            </button>
+          </div>
+          
+          {/* Row 2: Year checkboxes */}
+          <div className="flex flex-wrap gap-4 mb-3">
+            {availableYears.map(year => (
+              <label key={year} className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={visibleYears[year] || false}
+                  onChange={() => toggleYear(year)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <span className="text-sm font-medium" style={{ color: getYearColor(year) }}>
+                  {year}
+                </span>
+              </label>
+            ))}
+          </div>
         </div>
-      </div>
-        
+          
         {!hasVisibleYears ? (
           <div className="text-center py-16 text-gray-500">
             <p>No years selected. Please toggle at least one year to view data.</p>
@@ -377,6 +395,8 @@ const getYearColor = (year) => {
             <LineChart 
               data={yearOverYearData} 
               margin={{ top: 20, right: 30, left: 30, bottom: 50 }}
+              onMouseMove={handleChartMouseMove}
+              onMouseLeave={handleChartMouseLeave}
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
@@ -390,7 +410,10 @@ const getYearColor = (year) => {
               <YAxis 
                 label={getYAxisLabel()}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip 
+                content={<CustomTooltip />} 
+                cursor={{ stroke: '#ccc', strokeWidth: 1 }}
+              />
               
               {showCumulative ? (
                 // Cumulative view - show as lines
@@ -450,7 +473,7 @@ const getYearColor = (year) => {
             </LineChart>
           </ResponsiveContainer>
         )}
-        
+          
         <div className="text-center text-sm text-gray-500 mt-4 px-4 pb-4">
           {showCumulative ? (
             <p>Showing cumulative year-to-date bicycle counts. Lines show total trips accumulated throughout each year.</p>

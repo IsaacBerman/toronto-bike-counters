@@ -11,6 +11,7 @@ export default function HourlyBarChart({ data }) {
   const [lastYearAverages, setLastYearAverages] = useState([]);
   const [currentDayData, setCurrentDayData] = useState([]);
   const [cumulativeData, setCumulativeData] = useState([]);
+  const [activeTooltip, setActiveTooltip] = useState(null);
 
   useEffect(() => {
     setIsChartReady(false);
@@ -217,43 +218,60 @@ export default function HourlyBarChart({ data }) {
   };
 
   // Custom tooltip for cumulative line chart
- // Custom tooltip for cumulative line chart
-const CumulativeTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    const currentValue = payload.find(p => p.dataKey === 'currentCumulative')?.value || 0;
-    const avgValue = payload.find(p => p.dataKey === 'avgCumulative')?.value || 0;
-    const lastYearValue = payload.find(p => p.dataKey === 'lastYearCumulative')?.value || 0;
-    
-    const vsAvgDiff = currentValue - avgValue;
-    const vsAvgPercent = avgValue > 0 ? ((vsAvgDiff / avgValue) * 100).toFixed(1) : 0;
-    const vsLastYearDiff = currentValue - lastYearValue;
-    const vsLastYearPercent = lastYearValue > 0 ? ((vsLastYearDiff / lastYearValue) * 100).toFixed(1) : 0;
-    
-    return (
-      <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg max-w-[280px]">
-        <p className="font-semibold text-gray-800 text-sm mb-2">
-          By {label}
-        </p>
-        <p className="text-sm text-blue-600 mb-1">
-          <span className="font-semibold">Today Total:</span> {currentValue.toLocaleString()} trips
-        </p>
-        <p className="text-sm text-green-600 mb-1">
-          <span className="font-semibold">2-Week Avg Total:</span> {avgValue.toLocaleString()} trips
-          <span className={`ml-2 text-xs ${vsAvgDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            ({vsAvgDiff >= 0 ? '↑' : '↓'} {Math.abs(vsAvgDiff).toLocaleString()}, {vsAvgPercent}%)
-          </span>
-        </p>
-        <p className="text-sm text-purple-600">
-          <span className="font-semibold">Last Year Avg Total:</span> {lastYearValue.toLocaleString()} trips
-          <span className={`ml-2 text-xs ${vsLastYearDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            ({vsLastYearDiff >= 0 ? '↑' : '↓'} {Math.abs(vsLastYearDiff).toLocaleString()}, {vsLastYearPercent}%)
-          </span>
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
+  const CumulativeTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const currentValue = payload.find(p => p.dataKey === 'currentCumulative')?.value || 0;
+      const avgValue = payload.find(p => p.dataKey === 'avgCumulative')?.value || 0;
+      const lastYearValue = payload.find(p => p.dataKey === 'lastYearCumulative')?.value || 0;
+      
+      const vsAvgDiff = currentValue - avgValue;
+      const vsAvgPercent = avgValue > 0 ? ((vsAvgDiff / avgValue) * 100).toFixed(1) : 0;
+      const vsLastYearDiff = currentValue - lastYearValue;
+      const vsLastYearPercent = lastYearValue > 0 ? ((vsLastYearDiff / lastYearValue) * 100).toFixed(1) : 0;
+      
+      return (
+        <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg max-w-[280px]">
+          <p className="font-semibold text-gray-800 text-sm mb-2">
+            By {label}
+          </p>
+          <p className="text-sm text-blue-600 mb-1">
+            <span className="font-semibold">Today Total:</span> {currentValue.toLocaleString()} trips
+          </p>
+          <p className="text-sm text-green-600 mb-1">
+            <span className="font-semibold">2-Week Avg Total:</span> {avgValue.toLocaleString()} trips
+            <span className={`ml-2 text-xs ${vsAvgDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ({vsAvgDiff >= 0 ? '↑' : '↓'} {Math.abs(vsAvgDiff).toLocaleString()}, {vsAvgPercent}%)
+            </span>
+          </p>
+          <p className="text-sm text-purple-600">
+            <span className="font-semibold">Last Year Avg Total:</span> {lastYearValue.toLocaleString()} trips
+            <span className={`ml-2 text-xs ${vsLastYearDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ({vsLastYearDiff >= 0 ? '↑' : '↓'} {Math.abs(vsLastYearDiff).toLocaleString()}, {vsLastYearPercent}%)
+            </span>
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Handle tooltip visibility for mobile
+  const handleChartMouseMove = (state) => {
+    if (state && state.isTooltipActive) {
+      setActiveTooltip(true);
+    } else if (activeTooltip) {
+      // Small delay to allow for finger lift detection
+      setTimeout(() => {
+        if (!state || !state.isTooltipActive) {
+          setActiveTooltip(false);
+        }
+      }, 50);
+    }
+  };
+
+  const handleChartMouseLeave = () => {
+    setActiveTooltip(false);
+  };
 
   const currentHour = new Date().getHours();
 
@@ -278,6 +296,8 @@ const CumulativeTooltip = ({ active, payload, label }) => {
               <BarChart 
                 data={barChartData} 
                 margin={{ top: 20, right: 30, left: 30, bottom: 60 }}
+                onMouseMove={handleChartMouseMove}
+                onMouseLeave={handleChartMouseLeave}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
@@ -292,7 +312,11 @@ const CumulativeTooltip = ({ active, payload, label }) => {
                 <YAxis 
                   label={{ value: 'Number of Trips', angle: -90, position: 'insideLeft', offset: -5 }}
                 />
-                <Tooltip content={<BarTooltip />} wrapperStyle={{ zIndex: 1000 }} />
+                <Tooltip 
+                  content={<BarTooltip />} 
+                  wrapperStyle={{ zIndex: 1000 }}
+                  cursor={{ stroke: '#ccc', strokeWidth: 1 }}
+                />
                 <Legend 
                   content={renderLegend}
                   verticalAlign="top"
@@ -332,6 +356,8 @@ const CumulativeTooltip = ({ active, payload, label }) => {
               <LineChart 
                 data={cumulativeData} 
                 margin={{ top: 20, right: 30, left: 30, bottom: 60 }}
+                onMouseMove={handleChartMouseMove}
+                onMouseLeave={handleChartMouseLeave}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
@@ -346,7 +372,11 @@ const CumulativeTooltip = ({ active, payload, label }) => {
                 <YAxis 
                   label={{ value: 'Cumulative Trips', angle: -90, position: 'insideLeft', offset: -5 }}
                 />
-                <Tooltip content={<CumulativeTooltip />} wrapperStyle={{ zIndex: 1000 }} />
+                <Tooltip 
+                  content={<CumulativeTooltip />} 
+                  wrapperStyle={{ zIndex: 1000 }}
+                  cursor={{ stroke: '#ccc', strokeWidth: 1 }}
+                />
                 <Legend 
                   content={renderLegend}
                   verticalAlign="top"
