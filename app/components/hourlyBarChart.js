@@ -154,7 +154,7 @@ export default function HourlyBarChart({ data }) {
   if (!hasValidData) {
     return (
       <div className="text-center p-8 text-gray-500">
-        No hourly data available for the last 2 weeks. Please try again later.
+        Loading...
       </div>
     );
   }
