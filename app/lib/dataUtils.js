@@ -1,6 +1,119 @@
 
 import Papa from 'papaparse';
 
+// Add this helper function at the top of dataUtils.js
+export function getCurrentESTTime() {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Toronto',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false
+  });
+  
+  const parts = formatter.formatToParts(now);
+  const dateParts = {};
+  parts.forEach(part => {
+    dateParts[part.type] = part.value;
+  });
+  
+  return {
+    year: parseInt(dateParts.year),
+    month: parseInt(dateParts.month),
+    day: parseInt(dateParts.day),
+    hour: parseInt(dateParts.hour),
+    date: new Date(dateParts.year, parseInt(dateParts.month) - 1, dateParts.day),
+    timestamp: now.getTime()
+  };
+}
+
+// Update loadBikeshareHourlyData function
+export async function loadBikeshareHourlyData() {
+  try {
+    const estTime = getCurrentESTTime();
+    
+    // Calculate date range for last 2 weeks in EST
+    const endDate = estTime.date;
+    const startDate = new Date(endDate);
+    startDate.setDate(startDate.getDate() - 14); // 2 weeks ago
+    
+    const currentYearData = await loadBikeshareHourlyDataForDateRange(startDate, endDate);
+    
+    // Calculate same period last year
+    const lastYearStartDate = new Date(startDate);
+    const lastYearEndDate = new Date(endDate);
+    lastYearStartDate.setFullYear(lastYearStartDate.getFullYear() - 1);
+    lastYearEndDate.setFullYear(lastYearEndDate.getFullYear() - 1);
+    
+    const lastYearData = await loadBikeshareHourlyDataForDateRange(lastYearStartDate, lastYearEndDate);
+    
+    // Process both datasets
+    const processedCurrentYear = processBikeshareHourlyData(currentYearData, 'current', estTime);
+    const processedLastYear = processBikeshareHourlyData(lastYearData, 'lastYear', estTime);
+    
+    return {
+      currentYear: processedCurrentYear,
+      lastYear: processedLastYear
+    };
+  } catch (error) {
+    console.error('Error loading hourly bikeshare data:', error);
+    return { currentYear: [], lastYear: [] };
+  }
+}
+
+// Update processBikeshareHourlyData to accept EST time
+export function processBikeshareHourlyData(rawData, yearType = 'current', estTime = null) {
+  // Check if rawData is an array
+  if (!rawData || !Array.isArray(rawData)) {
+    console.error('processBikeshareHourlyData received non-array data:', rawData);
+    return [];
+  }
+  
+  if (rawData.length === 0) {
+    return [];
+  }
+
+  const currentEST = estTime || getCurrentESTTime();
+  const today = `${currentEST.year}-${String(currentEST.month).padStart(2, '0')}-${String(currentEST.day).padStart(2, '0')}`;
+  const currentHour = currentEST.hour;
+
+  // Convert API data to our standard format
+  const dataPoints = rawData.map(point => {
+    const datetime = point.datetime; // Format: "2024-01-15T14:00:00"
+    const date = datetime.split('T')[0];
+    
+    // Parse the datetime in EST
+    const dateObj = new Date(datetime);
+    const estDateFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Toronto',
+      hour: '2-digit',
+      hour12: false
+    });
+    const hour = parseInt(estDateFormatter.format(dateObj));
+    
+    const isCurrentDay = date === today && yearType === 'current';
+    const isFutureHour = isCurrentDay && hour > currentHour;
+    
+    return {
+      datetime: datetime,
+      date: date,
+      hour: hour,
+      volume: point.trips,
+      timestamp: new Date(datetime).getTime(),
+      displayLabel: `${date} ${hour}:00`,
+      isCurrentDay: isCurrentDay,
+      isFutureHour: isFutureHour,
+      yearType: yearType,
+      // Don't include future hours in calculations
+      volumeForAverage: isFutureHour ? null : point.trips
+    };
+  }).sort((a, b) => a.timestamp - b.timestamp);
+  
+  return dataPoints;
+}
+
 export async function loadCSVData() {
   try {
     const response = await fetch('/cycling_counts_may_26.csv');
