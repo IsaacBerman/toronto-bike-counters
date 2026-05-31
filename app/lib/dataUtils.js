@@ -48,9 +48,10 @@ export async function loadBikeshareHourlyData() {
     lastYearEndDate.setFullYear(lastYearEndDate.getFullYear() - 1);
     
     const lastYearData = await loadBikeshareHourlyDataForDateRange(lastYearStartDate, lastYearEndDate);
-    
+    console.log(estTime, currentYearData)
     // Process both datasets
     const processedCurrentYear = processBikeshareHourlyData(currentYearData, 'current', estTime);
+    console.log(processedCurrentYear)
     const processedLastYear = processBikeshareHourlyData(lastYearData, 'lastYear', estTime);
     
     return {
@@ -506,80 +507,6 @@ export async function loadBikeshareHourlyDataForDateRange(startDate, endDate) {
     console.error('Error loading hourly bikeshare data:', error);
     return [];
   }
-}
-
-// Update the loadBikeshareHourlyData function
-export async function loadBikeshareHourlyData() {
-  try {
-    // Calculate date range for last 2 weeks
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 14); // 2 weeks ago
-    
-    const currentYearData = await loadBikeshareHourlyDataForDateRange(startDate, endDate);
-    
-    // Calculate same period last year
-    const lastYearStartDate = new Date(startDate);
-    const lastYearEndDate = new Date(endDate);
-    lastYearStartDate.setFullYear(lastYearStartDate.getFullYear() - 1);
-    lastYearEndDate.setFullYear(lastYearEndDate.getFullYear() - 1);
-    
-    const lastYearData = await loadBikeshareHourlyDataForDateRange(lastYearStartDate, lastYearEndDate);
-    
-    // Process both datasets
-    const processedCurrentYear = processBikeshareHourlyData(currentYearData, 'current');
-    const processedLastYear = processBikeshareHourlyData(lastYearData, 'lastYear');
-    
-    return {
-      currentYear: processedCurrentYear,
-      lastYear: processedLastYear
-    };
-  } catch (error) {
-    console.error('Error loading hourly bikeshare data:', error);
-    return { currentYear: [], lastYear: [] };
-  }
-}
-
-// Update processBikeshareHourlyData to handle the data correctly
-export function processBikeshareHourlyData(rawData, yearType = 'current') {
-  // Check if rawData is an array
-  if (!rawData || !Array.isArray(rawData)) {
-    console.error('processBikeshareHourlyData received non-array data:', rawData);
-    return [];
-  }
-  
-  if (rawData.length === 0) {
-    return [];
-  }
-
-  const now = new Date();
-  const today = now.toISOString().split('T')[0];
-  const currentHour = now.getHours();
-
-  // Convert API data to our standard format
-  const dataPoints = rawData.map(point => {
-    const datetime = point.datetime; // Format: "2024-01-15T14:00:00"
-    const date = datetime.split('T')[0];
-    const hour = new Date(datetime).getHours();
-    const isCurrentDay = date === today && yearType === 'current';
-    const isFutureHour = isCurrentDay && hour > currentHour;
-    
-    return {
-      datetime: datetime,
-      date: date,
-      hour: hour,
-      volume: point.trips,
-      timestamp: new Date(datetime).getTime(),
-      displayLabel: `${date} ${hour}:00`,
-      isCurrentDay: isCurrentDay,
-      isFutureHour: isFutureHour,
-      yearType: yearType,
-      // Don't include future hours in calculations
-      volumeForAverage: isFutureHour ? null : point.trips
-    };
-  }).sort((a, b) => a.timestamp - b.timestamp);
-  
-  return dataPoints;
 }
 
 // Calculate average by hour for a given period

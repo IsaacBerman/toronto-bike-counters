@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData } from '../lib/dataUtils';
+import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime } from '../lib/dataUtils';
 import CounterChart from './counterChart';
-import HourlyBarChart from './hourlyBarChart'; // We'll create this component
+import HourlyBarChart from './hourlyBarChart';
 
 export default function BicycleCountersContent() {
   const [counters, setCounters] = useState([]);
@@ -12,13 +12,15 @@ export default function BicycleCountersContent() {
   const [selectedCounter, setSelectedCounter] = useState('');
   const [hourlyData, setHourlyData] = useState(null);
   const [viewMode, setViewMode] = useState('daily'); // 'daily' or 'hourly'
-
-
+  const [currentEST, setCurrentEST] = useState(null);
   
   const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
+    // Get current EST time on mount
+    setCurrentEST(getCurrentESTTime());
+    
     async function fetchData() {
       try {
         // Load both CSV data and bikeshare data in parallel
@@ -73,6 +75,7 @@ export default function BicycleCountersContent() {
     async function fetchHourlyData() {
       if (selectedCounter === "Bike Share Toronto" && viewMode === 'hourly') {
         const hourlyDataResult = await loadBikeshareHourlyData();
+        
         setHourlyData(hourlyDataResult);
       }
     }
@@ -149,6 +152,18 @@ export default function BicycleCountersContent() {
   const selectedCounterData = counters.find(counter => counter.location === selectedCounter);
   const isBikeShare = selectedCounter === "Bike Share Toronto";
 
+  // Add a helper to show EST time in the UI
+  const getESTTimeDisplay = () => {
+    if (!currentEST) return '';
+    const hours = currentEST.hour;
+    const minutes = new Date().toLocaleTimeString('en-US', { 
+      timeZone: 'America/Toronto',
+      minute: '2-digit',
+      hour12: true 
+    });
+    return `EST ${hours}:${minutes}`;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-8">
       <div className="container mx-auto px-4 max-w-7xl">
@@ -160,6 +175,11 @@ export default function BicycleCountersContent() {
           <p className="text-base text-gray-600 max-w-2xl mx-auto font-sans leading-relaxed">
             Explore bicycle traffic data from counting stations across Toronto
           </p>
+          {currentEST && (
+            <p className="text-xs text-gray-500 mt-1 font-mono">
+              All times shown in Eastern Time (EST/EDT) • Current: {getESTTimeDisplay()}
+            </p>
+          )}
         </div>
         
         {/* Control Panel */}
@@ -199,7 +219,7 @@ export default function BicycleCountersContent() {
               </select>
             </div>
 
-            {/* Daily/Hourly toggle + cumulative checkbox — only for Bike Share Toronto */}
+            {/* Daily/Hourly toggle — only for Bike Share Toronto */}
             {isBikeShare && (
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1">
                 {/* Daily / Hourly toggle */}
@@ -230,14 +250,10 @@ export default function BicycleCountersContent() {
                     Hourly
                   </span>
                 </div>
-
               </div>
             )}
           </div>
         </div>
-
-
-         
 
         {/* Chart Display */}
         {!selectedCounterData ? (
@@ -245,11 +261,14 @@ export default function BicycleCountersContent() {
             <p className="text-gray-500 text-xl font-sans">Please select a counter to view data.</p>
           </div>
         ) : viewMode === 'hourly' && isBikeShare ? (
-           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
             <div className="p-4 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-600 font-sans mb-1">
                 {selectedCounterData.location} - Hourly Comparison (Last 2 Weeks)
               </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Data shown in Eastern Time (EST/EDT)
+              </p>
             </div>
             <HourlyBarChart data={hourlyData} />
           </div>
@@ -259,6 +278,9 @@ export default function BicycleCountersContent() {
               <h2 className="text-xl font-bold text-gray-600 font-sans mb-1">
                 {selectedCounterData.location}
               </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Daily counts shown by date (local to counter location)
+              </p>
             </div>
             <CounterChart
               data={selectedCounterData.data}
@@ -282,8 +304,8 @@ export default function BicycleCountersContent() {
               </a>
               . Last Updated: May 11th, 2026
             </p>
-             <p className="text-gray-600 font-sans text-sm">
-              Bike share data from {' '}
+            <p className="text-gray-600 font-sans text-sm mt-1">
+              Bike share data from{' '}
               <a 
                 href="https://github.com/mjarrett/bikeraccoon" 
                 target="_blank" 
@@ -293,6 +315,9 @@ export default function BicycleCountersContent() {
                 bikeracoon api
               </a>
               . All bike share data are estimates and not official counts. They are inferred from station counts and tend to undercount trips by about 2%.
+            </p>
+            <p className="text-gray-500 font-sans text-xs mt-2">
+              All times displayed in Eastern Time (EST/EDT) for consistency across all users
             </p>
           </div>
         </div>
