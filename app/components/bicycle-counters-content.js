@@ -278,9 +278,6 @@ export default function BicycleCountersContent() {
               <h2 className="text-xl font-bold text-gray-600 font-sans mb-1">
                 {selectedCounterData.location}
               </h2>
-              <p className="text-xs text-gray-500 mt-1">
-                Daily counts shown by date (local to counter location)
-              </p>
             </div>
             <CounterChart
               data={selectedCounterData.data}
