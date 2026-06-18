@@ -108,8 +108,10 @@ export default function StationMap({ onStationSelect }) {
           
           stations.forEach(station => {
             const radius = 8 + (station.dailyTrips / maxTrips) * 20;
-            const color = station.dailyTrips > 1000 ? '#dc2626' : 
-                         station.dailyTrips > 500 ? '#f59e0b' : '#3b82f6';
+            const color = station.dailyTrips > 500 ? '#dc2626' : 
+                         station.dailyTrips > 300 ? '#f59e0b' : 
+                         station.dailyTrips > 100 ? '#ffff00' : 
+                         station.dailyTrips > 0 ? '#3b82f6' :  "#000";
             
             const marker = L.circleMarker([station.lat, station.lon], {
               radius: radius,

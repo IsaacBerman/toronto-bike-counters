@@ -331,9 +331,11 @@ export default function BicycleCountersContent() {
               <h3 className="text-lg font-bold text-gray-700 mb-4">
                 📍 Bike Share Station Map
               </h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Circle size indicates daily trip volume. Click a station to view its history.
-              </p>
+             <div className="text-sm text-gray-500 mb-4 space-y-1">
+                <p>Circle size indicates daily trip volume in last 24 hours.</p>
+                <p>🔵: {">"}0 Trips, 🟡: {">"}100 Trips, 🟠: {">"}300 Trips, 🔴: {">"}500 Trips</p>
+                <p>Click a station to view its history.</p>
+              </div>
               <StationMap onStationSelect={handleStationSelect} />
             </div>
           </div>
