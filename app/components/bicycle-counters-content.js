@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime } from '../lib/dataUtils';
 import CounterChart from './counterChart';
 import HourlyBarChart from './hourlyBarChart';
+import StationMap from './stationMap';
+import StationDetail from './stationDetail';
 
 export default function BicycleCountersContent() {
   const [counters, setCounters] = useState([]);
@@ -13,6 +15,8 @@ export default function BicycleCountersContent() {
   const [hourlyData, setHourlyData] = useState(null);
   const [viewMode, setViewMode] = useState('daily'); // 'daily' or 'hourly'
   const [currentEST, setCurrentEST] = useState(null);
+  const [showStationDetail, setShowStationDetail] = useState(false);
+  const [selectedStationId, setSelectedStationId] = useState(null);
   
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -95,6 +99,19 @@ export default function BicycleCountersContent() {
     setSelectedCounter(counterLocation);
     // Reset to daily view when changing counters
     setViewMode('daily');
+    // Reset station detail view when changing counters
+    setShowStationDetail(false);
+    setSelectedStationId(null);
+  };
+
+  const handleStationSelect = (stationId) => {
+    setSelectedStationId(stationId);
+    setShowStationDetail(true);
+  };
+
+  const handleBackToMap = () => {
+    setShowStationDetail(false);
+    setSelectedStationId(null);
   };
 
   if (loading) {
@@ -272,7 +289,7 @@ export default function BicycleCountersContent() {
             </div>
             <HourlyBarChart data={hourlyData} />
           </div>
-        ) : (
+        ) : !showStationDetail ? (
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
             <div className="p-4 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-600 font-sans mb-1">
@@ -282,6 +299,31 @@ export default function BicycleCountersContent() {
             <CounterChart
               data={selectedCounterData.data}
               title=""
+            />
+          </div>
+        ) : null}
+
+        {/* Station Map - Only shown for Bike Share Toronto */}
+        {isBikeShare && !showStationDetail && (
+          <div className="mt-6">
+            <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+              <h3 className="text-lg font-bold text-gray-700 mb-4">
+                📍 Bike Share Station Map
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Circle size indicates daily trip volume. Click a station to view its history.
+              </p>
+              <StationMap onStationSelect={handleStationSelect} />
+            </div>
+          </div>
+        )}
+
+        {/* Station Detail View */}
+        {isBikeShare && showStationDetail && (
+          <div className="mt-6">
+            <StationDetail 
+              stationId={selectedStationId} 
+              onBack={handleBackToMap} 
             />
           </div>
         )}
