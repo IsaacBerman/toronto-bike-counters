@@ -17,6 +17,7 @@ export default function BicycleCountersContent() {
   const [currentEST, setCurrentEST] = useState(null);
   const [showStationDetail, setShowStationDetail] = useState(false);
   const [selectedStationId, setSelectedStationId] = useState(null);
+  const [showMap, setShowMap] = useState(true); // New state to control map visibility
   
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -79,7 +80,6 @@ export default function BicycleCountersContent() {
     async function fetchHourlyData() {
       if (selectedCounter === "Bike Share Toronto" && viewMode === 'hourly') {
         const hourlyDataResult = await loadBikeshareHourlyData();
-        
         setHourlyData(hourlyDataResult);
       }
     }
@@ -102,16 +102,37 @@ export default function BicycleCountersContent() {
     // Reset station detail view when changing counters
     setShowStationDetail(false);
     setSelectedStationId(null);
+    // Show map when switching counters
+    setShowMap(true);
   };
 
   const handleStationSelect = (stationId) => {
     setSelectedStationId(stationId);
     setShowStationDetail(true);
+    // Hide map when showing station detail
+    setShowMap(false);
   };
 
   const handleBackToMap = () => {
     setShowStationDetail(false);
     setSelectedStationId(null);
+    // Show map when returning from station detail
+    setShowMap(true);
+  };
+
+  // Handle view mode change
+  const handleViewModeChange = () => {
+    const newMode = viewMode === 'daily' ? 'hourly' : 'daily';
+    setViewMode(newMode);
+    
+    // When switching to hourly, hide the map
+    if (newMode === 'hourly') {
+      setShowMap(false);
+      setShowStationDetail(false);
+    } else {
+      // When switching back to daily, show the map
+      setShowMap(true);
+    }
   };
 
   if (loading) {
@@ -245,7 +266,7 @@ export default function BicycleCountersContent() {
                     Daily
                   </span>
                   <button
-                    onClick={() => setViewMode(viewMode === 'daily' ? 'hourly' : 'daily')}
+                    onClick={handleViewModeChange}
                     className={`
                       relative inline-flex h-6 w-11 items-center rounded-full
                       transition-colors duration-200 focus:outline-none focus:ring-2
@@ -303,8 +324,8 @@ export default function BicycleCountersContent() {
           </div>
         ) : null}
 
-        {/* Station Map - Only shown for Bike Share Toronto */}
-        {isBikeShare && !showStationDetail && (
+        {/* Station Map - Only shown for Bike Share Toronto when in daily view and not showing station detail */}
+        {isBikeShare && viewMode === 'daily' && showMap && !showStationDetail && (
           <div className="mt-6">
             <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
               <h3 className="text-lg font-bold text-gray-700 mb-4">

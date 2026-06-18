@@ -10,6 +10,19 @@ export default function StationMap({ onStationSelect }) {
   const [error, setError] = useState(null);
   const mapRef = useRef(null);
   const [mapInstance, setMapInstance] = useState(null);
+  const [isMounted, setIsMounted] = useState(true);
+
+  useEffect(() => {
+    setIsMounted(true);
+    return () => {
+      setIsMounted(false);
+      // Clean up map when component unmounts
+      if (mapInstance) {
+        mapInstance.remove();
+        setMapInstance(null);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     async function loadStations() {
@@ -49,27 +62,37 @@ export default function StationMap({ onStationSelect }) {
           coordinates: [station.lon, station.lat]
         }));
         
-        setStations(stationsWithActivity);
-        setLoading(false);
+        if (isMounted) {
+          setStations(stationsWithActivity);
+          setLoading(false);
+        }
       } catch (err) {
         console.error('Error loading stations:', err);
-        setError('Failed to load station data. Please try again later.');
-        setLoading(false);
+        if (isMounted) {
+          setError('Failed to load station data. Please try again later.');
+          setLoading(false);
+        }
       }
     }
     
     loadStations();
-  }, []);
+  }, [isMounted]);
 
   // Initialize Leaflet map
   useEffect(() => {
-    // Only initialize map if we have stations, no map instance yet, and map ref is available
-    if (!loading && stations.length > 0 && !mapInstance && mapRef.current) {
+    // Only initialize map if we have stations, no map instance yet, map ref is available, and component is mounted
+    if (!loading && stations.length > 0 && !mapInstance && mapRef.current && isMounted) {
       try {
         // Dynamically import Leaflet only on client side
         import('leaflet').then((L) => {
           // Import CSS
           import('leaflet/dist/leaflet.css');
+          
+          // Check if map container still exists
+          if (!mapRef.current) {
+            console.warn('Map container not found');
+            return;
+          }
           
           const map = L.map(mapRef.current, {
             center: [43.6532, -79.3832],
@@ -115,25 +138,35 @@ export default function StationMap({ onStationSelect }) {
             });
           });
           
-          setMapInstance(map);
+          if (isMounted) {
+            setMapInstance(map);
+          }
         }).catch(err => {
           console.error('Error loading Leaflet:', err);
-          setError('Failed to load map');
+          if (isMounted) {
+            setError('Failed to load map');
+          }
         });
       } catch (err) {
         console.error('Error initializing map:', err);
-        setError('Failed to initialize map');
+        if (isMounted) {
+          setError('Failed to initialize map');
+        }
       }
     }
     
     // Cleanup
     return () => {
       if (mapInstance) {
-        mapInstance.remove();
+        try {
+          mapInstance.remove();
+        } catch (e) {
+          console.warn('Error removing map instance:', e);
+        }
         setMapInstance(null);
       }
     };
-  }, [loading, stations, onStationSelect]);
+  }, [loading, stations, onStationSelect, isMounted]);
 
   // Expose station click handler to global scope for popup buttons
   useEffect(() => {
@@ -179,10 +212,10 @@ export default function StationMap({ onStationSelect }) {
     );
   }
 
-  // Render map
+  // Render map with a key to force remount when needed
   return (
     <div className="relative">
-      <div ref={mapRef} className="h-96 w-full rounded-lg border border-gray-200" />
+      <div key="station-map-container" ref={mapRef} className="h-96 w-full rounded-lg border border-gray-200" />
       <div className="absolute bottom-4 left-4 bg-white p-2 rounded-lg shadow-lg text-xs">
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
