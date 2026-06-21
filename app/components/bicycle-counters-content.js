@@ -41,15 +41,12 @@ export default function BicycleCountersContent() {
         const allCounters = [processedBikeshareData, ...processedCSVData];
         
         const sortedCounters = allCounters.sort((a, b) => {
-          // Keep bikeshare at the top of operational counters
           if (a.location === "Bike Share Toronto") return -1;
           if (b.location === "Bike Share Toronto") return 1;
           
-          // Operational counters first
           if (a.isOperational && !b.isOperational) return -1;
           if (!a.isOperational && b.isOperational) return 1;
           
-          // Then sort alphabetically by location
           return a.location.localeCompare(b.location);
         });
         
@@ -62,7 +59,6 @@ export default function BicycleCountersContent() {
         if (urlCounter && isValidCounter) {
           setSelectedCounter(urlCounter);
         } else if (sortedCounters.length > 0) {
-          // Auto-select Bike Share Toronto first, then first counter
           const defaultCounter = sortedCounters.find(c => c.location === "Bike Share Toronto") || sortedCounters[0];
           setSelectedCounter(defaultCounter.location);
         }
@@ -75,7 +71,6 @@ export default function BicycleCountersContent() {
     fetchData();
   }, [searchParams]);
 
-  // Fetch hourly data when Bike Share Toronto is selected and view mode is hourly
   useEffect(() => {
     async function fetchHourlyData() {
       if (selectedCounter === "Bike Share Toronto" && viewMode === 'hourly') {

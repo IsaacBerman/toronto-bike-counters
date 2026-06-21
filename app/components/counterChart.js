@@ -39,7 +39,7 @@ export default function CounterChart({ data, title }) {
   const getAvailableYears = () => {
     const years = new Set();
     data.forEach(point => {
-      const year = new Date(point.date).getFullYear();
+      const year = parseInt(point.date.split('-')[0]);
       years.add(year);
     });
     return Array.from(years).sort();
@@ -76,15 +76,14 @@ export default function CounterChart({ data, title }) {
     setVisibleYears(newVisibility);
   };
 
-  // Calculate rolling average (14-day)
   const calculateRollingAverageForYear = (yearData) => {
     if (!yearData || yearData.length === 0) return [];
     
-    const sortedData = [...yearData].sort((a, b) => a.dayOfYear - b.dayOfYear);
+    const sortedData = [...yearData].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
     const result = [];
     
     for (let i = 0; i < sortedData.length; i++) {
-      const startIndex = Math.max(0, i - 13); // 14-day window including current
+      const startIndex = Math.max(0, i - 13);
       const windowData = sortedData.slice(startIndex, i + 1);
       const validVolumes = windowData.filter(point => point.volume > 0).map(point => point.volume);
       
@@ -105,11 +104,10 @@ export default function CounterChart({ data, title }) {
     return result;
   };
 
-  // Calculate cumulative totals for each year
   const calculateCumulativeForYear = (yearData) => {
     if (!yearData || yearData.length === 0) return [];
     
-    const sortedData = [...yearData].sort((a, b) => a.dayOfYear - b.dayOfYear);
+    const sortedData = [...yearData].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
     let cumulativeSum = 0;
     const result = [];
     
@@ -124,10 +122,9 @@ export default function CounterChart({ data, title }) {
     return result;
   };
 
-  // Prepare year-over-year comparison data with daily points and rolling averages
   const getYearOverYearData = () => {
     const years = availableYears;
-    const allDays = new Set();
+    const allDates = new Set();
     const yearsData = {};
     const yearsRollingAvg = {};
     const yearsCumulative = {};
@@ -137,19 +134,27 @@ export default function CounterChart({ data, title }) {
       yearsData[year] = [];
     });
 
-    // Group data by year and day of year
+    // Group data by year and date - work directly with date strings
     data.forEach(point => {
-      const date = new Date(point.date);
-      const year = date.getFullYear();
-      const dayOfYear = getDayOfYear(date);
+      // Split the date string directly (no timezone conversion)
+      const dateParts = point.date.split('-');
+      const year = parseInt(dateParts[0]);
+      const month = dateParts[1];
+      const day = dateParts[2];
+      
+      // Create dateKey with reference year 2024 for consistent X-axis
+      const dateKey = `2024-${month}-${day}`;
       
       if (yearsData[year]) {
         yearsData[year].push({
-          dayOfYear: dayOfYear,
+          dateKey: dateKey,
           volume: point.volume,
-          date: point.date
+          date: point.date,
+          year: year,
+          month: parseInt(month),
+          day: parseInt(day)
         });
-        allDays.add(dayOfYear);
+        allDates.add(dateKey);
       }
     });
 
@@ -164,48 +169,40 @@ export default function CounterChart({ data, title }) {
       }
     });
 
-    // Create array of all days in order (1-366)
-    const sortedDays = Array.from(allDays).sort((a, b) => a - b);
-    
+    // Create array of all dates in order
+    const sortedDates = Array.from(allDates).sort();
+
     // Build the dataset for the chart
-    return sortedDays.map(day => {
+    return sortedDates.map(dateKey => {
+      // Extract month and day from dateKey for display
+      const parts = dateKey.split('-');
+      const month = parseInt(parts[1]);
+      const day = parseInt(parts[2]);
+      
       const dataPoint = { 
-        dayOfYear: day, 
-        displayDate: getDateFromDayOfYear(day)
+        dateKey: dateKey,
+        displayDate: new Date(2024, month - 1, day).toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric'
+        })
       };
       
       // Add data for each year
       years.forEach(year => {
-        const dailyPoint = yearsData[year]?.find(p => p.dayOfYear === day);
+        const dailyPoint = yearsData[year]?.find(p => p.dateKey === dateKey);
         
         if (showCumulative) {
-          // Show cumulative data
-          const cumulativePoint = yearsCumulative[year]?.find(p => p.dayOfYear === day);
+          const cumulativePoint = yearsCumulative[year]?.find(p => p.dateKey === dateKey);
           dataPoint[`cumulative_${year}`] = cumulativePoint ? cumulativePoint.cumulativeVolume : null;
         } else {
-          // Show daily data with rolling averages
           dataPoint[`daily_${year}`] = dailyPoint ? dailyPoint.volume : null;
-          
-          const rollingPoint = yearsRollingAvg[year]?.find(p => p.dayOfYear === day);
+          const rollingPoint = yearsRollingAvg[year]?.find(p => p.dateKey === dateKey);
           dataPoint[`rolling_${year}`] = rollingPoint ? rollingPoint.rollingAverage : null;
         }
       });
       
       return dataPoint;
     });
-  };
-
-  const getDayOfYear = (date) => {
-    const start = new Date(date.getFullYear(), 0, 0);
-    const diff = date - start;
-    const oneDay = 86400000;
-    return Math.floor(diff / oneDay);
-  };
-
-  const getDateFromDayOfYear = (dayOfYear) => {
-    // Return a formatted date string (Month Day) for display
-    const date = new Date(2024, 0, dayOfYear);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   // Handle tooltip visibility for mobile
