@@ -42,8 +42,9 @@ export default function StationMap({ onStationSelect }) {
         // 2. Get activity for ALL stations in ONE request
         const today = new Date();
         const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        
+        yesterday.setDate(yesterday.getDate() - 14);
+        console.log(yesterday)
+        console.log(today)
         const allActivity = await fetchAllStationsActivity(yesterday, today);
         
         // 3. Group activity by station_id and calculate total trips
@@ -58,7 +59,7 @@ export default function StationMap({ onStationSelect }) {
         // 4. Combine station info with activity data
         const stationsWithActivity = stationData.map(station => ({
           ...station,
-          dailyTrips: stationActivityMap[station.station_id] || 0,
+          dailyTrips: stationActivityMap[station.station_id]/14 || 0,
           coordinates: [station.lon, station.lat]
         }));
         
@@ -107,10 +108,11 @@ export default function StationMap({ onStationSelect }) {
           const maxTrips = Math.max(...stations.map(s => s.dailyTrips || 0), 1);
           
           stations.forEach(station => {
-            const radius = 8 + (station.dailyTrips / maxTrips) * 20;
-            const color = station.dailyTrips > 500 ? '#dc2626' : 
-                         station.dailyTrips > 300 ? '#f59e0b' : 
+            const radius = !station.dailyTrips ? 6 : 8 + (station.dailyTrips / maxTrips) * 20;
+            const color = station.dailyTrips > 400 ? '#dc2626' : 
+                         station.dailyTrips > 200 ? '#f59e0b' : 
                          station.dailyTrips > 100 ? '#ffff00' : 
+                         station.dailyTrips > 50 ? '#00ff00' :
                          station.dailyTrips > 0 ? '#3b82f6' :  "#000";
             
             const marker = L.circleMarker([station.lat, station.lon], {
