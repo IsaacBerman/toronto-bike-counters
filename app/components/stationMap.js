@@ -42,7 +42,7 @@ export default function StationMap({ onStationSelect }) {
         // 2. Get activity for ALL stations in ONE request
         const today = new Date();
         const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 14);
+        yesterday.setDate(yesterday.getDate() - 13);
         console.log(yesterday)
         console.log(today)
         const allActivity = await fetchAllStationsActivity(yesterday, today);
@@ -55,11 +55,28 @@ export default function StationMap({ onStationSelect }) {
           }
           stationActivityMap[item.station_id] += item.trips || 0;
         });
+        const now = new Date();
+        const estTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  
+        // 2. Create a new date for midnight EST of the same day
+        const estStartOfDay = new Date(
+            estTime.getFullYear(),
+            estTime.getMonth(),
+            estTime.getDate(),
+            0, 0, 0, 0
+        );
+        
+        // 3. Calculate elapsed milliseconds today
+        const elapsedMs = estTime.getTime() - estStartOfDay.getTime();
+        
+        // 4. Calculate fraction (elapsed ms / total ms in a day)
+        const fraction_of_day = elapsedMs / (24 * 60 * 60 * 1000);
+        console.log(fraction_of_day)
         
         // 4. Combine station info with activity data
         const stationsWithActivity = stationData.map(station => ({
           ...station,
-          dailyTrips: stationActivityMap[station.station_id]/14 || 0,
+          dailyTrips: stationActivityMap[station.station_id]/(13 + fraction_of_day) || 0,
           coordinates: [station.lon, station.lat]
         }));
         
