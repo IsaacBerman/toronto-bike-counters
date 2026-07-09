@@ -65,6 +65,19 @@ export async function insertSubmission({ cityId, submitterHash, rawPolygon, clip
   return rows.length > 0;
 }
 
+export async function getSubmissionByHash(cityId, submitterHash) {
+  try {
+    const rows = await query(
+      'SELECT raw_polygon FROM submissions WHERE city_id = $1 AND submitter_hash = $2 LIMIT 1',
+      [cityId, submitterHash]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Error loading submission:', error);
+    return null;
+  }
+}
+
 export async function getClippedPolygonsForCity(cityId) {
   try {
     const rows = await query(

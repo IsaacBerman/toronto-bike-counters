@@ -14,6 +14,27 @@ function readCookie(name) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+// Converts a stored GeoJSON Polygon/MultiPolygon (outer ring, [lng, lat]) into
+// the [lat, lng] point list the map and share card expect. Drops the closing
+// duplicate vertex.
+function polygonToPoints(geometry) {
+  if (!geometry) return null;
+  const ring =
+    geometry.type === 'Polygon'
+      ? geometry.coordinates[0]
+      : geometry.type === 'MultiPolygon'
+        ? geometry.coordinates[0]?.[0]
+        : null;
+  if (!ring || ring.length < 3) return null;
+  const points = ring.map(([lng, lat]) => [lat, lng]);
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (points.length > 1 && first[0] === last[0] && first[1] === last[1]) {
+    points.pop();
+  }
+  return points;
+}
+
 export default function DowntownDefinerApp() {
   const [phase, setPhase] = useState('picking-city');
   const [cities, setCities] = useState([]);
@@ -73,8 +94,20 @@ export default function DowntownDefinerApp() {
         return;
       }
       setSelectedCity(data.city);
-      setPoints([]);
-      setPhase('drawing');
+
+      // If this visitor already submitted for the city, skip drawing and go
+      // straight to the results/heatmap view showing their previous shape.
+      const status = await fetch(`/api/downtown-definer/status?city=${data.city.slug}`)
+        .then((r) => r.json())
+        .catch(() => ({ submitted: false }));
+
+      if (status.submitted) {
+        await goToResults(data.city, polygonToPoints(status.yourPolygon));
+      } else {
+        setPoints([]);
+        setPhase('drawing');
+      }
+
       fetch('/api/downtown-definer/cities')
         .then((r) => r.json())
         .then((d) => setCities(d.cities || []))
@@ -92,6 +125,23 @@ export default function DowntownDefinerApp() {
     return data;
   }
 
+  // Fetch the heatmap for a city and switch to the results view. `yourPoints`
+  // is the visitor's own shape (from a fresh submission or a stored one); when
+  // omitted it's fetched from the status endpoint.
+  async function goToResults(city, yourPoints) {
+    const heatmap = await fetchHeatmap(city.slug);
+    let mine = yourPoints ?? null;
+    if (!mine) {
+      const status = await fetch(`/api/downtown-definer/status?city=${city.slug}`)
+        .then((r) => r.json())
+        .catch(() => null);
+      mine = polygonToPoints(status?.yourPolygon);
+    }
+    setResults({ grid: heatmap.grid, submissionCount: heatmap.submissionCount, yourPoints: mine });
+    setPhase('results');
+    setDevIdentity(readCookie(DEV_IDENTITY_COOKIE));
+  }
+
   async function handleSubmit() {
     setSubmitting(true);
     setSubmitError(null);
@@ -106,17 +156,12 @@ export default function DowntownDefinerApp() {
       if (!res.ok) {
         setSubmitError(data.error || 'Something went wrong.');
         if (res.status === 409) {
-          const heatmap = await fetchHeatmap(selectedCity.slug);
-          setResults({ grid: heatmap.grid, submissionCount: heatmap.submissionCount, yourPoints: null });
-          setPhase('results');
+          await goToResults(selectedCity);
         }
         return;
       }
 
-      const heatmap = await fetchHeatmap(selectedCity.slug);
-      setResults({ grid: heatmap.grid, submissionCount: heatmap.submissionCount, yourPoints: points });
-      setPhase('results');
-      setDevIdentity(readCookie(DEV_IDENTITY_COOKIE));
+      await goToResults(selectedCity, points);
     } catch {
       setSubmitError('Something went wrong.');
     } finally {
