@@ -1,0 +1,42 @@
+import { NextResponse } from 'next/server';
+import { getCities, getCityBySlug, insertCity } from '../../../lib/downtown-definer/db';
+import { fetchCityBoundary, slugify } from '../../../lib/downtown-definer/nominatim';
+
+export async function GET() {
+  const cities = await getCities();
+  return NextResponse.json({ cities });
+}
+
+export async function POST(request) {
+  const body = await request.json().catch(() => null);
+  const name = body?.name?.trim();
+
+  if (!name) {
+    return NextResponse.json({ error: 'City name is required.' }, { status: 400 });
+  }
+
+  const slug = slugify(name);
+  if (!slug) {
+    return NextResponse.json({ error: 'City name is required.' }, { status: 400 });
+  }
+
+  const existing = await getCityBySlug(slug);
+  if (existing) {
+    return NextResponse.json({ city: existing });
+  }
+
+  const boundaryData = await fetchCityBoundary(name);
+  if (!boundaryData) {
+    return NextResponse.json({ error: `Could not find a boundary for "${name}".` }, { status: 404 });
+  }
+
+  const city = await insertCity({
+    slug,
+    name,
+    displayName: boundaryData.displayName,
+    boundary: boundaryData.boundary,
+    bbox: boundaryData.bbox,
+  });
+
+  return NextResponse.json({ city });
+}

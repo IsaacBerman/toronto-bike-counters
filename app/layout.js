@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Toronto Bicycle Counters',
-  description: 'Explore bicycle traffic data from permanent counting stations across Toronto',
+  title: 'Observing the City',
+  description: 'Data and community tools exploring how cities move and how people see them',
 }
 
 export default function RootLayout({ children }) {
