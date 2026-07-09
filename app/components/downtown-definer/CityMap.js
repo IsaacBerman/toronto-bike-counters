@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // A single reusable Leaflet map for DowntownDefiner. It always shows the
 // city boundary, and layers one more thing on top depending on `mode`:
@@ -16,6 +16,9 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
   const staticLayerRef = useRef(null);
   const choroplethLayerRef = useRef(null);
   const onMapClickRef = useRef(onMapClick);
+  // Leaflet loads asynchronously; flip this to true once the map exists so the
+  // layer effects below re-run (a ref assignment alone wouldn't re-render).
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     onMapClickRef.current = onMapClick;
@@ -40,6 +43,7 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
 
       leafletRef.current = L;
       leafletMapRef.current = map;
+      setMapReady(true);
     });
 
     return () => {
@@ -48,6 +52,7 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
         leafletMapRef.current.remove();
         leafletMapRef.current = null;
       }
+      setMapReady(false);
     };
   }, []);
 
@@ -69,7 +74,7 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
       const [minLng, minLat, maxLng, maxLat] = bbox;
       map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
     }
-  }, [boundary, bbox]);
+  }, [boundary, bbox, mapReady]);
 
   // Drawing layer (points + vertex markers).
   useEffect(() => {
@@ -100,7 +105,7 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
     });
     group.addTo(map);
     drawLayerRef.current = group;
-  }, [mode, points]);
+  }, [mode, points, mapReady]);
 
   // Static polygon layer (e.g. "your submission").
   useEffect(() => {
@@ -122,7 +127,7 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
       fillOpacity: 0.25,
       interactive: false,
     }).addTo(map);
-  }, [mode, staticPoints]);
+  }, [mode, staticPoints, mapReady]);
 
   // Choropleth grid layer.
   useEffect(() => {
@@ -146,7 +151,7 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
         interactive: false,
       }),
     }).addTo(map);
-  }, [mode, grid]);
+  }, [mode, grid, mapReady]);
 
   return <div ref={mapRef} className={className || 'h-96 w-full rounded-lg border border-gray-200'} />;
 }
