@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 //   - 'drawing': click-to-add-point polygon the user is drawing (`points`, `onMapClick`)
 //   - 'static': one fixed polygon to display (`polygon`)
 //   - 'choropleth': a pre-colored GeoJSON grid (`grid`, features carry properties.color)
-export default function CityMap({ boundary, bbox, mode, points, onMapClick, staticPoints, grid, className }) {
+export default function CityMap({ boundary, bbox, mode, points, onMapClick, onVertexMove, staticPoints, grid, className }) {
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
   const leafletRef = useRef(null);
@@ -18,13 +18,15 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
   const resizeObserverRef = useRef(null);
   const bboxRef = useRef(bbox);
   const onMapClickRef = useRef(onMapClick);
+  const onVertexMoveRef = useRef(onVertexMove);
   // Leaflet loads asynchronously; flip this to true once the map exists so the
   // layer effects below re-run (a ref assignment alone wouldn't re-render).
   const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     onMapClickRef.current = onMapClick;
-  }, [onMapClick]);
+    onVertexMoveRef.current = onVertexMove;
+  }, [onMapClick, onVertexMove]);
 
   // Init map once.
   useEffect(() => {
@@ -115,19 +117,42 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
     if (mode !== 'drawing' || !points || points.length === 0) return;
 
     const group = L.layerGroup();
-    if (points.length >= 2) {
-      L.polygon(points, { color: '#2563eb', weight: 2, fillOpacity: 0.15, dashArray: points.length < 3 ? '6 4' : null }).addTo(group);
-    }
+    const poly =
+      points.length >= 2
+        ? L.polygon(points, {
+            color: '#2563eb',
+            weight: 2,
+            fillOpacity: 0.15,
+            dashArray: points.length < 3 ? '6 4' : null,
+          }).addTo(group)
+        : null;
+
+    // Draggable vertices: markers (not circleMarkers) so they can be moved.
+    const markers = [];
     points.forEach((point, index) => {
       const isLast = index === points.length - 1;
-      L.circleMarker(point, {
-        radius: isLast ? 7 : 5,
-        color: '#1d4ed8',
-        fillColor: isLast ? '#fbbf24' : '#3b82f6',
-        fillOpacity: 1,
-        weight: 2,
-      }).addTo(group);
+      const size = isLast ? 18 : 16;
+      const fill = isLast ? '#fbbf24' : '#3b82f6';
+      const icon = L.divIcon({
+        className: 'dd-vertex',
+        html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${fill};border:2px solid #fff;box-shadow:0 0 0 1px rgba(29,78,216,0.9);cursor:grab;"></div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+      const marker = L.marker(point, { icon, draggable: true, autoPan: true, keyboard: false });
+      // Live-update the polygon outline while dragging (no React state churn).
+      marker.on('drag', () => {
+        if (poly) poly.setLatLngs(markers.map((mk) => mk.getLatLng()));
+      });
+      // Commit the moved vertex to state on release.
+      marker.on('dragend', () => {
+        const ll = marker.getLatLng();
+        onVertexMoveRef.current?.(index, [ll.lat, ll.lng]);
+      });
+      marker.addTo(group);
+      markers.push(marker);
     });
+
     group.addTo(map);
     drawLayerRef.current = group;
   }, [mode, points, mapReady]);

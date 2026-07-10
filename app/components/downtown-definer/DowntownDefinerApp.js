@@ -316,7 +316,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 </button>
               </div>
               <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
-                Tap the map to place points. Submit once you have at least 3.
+                Tap the map to place points. Drag any point to adjust it. Submit once you have at least 3.
               </p>
               <CityMap
                 mode="drawing"
@@ -324,6 +324,9 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 bbox={selectedCity.bbox}
                 points={points}
                 onMapClick={(point) => setPoints((p) => [...p, point])}
+                onVertexMove={(index, point) =>
+                  setPoints((p) => p.map((existing, i) => (i === index ? point : existing)))
+                }
                 className="h-96 lg:h-[34rem] w-full rounded-sm border border-gray-200"
               />
               <div className="flex items-center gap-2 flex-wrap">
