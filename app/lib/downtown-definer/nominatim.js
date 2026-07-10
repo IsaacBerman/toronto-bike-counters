@@ -44,6 +44,7 @@ export async function searchCities(query) {
       q: query,
       format: 'jsonv2',
       addressdetails: '1',
+      'accept-language': 'en', // English names so non-Latin cities (Kyiv, ...) slug correctly
       limit: '10',
     });
     const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
@@ -88,6 +89,7 @@ export async function fetchCityBoundary(name) {
       polygon_geojson: '1',
       polygon_threshold: '0.005',
       addressdetails: '1',
+      'accept-language': 'en',
       limit: '5',
     });
 

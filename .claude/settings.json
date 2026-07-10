@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "Bash(curl -sL \"https://www.observingthecity.ca/api/downtown-definer/search?q=Kyiv\")",
+      "Bash(curl -s \"https://nominatim.openstreetmap.org/search?q=Kyiv&format=jsonv2&addressdetails=1&accept-language=en&limit=3\" -H \"User-Agent: observingthecity.ca test\")",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
