@@ -107,6 +107,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState(false);
   const [cityLoading, setCityLoading] = useState(false);
   const [cityError, setCityError] = useState(null);
 
@@ -139,19 +140,26 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   // added — e.g. "Mexico" -> "Ciudad de México".
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) {
+    if (q.length < 3) {
       setSuggestions([]);
       setSearchLoading(false);
+      setSearchError(false);
       return;
     }
     setSearchLoading(true);
     const timer = setTimeout(() => {
       fetch(`/api/downtown-definer/search?q=${encodeURIComponent(q)}`)
         .then((r) => r.json())
-        .then((d) => setSuggestions(d.suggestions || []))
-        .catch(() => setSuggestions([]))
+        .then((d) => {
+          setSuggestions(d.suggestions || []);
+          setSearchError(!!d.error);
+        })
+        .catch(() => {
+          setSuggestions([]);
+          setSearchError(true);
+        })
         .finally(() => setSearchLoading(false));
-    }, 400);
+    }, 500);
     return () => clearTimeout(timer);
   }, [query]);
 
@@ -435,8 +443,14 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                       </p>
                     )}
 
+                    {searchError && !searchLoading && (
+                      <p className="px-3 py-2 text-sm" style={{ color: 'var(--accent)' }}>
+                        Search is temporarily unavailable. Try again in a moment.
+                      </p>
+                    )}
+
                     {/* Only real geocoded cities can be added — no arbitrary text. */}
-                    {query.trim() && !searchLoading && filteredCities.length === 0 && newSuggestions.length === 0 && (
+                    {query.trim() && !searchLoading && !searchError && filteredCities.length === 0 && newSuggestions.length === 0 && (
                       <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
                         No city found for &ldquo;{query.trim()}&rdquo;.
                       </p>

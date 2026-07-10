@@ -4,7 +4,10 @@
       "Bash(git commit -q -m ' *)",
       "Bash(curl -sL \"https://www.observingthecity.ca/api/downtown-definer/search?q=Kyiv\")",
       "Bash(curl -s \"https://nominatim.openstreetmap.org/search?q=Kyiv&format=jsonv2&addressdetails=1&accept-language=en&limit=3\" -H \"User-Agent: observingthecity.ca test\")",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s \"https://www.observingthecity.ca/api/downtown-definer/search?q=Shangh\")",
+      "Bash(curl -s \"https://www.observingthecity.ca/api/downtown-definer/search?q=Shanghai\")",
+      "Bash(curl -s \"https://nominatim.openstreetmap.org/search?q=Shangh&format=jsonv2&addressdetails=1&accept-language=en&limit=5\" -H \"User-Agent: observingthecity.ca test\")"
     ]
   }
 }
