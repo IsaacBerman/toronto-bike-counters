@@ -7,22 +7,22 @@ import {
   area as turfArea,
 } from '@turf/turf';
 
-// Sequential blue ramp (light -> dark), light-surface variant.
-// Source: dataviz skill reference palette, "sequential hue" (blue), 100-700 steps.
-// Valid for continuous sequential encoding (heatmaps/choropleths) where the
-// lightest step recedes toward the surface for near-zero values.
-const SEQUENTIAL_RAMP = [
-  '#cde2fb', '#b7d3f6', '#9ec5f4', '#86b6ef', '#6da7ec', '#5598e7',
-  '#3987e5', '#2a78d6', '#256abf', '#1c5cab', '#184f95', '#104281', '#0d366b',
+// Diverging blue -> white -> red "heatmap" ramp (13 steps, coolwarm-style).
+// Low agreement reads cool/blue, mid is near-white, peak consensus reads hot/red.
+const HEATMAP_RAMP = [
+  '#3b4cc0', '#5967c8', '#7782cf', '#949dd7', '#b2b8df', '#d0d3e6',
+  '#eeeeee', '#e4c7cd', '#dba0ab', '#d1798a', '#c75269', '#be2b47', '#b40426',
 ];
 
-// Faint neutral fill for cells inside the city that nobody marked as downtown.
-export const NO_DATA_COLOR = '#e8eaed';
+// Faint fill for cells inside the city that nobody marked as downtown. Kept
+// distinct from the ramp's light midpoint by rendering at low opacity (see
+// buildHeatmapGrid) so "no votes" doesn't read the same as "mid agreement".
+export const NO_DATA_COLOR = '#dcdcd6';
 
 export function colorForIntensity(intensity) {
   const clamped = Math.max(0, Math.min(1, intensity));
-  const index = Math.round(clamped * (SEQUENTIAL_RAMP.length - 1));
-  return SEQUENTIAL_RAMP[index];
+  const index = Math.round(clamped * (HEATMAP_RAMP.length - 1));
+  return HEATMAP_RAMP[index];
 }
 
 function pointsToRing(points) {
