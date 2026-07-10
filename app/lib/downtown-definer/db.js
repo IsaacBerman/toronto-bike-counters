@@ -92,6 +92,19 @@ export async function getSubmissionByHash(cityId, submitterHash) {
   }
 }
 
+export async function getClippedSubmissionCount(cityId) {
+  try {
+    const rows = await query(
+      'SELECT COUNT(*)::int AS n FROM submissions WHERE city_id = $1 AND clipped_polygon IS NOT NULL',
+      [cityId]
+    );
+    return rows[0]?.n ?? 0;
+  } catch (error) {
+    console.error('Error counting submissions:', error);
+    return 0;
+  }
+}
+
 export async function getClippedPolygonsForCity(cityId) {
   try {
     const rows = await query(
