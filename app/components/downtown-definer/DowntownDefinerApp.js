@@ -63,6 +63,43 @@ function polygonToPoints(geometry) {
   return points;
 }
 
+// Ray-casting point-in-polygon. point: [lng, lat]; polygon: array of [lng, lat].
+function pointInPolygon(x, y, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0];
+    const yi = polygon[i][1];
+    const xj = polygon[j][0];
+    const yj = polygon[j][1];
+    if (((yi > y) !== (yj > y)) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// Similarity between the user's drawing and the consensus "downtown" (union of
+// the top 6 buckets), as Intersection-over-Union over equal-area grid cells,
+// scaled 0-100. 100 = same shape in the same place; 0 = no overlap.
+const CONSENSUS_MIN_BUCKET = 7; // buckets 7..12 = the 6 highest of 13
+function computeSimilarityScore(yourPoints, grid) {
+  if (!yourPoints || yourPoints.length < 3 || !grid?.features?.length) return null;
+  const poly = yourPoints.map(([lat, lng]) => [lng, lat]);
+  let intersection = 0;
+  let union = 0;
+  for (const f of grid.features) {
+    const inConsensus = (f.properties.b ?? -1) >= CONSENSUS_MIN_BUCKET;
+    const ring = f.geometry.coordinates[0];
+    const cx = (ring[0][0] + ring[1][0] + ring[2][0] + ring[3][0]) / 4;
+    const cy = (ring[0][1] + ring[1][1] + ring[2][1] + ring[3][1]) / 4;
+    const inUser = pointInPolygon(cx, cy, poly);
+    if (inUser || inConsensus) union++;
+    if (inUser && inConsensus) intersection++;
+  }
+  if (union === 0) return 0;
+  return Math.round((100 * intersection) / union);
+}
+
 export default function DowntownDefinerApp({ initialCitySlug }) {
   const [phase, setPhase] = useState('picking-city');
   const [cities, setCities] = useState([]);
@@ -251,7 +288,12 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
         .catch(() => null);
       mine = polygonToPoints(status?.yourPolygon);
     }
-    setResults({ grid: heatmap.grid, submissionCount: heatmap.submissionCount, yourPoints: mine });
+    setResults({
+      grid: heatmap.grid,
+      submissionCount: heatmap.submissionCount,
+      yourPoints: mine,
+      score: computeSimilarityScore(mine, heatmap.grid),
+    });
     setPhase('results');
     setDevIdentity(readCookie(DEV_IDENTITY_COOKIE));
   }
@@ -483,7 +525,12 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
               <div className="grid sm:grid-cols-2 gap-4">
                 {results.yourPoints && (
                   <div>
-                    <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>Your downtown</p>
+                    <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>
+                      Your downtown
+                      {results.score != null && (
+                        <span style={{ color: 'var(--accent)' }}> · Score: {results.score}</span>
+                      )}
+                    </p>
                     <CityMap
                       mode="static"
                       boundary={selectedCity.boundary}
