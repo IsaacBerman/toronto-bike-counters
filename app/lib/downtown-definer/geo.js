@@ -27,7 +27,7 @@ export function colorForIntensity(intensity) {
 
 // Cell opacity by relative bucket (same 13 buckets used for hue): the very
 // lowest bucket is faint (0.2); every bucket above it ramps 0.5 -> 0.8.
-const CELL_LOWEST_OPACITY = 0.2; // bucket 0
+const CELL_LOWEST_OPACITY = 0.1; // bucket 0
 const CELL_MIN_OPACITY = 0.5; // bucket 1
 const CELL_MAX_OPACITY = 0.8; // top bucket
 
