@@ -132,7 +132,7 @@ export default function BicycleCountersContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-2">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-2" style={{ background: 'var(--paper)' }}>
         <style>{`
           @keyframes bike-ride {
             0%   { transform: translateX(-100px); }
@@ -198,35 +198,36 @@ export default function BicycleCountersContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-8">
+    <div className="min-h-screen py-10" style={{ background: 'var(--paper)' }}>
       <div className="container mx-auto px-4 max-w-7xl">
         {/* Header Section */}
-        <div className="text-center mb-4">
-          <h1 className="text-3xl font-bold text-gray-900 mb-1 font-sans tracking-tight">
+        <div className="mb-6">
+          <p className="dd-kicker mb-2">Live data</p>
+          <h1 className="dd-title text-4xl sm:text-5xl mb-2" style={{ color: 'var(--ink)' }}>
             Toronto Bicycle Counters
           </h1>
-          <p className="text-base text-gray-600 max-w-2xl mx-auto font-sans leading-relaxed">
-            Explore bicycle traffic data from counting stations across Toronto
+          <p className="text-base max-w-2xl leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+            Explore bicycle traffic data from counting stations across Toronto.
           </p>
           {currentEST && (
-            <p className="text-xs text-gray-500 mt-1 font-mono">
-              All times shown in Eastern Time (EST/EDT) • Current: {getESTTimeDisplay()}
+            <p className="text-xs mt-2 font-mono" style={{ color: 'var(--ink-3)' }}>
+              All times in Eastern Time (EST/EDT) • Current: {getESTTimeDisplay()}
             </p>
           )}
         </div>
-        
+
         {/* Control Panel */}
-        <div className="mb-4 bg-white p-4 rounded-2xl shadow-lg border border-gray-100 backdrop-blur-sm bg-opacity-95">
+        <div className="mb-4 dd-panel-ruled p-4">
           <div className="flex flex-col gap-3">
             <div>
-              <label htmlFor="counterSelect" className="block text-sm font-semibold text-gray-700 mb-1 uppercase tracking-wide">
+              <label htmlFor="counterSelect" className="dd-kicker block mb-1.5" style={{ color: 'var(--ink-2)' }}>
                 Select Counter
               </label>
               <select
                 id="counterSelect"
                 value={selectedCounter}
                 onChange={(e) => handleCounterChange(e.target.value)}
-                className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-4 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 bg-white shadow-sm hover:border-gray-300 font-sans text-gray-900"
+                className="dd-select w-full"
               >
                 <optgroup label="🚴 Bike Share" className="font-semibold text-gray-700">
                   {counters.filter(counter => counter.location === "Bike Share Toronto").map(counter => (
@@ -257,17 +258,13 @@ export default function BicycleCountersContent() {
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1">
                 {/* Daily / Hourly toggle */}
                 <div className="flex items-center gap-2">
-                  <span className={`text-sm font-medium ${viewMode === 'daily' ? 'text-blue-600' : 'text-gray-500'}`}>
+                  <span className="text-sm font-semibold" style={{ color: viewMode === 'daily' ? 'var(--accent)' : 'var(--ink-3)' }}>
                     Daily
                   </span>
                   <button
                     onClick={handleViewModeChange}
-                    className={`
-                      relative inline-flex h-6 w-11 items-center rounded-full
-                      transition-colors duration-200 focus:outline-none focus:ring-2
-                      focus:ring-blue-500 focus:ring-offset-2
-                      ${viewMode === 'hourly' ? 'bg-blue-600' : 'bg-gray-300'}
-                    `}
+                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none"
+                    style={{ background: viewMode === 'hourly' ? 'var(--accent)' : '#d6d3c8' }}
                     role="switch"
                     aria-checked={viewMode === 'hourly'}
                   >
@@ -279,7 +276,7 @@ export default function BicycleCountersContent() {
                       `}
                     />
                   </button>
-                  <span className={`text-sm font-medium ${viewMode === 'hourly' ? 'text-blue-600' : 'text-gray-500'}`}>
+                  <span className="text-sm font-semibold" style={{ color: viewMode === 'hourly' ? 'var(--accent)' : 'var(--ink-3)' }}>
                     Hourly
                   </span>
                 </div>
@@ -290,25 +287,25 @@ export default function BicycleCountersContent() {
 
         {/* Chart Display */}
         {!selectedCounterData ? (
-          <div className="text-center py-16 bg-white rounded-2xl shadow-lg">
-            <p className="text-gray-500 text-xl font-sans">Please select a counter to view data.</p>
+          <div className="text-center py-16 dd-panel">
+            <p className="text-xl" style={{ color: 'var(--ink-3)' }}>Please select a counter to view data.</p>
           </div>
         ) : viewMode === 'hourly' && isBikeShare ? (
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            <div className="p-4 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-gray-600 font-sans mb-1">
-                {selectedCounterData.location} - Hourly Comparison (Last 2 Weeks)
+          <div className="dd-panel overflow-hidden">
+            <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
+              <h2 className="dd-title text-xl mb-1" style={{ color: 'var(--ink)' }}>
+                {selectedCounterData.location} — Hourly Comparison (Last 2 Weeks)
               </h2>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
                 Data shown in Eastern Time (EST/EDT)
               </p>
             </div>
             <HourlyBarChart data={hourlyData} />
           </div>
         ) : !showStationDetail ? (
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            <div className="p-4 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-gray-600 font-sans mb-1">
+          <div className="dd-panel overflow-hidden">
+            <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
+              <h2 className="dd-title text-xl" style={{ color: 'var(--ink)' }}>
                 {selectedCounterData.location}
               </h2>
             </div>
@@ -322,11 +319,11 @@ export default function BicycleCountersContent() {
         {/* Station Map - Only shown for Bike Share Toronto when in daily view and not showing station detail */}
         {isBikeShare && viewMode === 'daily' && showMap && !showStationDetail && (
           <div className="mt-6">
-            <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-              <h3 className="text-lg font-bold text-gray-700 mb-4">
-                📍 Bike Share Station Map
+            <div className="dd-panel-ruled p-6">
+              <h3 className="dd-title text-lg mb-4" style={{ color: 'var(--ink)' }}>
+                Bike Share Station Map
               </h3>
-             <div className="text-sm text-gray-500 mb-4 space-y-1">
+             <div className="text-sm mb-4 space-y-1" style={{ color: 'var(--ink-2)' }}>
                 <p>Circle size indicates average daily trips over last 2 weeks.</p>
                 <p>🔵: {">"}0 Trips, 🟢: {">"}50 Trips, 🟡: {">"}100 Trips, 🟠: {">"}200 Trips, 🔴: {">"}400 Trips</p>
                 <p>Click a station to view its history.</p>
@@ -347,33 +344,33 @@ export default function BicycleCountersContent() {
         )}
 
         {/* Attribution Card */}
-        <div className="mt-8 text-center">
-          <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 inline-block">
-            <p className="text-gray-600 font-sans text-sm">
+        <div className="mt-8">
+          <div className="dd-panel p-6">
+            <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
               Data courtesy of{' '}
-              <a 
-                href="https://open.toronto.ca/dataset/permanent-bicycle-counters/" 
-                target="_blank" 
+              <a
+                href="https://open.toronto.ca/dataset/permanent-bicycle-counters/"
+                target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 underline transition-colors duration-200 font-medium"
+                className="dd-link-accent"
               >
                 City of Toronto Open Data Portal
               </a>
               . Last Updated: July 7th, 2026
             </p>
-            <p className="text-gray-600 font-sans text-sm mt-1">
+            <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
               Bike share data from{' '}
-              <a 
-                href="https://github.com/mjarrett/bikeraccoon" 
-                target="_blank" 
+              <a
+                href="https://github.com/mjarrett/bikeraccoon"
+                target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 underline transition-colors duration-200 font-medium"
+                className="dd-link-accent"
               >
                 bikeracoon api
               </a>
               . All bike share data are estimates and not official counts. They are inferred from station counts and tend to undercount trips by about 2%.
             </p>
-            <p className="text-gray-500 font-sans text-xs mt-2">
+            <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
               All times displayed in Eastern Time (EST/EDT) for consistency across all users
             </p>
           </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { renderYourPolygonCard, renderHeatmapCard, canvasToFile } from '../../lib/downtown-definer/canvasRender';
+import { renderShareCard, canvasToFile } from '../../lib/downtown-definer/canvasRender';
 
 const SITE_URL = 'https://www.observingthecity.ca/downtown-definer';
 
@@ -41,15 +41,10 @@ export default function ShareButton({ cityName, boundary, bbox, yourPoints, grid
 
   async function buildFiles() {
     if (filesRef.current) return filesRef.current;
-    const files = [];
-    if (yourPoints && yourPoints.length >= 3) {
-      const canvas = await renderYourPolygonCard({ cityName, boundary, bbox, points: yourPoints });
-      files.push(await canvasToFile(canvas, `${cityName}-your-downtown.png`));
-    }
-    const heatmapCanvas = await renderHeatmapCard({ cityName, boundary, bbox, grid, submissionCount });
-    files.push(await canvasToFile(heatmapCanvas, `${cityName}-downtown-heatmap.png`));
-    filesRef.current = files;
-    return files;
+    const canvas = await renderShareCard({ cityName, boundary, bbox, yourPoints, grid, submissionCount });
+    const file = await canvasToFile(canvas, `${cityName}-downtown.png`);
+    filesRef.current = [file];
+    return filesRef.current;
   }
 
   async function withImages(action) {

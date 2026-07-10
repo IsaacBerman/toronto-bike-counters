@@ -61,7 +61,7 @@ export default function Home() {
             href="/downtown-definer"
             index="02"
             tag="Community map"
-            title="DowntownDefiner"
+            title="Where is Downtown?"
             blurb="Draw the boundary of what you call &ldquo;downtown&rdquo; and watch it merge into a crowd heatmap."
           />
         </div>
