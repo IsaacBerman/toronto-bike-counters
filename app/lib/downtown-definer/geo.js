@@ -25,16 +25,14 @@ export function colorForIntensity(intensity) {
   return HEATMAP_RAMP[index];
 }
 
-// Cell opacity from the ABSOLUTE vote count: 1 vote is faint, ramping up to
-// solid once several people agree. Keeps a lone submission from dominating.
-const CELL_MIN_OPACITY = 0.16; // a single vote
-const CELL_MAX_OPACITY = 0.75; // fully-agreed cell
-const CELL_OPAQUE_AT = 6; // votes needed to reach max opacity
+// Cell opacity tracks the relative bucket (same intensity used for hue): the
+// lowest bucket is the most transparent, the highest the most opaque.
+const CELL_MIN_OPACITY = 0.18; // lowest bucket
+const CELL_MAX_OPACITY = 0.8; // highest bucket
 
-export function opacityForCount(count) {
-  if (count <= 0) return 0.12;
-  const t = Math.min(1, (count - 1) / (CELL_OPAQUE_AT - 1));
-  return CELL_MIN_OPACITY + (CELL_MAX_OPACITY - CELL_MIN_OPACITY) * t;
+export function opacityForIntensity(intensity) {
+  const clamped = Math.max(0, Math.min(1, intensity));
+  return CELL_MIN_OPACITY + (CELL_MAX_OPACITY - CELL_MIN_OPACITY) * clamped;
 }
 
 function pointsToRing(points) {
@@ -121,16 +119,15 @@ export function buildHeatmapGrid(boundary, bbox, clippedPolygons, targetCellsAlo
 
   for (const feature of features) {
     const { count } = feature.properties;
-    // Hue is still relative (count / maxCount) so hotspots pop, but opacity is
-    // driven by the ABSOLUTE vote count: a single vote stays faint and cells
-    // only become solid where several people actually agree — so one submission
-    // no longer paints the whole map.
+    // Hue and opacity both track the relative bucket (count / maxCount): the
+    // lowest bucket is faint, the highest is solid, so low-agreement areas
+    // recede and consensus areas stand out.
     const noData = count === 0;
     const intensity = maxCount > 0 ? count / maxCount : 0;
     feature.properties.noData = noData;
     feature.properties.intensity = intensity;
     feature.properties.color = noData ? NO_DATA_COLOR : colorForIntensity(intensity);
-    feature.properties.opacity = noData ? 0.12 : opacityForCount(count);
+    feature.properties.opacity = noData ? 0.12 : opacityForIntensity(intensity);
   }
 
   return { type: 'FeatureCollection', features, maxCount };
