@@ -25,6 +25,18 @@ export function colorForIntensity(intensity) {
   return HEATMAP_RAMP[index];
 }
 
+// Cell opacity from the ABSOLUTE vote count: 1 vote is faint, ramping up to
+// solid once several people agree. Keeps a lone submission from dominating.
+const CELL_MIN_OPACITY = 0.16; // a single vote
+const CELL_MAX_OPACITY = 0.75; // fully-agreed cell
+const CELL_OPAQUE_AT = 6; // votes needed to reach max opacity
+
+export function opacityForCount(count) {
+  if (count <= 0) return 0.12;
+  const t = Math.min(1, (count - 1) / (CELL_OPAQUE_AT - 1));
+  return CELL_MIN_OPACITY + (CELL_MAX_OPACITY - CELL_MIN_OPACITY) * t;
+}
+
 function pointsToRing(points) {
   const ring = points.map(([lat, lng]) => [lng, lat]);
   const [firstLng, firstLat] = ring[0];
@@ -109,15 +121,16 @@ export function buildHeatmapGrid(boundary, bbox, clippedPolygons, targetCellsAlo
 
   for (const feature of features) {
     const { count } = feature.properties;
-    // Normalize votes over 1..maxCount so a single vote already reads as "warm"
-    // and the busiest cells reach the darkest step. Zero-vote cells get a faint
-    // neutral fill so the hotspots stand out instead of a sea of pale blue.
+    // Hue is still relative (count / maxCount) so hotspots pop, but opacity is
+    // driven by the ABSOLUTE vote count: a single vote stays faint and cells
+    // only become solid where several people actually agree — so one submission
+    // no longer paints the whole map.
     const noData = count === 0;
     const intensity = maxCount > 0 ? count / maxCount : 0;
     feature.properties.noData = noData;
     feature.properties.intensity = intensity;
     feature.properties.color = noData ? NO_DATA_COLOR : colorForIntensity(intensity);
-    feature.properties.opacity = noData ? 0.25 : 0.8;
+    feature.properties.opacity = noData ? 0.12 : opacityForCount(count);
   }
 
   return { type: 'FeatureCollection', features, maxCount };
