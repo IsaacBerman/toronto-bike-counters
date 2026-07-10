@@ -172,7 +172,7 @@ function drawChoropleth(ctx, m, rect, grid) {
     if (feature.properties.noData) continue;
     // Slightly more translucent than the interactive map so basemap roads
     // remain legible through the heatmap in the shared image.
-    ctx.globalAlpha = Math.min(feature.properties.opacity ?? 0.8, 0.7);
+    ctx.globalAlpha = feature.properties.opacity ?? 0.8;
     ctx.fillStyle = feature.properties.color;
     for (const rings of polygonRings(feature.geometry)) {
       traceRings(ctx, m.project, rings);

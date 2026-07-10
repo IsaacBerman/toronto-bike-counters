@@ -27,7 +27,7 @@ export function colorForIntensity(intensity) {
 
 // Cell opacity tracks the relative bucket (same intensity used for hue): the
 // lowest bucket is the most transparent, the highest the most opaque.
-const CELL_MIN_OPACITY = 0.18; // lowest bucket
+const CELL_MIN_OPACITY = 0.4; // lowest bucket
 const CELL_MAX_OPACITY = 0.8; // highest bucket
 
 export function opacityForIntensity(intensity) {
