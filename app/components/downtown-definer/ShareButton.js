@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { renderShareCard, canvasToFile } from '../../lib/downtown-definer/canvasRender';
 
-const SITE_URL = 'https://www.observingthecity.ca/downtown-definer';
+const BASE_URL = 'https://www.observingthecity.ca/downtown-definer';
 
 function XIcon() {
   return (
@@ -27,16 +27,17 @@ function FacebookIcon() {
   );
 }
 
-export default function ShareButton({ cityName, boundary, bbox, yourPoints, grid, submissionCount }) {
+export default function ShareButton({ cityName, citySlug, boundary, bbox, yourPoints, grid, submissionCount }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const filesRef = useRef(null);
 
+  const shareUrl = citySlug ? `${BASE_URL}/${citySlug}` : BASE_URL;
   const text = `Where is downtown ${cityName}? I mapped what I think counts. See how it compares:`;
   const links = {
-    x: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(SITE_URL)}`,
-    bluesky: `https://bsky.app/intent/compose?text=${encodeURIComponent(`${text} ${SITE_URL}`)}`,
-    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(SITE_URL)}`,
+    x: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`,
+    bluesky: `https://bsky.app/intent/compose?text=${encodeURIComponent(`${text} ${shareUrl}`)}`,
+    facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`,
   };
 
   async function buildFiles() {

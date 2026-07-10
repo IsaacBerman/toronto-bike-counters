@@ -507,6 +507,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
 
               <ShareButton
                 cityName={selectedCity.name}
+                citySlug={selectedCity.slug}
                 boundary={selectedCity.boundary}
                 bbox={selectedCity.bbox}
                 yourPoints={results.yourPoints}
