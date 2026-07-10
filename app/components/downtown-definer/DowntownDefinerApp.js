@@ -235,7 +235,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
-      <div className="container mx-auto px-4 max-w-4xl py-10">
+      <div className="container mx-auto px-4 max-w-4xl lg:max-w-6xl py-10">
         <div className="mb-6">
           <p className="dd-kicker mb-2">Community map</p>
           <h1 className="dd-title text-4xl sm:text-5xl mb-2" style={{ color: 'var(--ink)' }}>
@@ -324,6 +324,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 bbox={selectedCity.bbox}
                 points={points}
                 onMapClick={(point) => setPoints((p) => [...p, point])}
+                className="h-96 lg:h-[34rem] w-full rounded-sm border border-gray-200"
               />
               <div className="flex items-center gap-2 flex-wrap">
                 <button
@@ -371,7 +372,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                       boundary={selectedCity.boundary}
                       bbox={selectedCity.bbox}
                       staticPoints={results.yourPoints}
-                      className="h-72 w-full rounded-sm"
+                      className="h-72 lg:h-[32rem] w-full rounded-sm"
                     />
                   </div>
                 )}
