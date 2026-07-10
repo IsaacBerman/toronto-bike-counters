@@ -383,7 +383,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                     boundary={selectedCity.boundary}
                     bbox={selectedCity.bbox}
                     grid={results.grid}
-                    className="h-72 w-full rounded-sm"
+                    className="h-72 lg:h-[32rem] w-full rounded-sm"
                   />
                 </div>
               </div>
