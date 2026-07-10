@@ -177,7 +177,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   // Cities shown in the picker (always include Toronto as a suggestion), each
   // with a title-cased display label, filtered by the search query.
   const cityList = (() => {
-    const list = cities.map((c) => ({ slug: c.slug, name: c.name, label: displayCityName(c.name) }));
+    const list = cities.map((c) => ({ slug: c.slug, name: c.name, label: c.label || displayCityName(c.name) }));
     if (!list.some((c) => c.slug === 'toronto')) {
       list.unshift({ slug: 'toronto', name: 'Toronto', label: 'Toronto' });
     }
@@ -201,7 +201,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   // Once we have a city object, reflect it in the URL and either show the
   // results (if this visitor already submitted) or the drawing tools.
   async function enterCity(city) {
-    setSelectedCity({ ...city, name: displayCityName(city.name) });
+    setSelectedCity({ ...city, name: city.label || displayCityName(city.name) });
     updateUrl(city.slug);
     setPickerOpen(false);
 

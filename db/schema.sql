@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS cities (
   bbox JSONB NOT NULL,
   osm_type TEXT,
   osm_id TEXT,
+  label TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

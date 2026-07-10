@@ -4,6 +4,17 @@ import { useEffect, useState } from 'react';
 
 export const dynamic = 'force-dynamic';
 
+// Matches the site's default display: title-case, trimmed at the 2nd comma.
+function deriveDisplay(name) {
+  const parts = (name || '').split(',');
+  const trimmed = parts.length > 2 ? parts.slice(0, 2).join(',') : name || '';
+  return trimmed
+    .toLowerCase()
+    .split(/(\s|-)/)
+    .map((p) => (p ? p.charAt(0).toUpperCase() + p.slice(1) : p))
+    .join('');
+}
+
 export default function AdminPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -12,6 +23,7 @@ export default function AdminPage() {
   const [mergeFrom, setMergeFrom] = useState('');
   const [mergeTo, setMergeTo] = useState('');
   const [notice, setNotice] = useState(null);
+  const [drafts, setDrafts] = useState({});
 
   async function load() {
     setError(null);
@@ -110,10 +122,10 @@ export default function AdminPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={{ ...cell, fontWeight: 700 }}>Name</th>
+                    <th style={{ ...cell, fontWeight: 700 }}>Name (stored)</th>
+                    <th style={{ ...cell, fontWeight: 700 }}>Display name (shown to users)</th>
                     <th style={{ ...cell, fontWeight: 700 }}>Slug</th>
                     <th style={{ ...cell, fontWeight: 700 }}>Subs</th>
-                    <th style={{ ...cell, fontWeight: 700 }}>OSM id</th>
                     <th style={{ ...cell, fontWeight: 700 }}>Actions</th>
                   </tr>
                 </thead>
@@ -121,11 +133,28 @@ export default function AdminPage() {
                   {shown.map((c) => (
                     <tr key={c.id}>
                       <td style={cell}>{c.name}</td>
+                      <td style={cell}>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <input
+                            className="dd-input"
+                            style={{ fontSize: '13px', padding: '4px 8px', width: '180px' }}
+                            placeholder={deriveDisplay(c.name)}
+                            value={drafts[c.slug] ?? c.label ?? ''}
+                            onChange={(e) => setDrafts((d) => ({ ...d, [c.slug]: e.target.value }))}
+                          />
+                          <button
+                            className="dd-btn dd-btn-primary"
+                            disabled={busy}
+                            onClick={() =>
+                              act({ action: 'edit', slug: c.slug, label: drafts[c.slug] ?? c.label ?? '' })
+                            }
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </td>
                       <td style={{ ...cell, fontFamily: 'monospace', color: 'var(--ink-2)' }}>{c.slug}</td>
                       <td style={cell}>{c.submissions}</td>
-                      <td style={{ ...cell, fontFamily: 'monospace', color: c.osm_id ? 'var(--ink-3)' : 'var(--accent)' }}>
-                        {c.osm_id || '—'}
-                      </td>
                       <td style={cell}>
                         <button
                           className="dd-btn dd-btn-ghost"

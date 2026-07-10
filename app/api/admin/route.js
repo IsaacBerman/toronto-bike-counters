@@ -12,11 +12,16 @@ function makePool() {
 
 const mb = (bytes) => +(Number(bytes) / (1024 * 1024)).toFixed(2);
 
+async function ensureLabelColumn(pool) {
+  await pool.query('ALTER TABLE cities ADD COLUMN IF NOT EXISTS label TEXT');
+}
+
 export async function GET() {
   const pool = makePool();
   try {
+    await ensureLabelColumn(pool);
     const cities = await pool.query(
-      `SELECT c.id, c.slug, c.name, c.osm_id, COUNT(s.id)::int AS submissions
+      `SELECT c.id, c.slug, c.name, c.label, c.osm_id, COUNT(s.id)::int AS submissions
        FROM cities c LEFT JOIN submissions s ON s.city_id = c.id
        GROUP BY c.id ORDER BY submissions DESC, c.name`
     );
@@ -47,6 +52,18 @@ export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const pool = makePool();
   try {
+    if (body.action === 'edit') {
+      if (!body.slug) return NextResponse.json({ error: 'slug required' }, { status: 400 });
+      await ensureLabelColumn(pool);
+      const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : null;
+      const { rows } = await pool.query(
+        'UPDATE cities SET label = $1 WHERE slug = $2 RETURNING slug',
+        [label, body.slug]
+      );
+      if (!rows.length) return NextResponse.json({ error: 'city not found' }, { status: 404 });
+      return NextResponse.json({ ok: true, slug: rows[0].slug, label });
+    }
+
     if (body.action === 'delete') {
       if (!body.slug) return NextResponse.json({ error: 'slug required' }, { status: 400 });
       const { rows } = await pool.query('DELETE FROM cities WHERE slug = $1 RETURNING slug', [body.slug]);

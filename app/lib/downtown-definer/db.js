@@ -23,9 +23,25 @@ async function query(text, params) {
   return result.rows;
 }
 
+// Self-bootstrap the optional `label` column (admin display-name override) once
+// per instance, so we don't need a manual migration step.
+let schemaReady = null;
+export function ensureSchema() {
+  if (!schemaReady) {
+    schemaReady = getPool()
+      .query('ALTER TABLE cities ADD COLUMN IF NOT EXISTS label TEXT')
+      .catch((error) => {
+        schemaReady = null;
+        throw error;
+      });
+  }
+  return schemaReady;
+}
+
 export async function getCities() {
   try {
-    return await query('SELECT id, slug, name FROM cities ORDER BY name ASC');
+    await ensureSchema();
+    return await query('SELECT id, slug, name, label FROM cities ORDER BY name ASC');
   } catch (error) {
     console.error('Error loading cities:', error);
     return [];
@@ -34,6 +50,7 @@ export async function getCities() {
 
 export async function getCityBySlug(slug) {
   try {
+    await ensureSchema();
     const rows = await query('SELECT * FROM cities WHERE slug = $1 LIMIT 1', [slug]);
     return rows[0] || null;
   } catch (error) {
