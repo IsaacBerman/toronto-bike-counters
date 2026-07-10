@@ -231,14 +231,43 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, onVe
     let whiteLayer = null;
     let blackLayer = null;
     let clearTimer = null;
+    let sticky = false; // set by tap/click so the highlight persists on mobile
     const tooltip = L.tooltip({ sticky: true, direction: 'top', offset: [0, -4], opacity: 1 });
 
     function clearHover() {
       if (whiteLayer) { map.removeLayer(whiteLayer); whiteLayer = null; }
       if (blackLayer) { map.removeLayer(blackLayer); blackLayer = null; }
       activeLevel = null;
+      sticky = false;
       if (map.hasLayer(tooltip)) map.removeLayer(tooltip);
     }
+
+    // Show the contour + tooltip for a cell (shared by hover and tap).
+    function showFor(b, pct, ring, latlng) {
+      if (clearTimer) {
+        clearTimeout(clearTimer);
+        clearTimer = null;
+      }
+      if (activeLevel !== b) {
+        if (whiteLayer) map.removeLayer(whiteLayer);
+        whiteLayer = levelOutlines[b] || null;
+        if (whiteLayer) whiteLayer.addTo(map);
+        activeLevel = b;
+      }
+      // Black outline around just this cell, drawn last (on top).
+      if (blackLayer) map.removeLayer(blackLayer);
+      blackLayer = L.polyline(ring, { color: '#000000', weight: 2.5, interactive: false }).addTo(map);
+
+      tooltip.setContent(`${pct}% of people agree this is in downtown`);
+      tooltip.setLatLng(latlng);
+      if (!map.hasLayer(tooltip)) tooltip.addTo(map);
+    }
+
+    // Tapping empty space (or a no-data cell) dismisses a stuck highlight.
+    function onMapClick() {
+      clearHover();
+    }
+    map.on('click', onMapClick);
 
     const layer = L.geoJSON(grid, {
       style: (feature) => ({
@@ -255,29 +284,23 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, onVe
         const ring = feature.geometry.coordinates[0].map(([lng, lat]) => [lat, lng]);
 
         lyr.on('mouseover', (e) => {
-          if (clearTimer) {
-            clearTimeout(clearTimer);
-            clearTimer = null;
-          }
-          // White outline of the "bucket >= b" union.
-          if (activeLevel !== b) {
-            if (whiteLayer) map.removeLayer(whiteLayer);
-            whiteLayer = levelOutlines[b] || null;
-            if (whiteLayer) whiteLayer.addTo(map);
-            activeLevel = b;
-          }
-          // Black outline around just the hovered cell, drawn last (on top).
-          if (blackLayer) map.removeLayer(blackLayer);
-          blackLayer = L.polyline(ring, { color: '#000000', weight: 2.5, interactive: false }).addTo(map);
-
-          tooltip.setContent(`${pct}% of people agree this is in downtown`);
-          tooltip.setLatLng(e.latlng);
-          if (!map.hasLayer(tooltip)) tooltip.addTo(map);
+          if (sticky) return;
+          showFor(b, pct, ring, e.latlng);
         });
-        lyr.on('mousemove', (e) => tooltip.setLatLng(e.latlng));
+        lyr.on('mousemove', (e) => {
+          if (!sticky) tooltip.setLatLng(e.latlng);
+        });
+        // Tap/click: keep it shown until another tap. Stop the map-click that
+        // would otherwise immediately clear it.
+        lyr.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          sticky = true;
+          showFor(b, pct, ring, e.latlng);
+        });
         // Small delay so moving between adjacent cells doesn't flicker; only
         // clears when the pointer actually leaves the heatmap.
         lyr.on('mouseout', () => {
+          if (sticky) return;
           clearTimer = setTimeout(clearHover, 60);
         });
       },
@@ -286,6 +309,7 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, onVe
     choroplethLayerRef.current = layer;
 
     return () => {
+      map.off('click', onMapClick);
       if (clearTimer) clearTimeout(clearTimer);
       clearHover();
     };
