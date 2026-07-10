@@ -266,7 +266,7 @@ async function createCanvas(W, H) {
 // (My downtown | Everyone's downtown); without one it renders just the heatmap.
 export async function renderShareCard({ cityName, boundary, bbox, yourPoints, grid, submissionCount, score }) {
   const hasYours = yourPoints && yourPoints.length >= 3;
-  const yourLabel = score != null ? `My downtown · Score ${score}` : 'My downtown';
+  const yourLabel = score != null ? `My downtown · Score: ${score}` : 'My downtown';
   const W = hasYours ? 1680 : 1080;
   const H = hasYours ? 1000 : 1080;
   const { canvas, ctx } = await createCanvas(W, H);
