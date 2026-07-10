@@ -25,14 +25,19 @@ export function colorForIntensity(intensity) {
   return HEATMAP_RAMP[index];
 }
 
-// Cell opacity tracks the relative bucket (same intensity used for hue): the
-// lowest bucket is the most transparent, the highest the most opaque.
-const CELL_MIN_OPACITY = 0.4; // lowest bucket
-const CELL_MAX_OPACITY = 0.8; // highest bucket
+// Cell opacity by relative bucket (same 13 buckets used for hue): the very
+// lowest bucket is faint (0.2); every bucket above it ramps 0.5 -> 0.8.
+const CELL_LOWEST_OPACITY = 0.2; // bucket 0
+const CELL_MIN_OPACITY = 0.5; // bucket 1
+const CELL_MAX_OPACITY = 0.8; // top bucket
 
 export function opacityForIntensity(intensity) {
   const clamped = Math.max(0, Math.min(1, intensity));
-  return CELL_MIN_OPACITY + (CELL_MAX_OPACITY - CELL_MIN_OPACITY) * clamped;
+  const lastBucket = HEATMAP_RAMP.length - 1; // 12
+  const bucket = Math.round(clamped * lastBucket); // 0..12
+  if (bucket === 0) return CELL_LOWEST_OPACITY;
+  const t = (bucket - 1) / (lastBucket - 1); // bucket 1 -> 0, top -> 1
+  return CELL_MIN_OPACITY + (CELL_MAX_OPACITY - CELL_MIN_OPACITY) * t;
 }
 
 function pointsToRing(points) {
