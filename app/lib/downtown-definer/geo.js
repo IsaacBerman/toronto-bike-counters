@@ -240,11 +240,13 @@ export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
       continue;
     }
     const intensity = maxCount > 0 ? count / maxCount : 0;
+    const bucket = Math.round(Math.max(0, Math.min(1, intensity)) * (HEATMAP_RAMP.length - 1));
     feature.properties = {
-      color: colorForIntensity(intensity),
+      color: HEATMAP_RAMP[bucket],
       opacity: round2(opacityForIntensity(intensity)),
       // At least 1% for any voted cell so a real vote never reads as "0%".
       pct: totalSubmissions > 0 ? Math.max(1, Math.round((count / totalSubmissions) * 100)) : 0,
+      b: bucket, // bucket index (0..12), used by the hover contour outline
     };
   }
 

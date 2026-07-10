@@ -192,23 +192,51 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, onVe
 
     if (mode !== 'choropleth' || !grid) return;
 
-    // Group voted cells by their bucket color so hovering one can outline the
-    // whole bucket. No-data cells stay non-interactive.
-    const colorGroups = new Map();
-    let activeColor = null;
-    let clearTimer = null;
-
-    const tooltip = L.tooltip({ sticky: true, direction: 'top', offset: [0, -4], opacity: 1 });
-
-    function resetActive() {
-      if (activeColor && colorGroups.has(activeColor)) {
-        for (const lyr of colorGroups.get(activeColor)) lyr.setStyle({ weight: 0 });
+    // Precompute, for each bucket level k, the white outline of the union of all
+    // cells with bucket >= k (a nested "this agreement or higher" contour). An
+    // edge is on that union's boundary when exactly one of its two adjacent
+    // cells is in the set; a grid-edge cell counts the empty side as "out".
+    const edges = new Map(); // edgeKey -> { seg, buckets: number[] }
+    let maxBucket = 0;
+    for (const feature of grid.features) {
+      if (feature.properties.noData) continue;
+      const b = feature.properties.b ?? 0;
+      if (b > maxBucket) maxBucket = b;
+      const ring = feature.geometry.coordinates[0]; // 5 [lng,lat] points (closed)
+      for (let i = 0; i < 4; i++) {
+        const a = ring[i];
+        const c = ring[i + 1];
+        const ka = `${a[0]},${a[1]}`;
+        const kc = `${c[0]},${c[1]}`;
+        const key = ka < kc ? `${ka}|${kc}` : `${kc}|${ka}`;
+        const found = edges.get(key);
+        if (found) found.buckets.push(b);
+        else edges.set(key, { seg: [[a[1], a[0]], [c[1], c[0]]], buckets: [b] });
       }
-      activeColor = null;
     }
 
+    const levelSegs = Array.from({ length: maxBucket + 1 }, () => []);
+    for (const { seg, buckets } of edges.values()) {
+      for (let k = 0; k <= maxBucket; k++) {
+        let inSet = 0;
+        for (const b of buckets) if (b >= k) inSet += 1;
+        if (inSet === 1) levelSegs[k].push(seg);
+      }
+    }
+    const levelOutlines = levelSegs.map((segs) =>
+      L.polyline(segs, { color: '#ffffff', weight: 2, interactive: false })
+    );
+
+    let activeLevel = null;
+    let whiteLayer = null;
+    let blackLayer = null;
+    let clearTimer = null;
+    const tooltip = L.tooltip({ sticky: true, direction: 'top', offset: [0, -4], opacity: 1 });
+
     function clearHover() {
-      resetActive();
+      if (whiteLayer) { map.removeLayer(whiteLayer); whiteLayer = null; }
+      if (blackLayer) { map.removeLayer(blackLayer); blackLayer = null; }
+      activeLevel = null;
       if (map.hasLayer(tooltip)) map.removeLayer(tooltip);
     }
 
@@ -222,21 +250,26 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, onVe
       }),
       onEachFeature: (feature, lyr) => {
         if (feature.properties.noData) return;
-        const color = feature.properties.color;
-        if (!colorGroups.has(color)) colorGroups.set(color, []);
-        colorGroups.get(color).push(lyr);
-
+        const b = feature.properties.b ?? 0;
         const pct = feature.properties.pct ?? 0;
+        const ring = feature.geometry.coordinates[0].map(([lng, lat]) => [lat, lng]);
+
         lyr.on('mouseover', (e) => {
           if (clearTimer) {
             clearTimeout(clearTimer);
             clearTimer = null;
           }
-          if (activeColor !== color) {
-            resetActive();
-            for (const other of colorGroups.get(color)) other.setStyle({ weight: 1, color: '#000' });
-            activeColor = color;
+          // White outline of the "bucket >= b" union.
+          if (activeLevel !== b) {
+            if (whiteLayer) map.removeLayer(whiteLayer);
+            whiteLayer = levelOutlines[b] || null;
+            if (whiteLayer) whiteLayer.addTo(map);
+            activeLevel = b;
           }
+          // Black outline around just the hovered cell, drawn last (on top).
+          if (blackLayer) map.removeLayer(blackLayer);
+          blackLayer = L.polyline(ring, { color: '#000000', weight: 2.5, interactive: false }).addTo(map);
+
           tooltip.setContent(`${pct}% of people agree this is in downtown`);
           tooltip.setLatLng(e.latlng);
           if (!map.hasLayer(tooltip)) tooltip.addTo(map);
@@ -254,7 +287,7 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, onVe
 
     return () => {
       if (clearTimer) clearTimeout(clearTimer);
-      if (map.hasLayer(tooltip)) map.removeLayer(tooltip);
+      clearHover();
     };
   }, [mode, grid, mapReady]);
 
