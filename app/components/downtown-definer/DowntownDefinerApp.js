@@ -14,6 +14,17 @@ function readCookie(name) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+// Title-case a city name for display (keeps apostrophes intact, capitalizes
+// across spaces and hyphens): "new york" -> "New York", "st. john's" -> "St. John's".
+function titleCaseCity(name) {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .split(/(\s|-)/)
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
+    .join('');
+}
+
 // Converts a stored GeoJSON Polygon/MultiPolygon (outer ring, [lng, lat]) into
 // the [lat, lng] point list the map and share card expect. Drops the closing
 // duplicate vertex.
@@ -38,8 +49,8 @@ function polygonToPoints(geometry) {
 export default function DowntownDefinerApp({ initialCitySlug }) {
   const [phase, setPhase] = useState('picking-city');
   const [cities, setCities] = useState([]);
-  const [selectValue, setSelectValue] = useState('Toronto');
-  const [newCityInput, setNewCityInput] = useState('');
+  const [query, setQuery] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [cityLoading, setCityLoading] = useState(false);
   const [cityError, setCityError] = useState(null);
 
@@ -79,10 +90,18 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [phase]);
 
-  const cityOptions = (() => {
-    const names = cities.map((c) => c.name);
-    return names.includes('Toronto') ? names : ['Toronto', ...names];
+  // Cities shown in the picker (always include Toronto as a suggestion), each
+  // with a title-cased display label, filtered by the search query.
+  const cityList = (() => {
+    const list = cities.map((c) => ({ slug: c.slug, name: c.name, label: titleCaseCity(c.name) }));
+    if (!list.some((c) => c.slug === 'toronto')) {
+      list.unshift({ slug: 'toronto', name: 'Toronto', label: 'Toronto' });
+    }
+    return list;
   })();
+  const q = query.trim().toLowerCase();
+  const filteredCities = q ? cityList.filter((c) => c.label.toLowerCase().includes(q)) : cityList;
+  const hasExactMatch = cityList.some((c) => c.label.toLowerCase() === q);
 
   function updateUrl(slug) {
     if (typeof window !== 'undefined') {
@@ -93,8 +112,9 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   // Once we have a city object, reflect it in the URL and either show the
   // results (if this visitor already submitted) or the drawing tools.
   async function enterCity(city) {
-    setSelectedCity(city);
+    setSelectedCity({ ...city, name: titleCaseCity(city.name) });
     updateUrl(city.slug);
+    setPickerOpen(false);
 
     const status = await fetch(`/api/downtown-definer/status?city=${city.slug}`)
       .then((r) => r.json())
@@ -225,6 +245,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     setPoints([]);
     setResults(null);
     setSubmitError(null);
+    setQuery('');
     updateUrl(null);
   }
 
@@ -266,41 +287,64 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
               <label className="dd-kicker" style={{ color: 'var(--ink-2)' }}>
                 Choose a city
               </label>
-              <div className="flex flex-wrap gap-2">
-                <select className="dd-select" value={selectValue} onChange={(e) => setSelectValue(e.target.value)}>
-                  {cityOptions.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                  <option value="__new__">+ Add a new city…</option>
-                </select>
-                {selectValue !== '__new__' && (
-                  <button onClick={() => loadCity(selectValue)} disabled={cityLoading} className="dd-btn dd-btn-accent">
-                    {cityLoading ? 'Loading…' : 'Show map'}
-                  </button>
+
+              <div className="relative max-w-md">
+                <input
+                  type="text"
+                  placeholder="Search cities, or type a new one…"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setPickerOpen(true);
+                  }}
+                  onFocus={() => setPickerOpen(true)}
+                  onBlur={() => setTimeout(() => setPickerOpen(false), 150)}
+                  className="dd-input w-full"
+                  disabled={cityLoading}
+                />
+
+                {pickerOpen && (
+                  <div
+                    className="absolute z-[1000] left-0 right-0 mt-1 max-h-64 overflow-auto shadow-lg"
+                    style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px' }}
+                  >
+                    {filteredCities.map((c) => (
+                      <button
+                        key={c.slug}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => loadCityBySlug(c.slug)}
+                        className="block w-full text-left px-3 py-2 text-sm font-semibold hover:bg-gray-50"
+                        style={{ color: 'var(--ink)' }}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+
+                    {query.trim() && !hasExactMatch && (
+                      <button
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => loadCity(query)}
+                        className="block w-full text-left px-3 py-2 text-sm font-semibold hover:bg-gray-50"
+                        style={{ color: 'var(--accent)', borderTop: filteredCities.length ? '1px solid var(--line)' : 'none' }}
+                      >
+                        + Add &ldquo;{titleCaseCity(query.trim())}&rdquo;
+                      </button>
+                    )}
+
+                    {!filteredCities.length && !query.trim() && (
+                      <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
+                        No cities yet.
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {selectValue === '__new__' && (
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    type="text"
-                    placeholder="City name, e.g. Ottawa"
-                    value={newCityInput}
-                    onChange={(e) => setNewCityInput(e.target.value)}
-                    className="dd-input flex-1 min-w-48"
-                  />
-                  <button
-                    onClick={() => loadCity(newCityInput)}
-                    disabled={cityLoading || !newCityInput.trim()}
-                    className="dd-btn dd-btn-accent"
-                  >
-                    {cityLoading ? 'Looking up…' : 'Add city'}
-                  </button>
-                </div>
+              {cityLoading && (
+                <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
+                  Loading…
+                </p>
               )}
-
               {cityError && <p className="text-sm" style={{ color: 'var(--accent)' }}>{cityError}</p>}
             </div>
           )}
