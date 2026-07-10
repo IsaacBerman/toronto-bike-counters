@@ -22,16 +22,24 @@ export default function SiteHeader({ current }) {
 
   return (
     <header style={{ background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
-      <div className="container mx-auto px-4 max-w-6xl py-3 flex items-center justify-between">
+      <div className="container mx-auto px-4 max-w-6xl py-3 flex items-center justify-between gap-x-5 gap-y-2 flex-wrap">
         <Link href="/" className="flex items-center gap-2">
           <span className="inline-block h-4 w-4 rounded-sm" style={{ background: 'var(--accent)' }} />
           <span className="dd-title text-base" style={{ color: 'var(--ink)' }}>
             Observing the City
           </span>
         </Link>
-        <nav className="flex gap-5 items-center">
+        <nav className="flex gap-5 items-center flex-wrap">
           {navItem('/bike-counters', 'Bicycle Counters', 'bike-counters')}
           {navItem('/downtown-definer', 'Where is Downtown?', 'downtown-definer')}
+          <a
+            href="https://buymeacoffee.com/observingthecity"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="dd-btn dd-btn-accent"
+          >
+            ☕ Help Keep the Lights On
+          </a>
         </nav>
       </div>
     </header>

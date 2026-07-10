@@ -37,6 +37,16 @@ export default function Home() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
       <div className="container mx-auto px-4 max-w-4xl py-20">
+        <div className="flex justify-end mb-8">
+          <a
+            href="https://buymeacoffee.com/observingthecity"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="dd-btn dd-btn-accent"
+          >
+            ☕ Help Keep the Lights On
+          </a>
+        </div>
         <div className="mb-14">
           <p className="dd-kicker mb-3">Observing the City</p>
           <h1 className="dd-title text-5xl sm:text-6xl mb-5" style={{ color: 'var(--ink)' }}>
