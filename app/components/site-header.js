@@ -38,7 +38,7 @@ export default function SiteHeader({ current }) {
             rel="noopener noreferrer"
             className="dd-btn dd-btn-accent"
           >
-            ☕ Help Keep the Lights On
+            💡 Help Keep the Lights On
           </a>
         </nav>
       </div>
