@@ -2,6 +2,8 @@ import { bbox as turfBbox } from '@turf/turf';
 
 export function slugify(name) {
   return name
+    .normalize('NFD') // strip accents so "Montréal" and "Montreal" slug the same
+    .replace(/[̀-ͯ]/g, '')
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')

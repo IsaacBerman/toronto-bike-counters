@@ -14,6 +14,15 @@ function readCookie(name) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+// Accent-insensitive, lowercased text for matching: "Montréal" -> "montreal".
+function normalizeText(text) {
+  return (text || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 // Title-case a city name for display (keeps apostrophes intact, capitalizes
 // across spaces and hyphens): "new york" -> "New York", "st. john's" -> "St. John's".
 function titleCaseCity(name) {
@@ -121,9 +130,15 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     }
     return list;
   })();
-  const q = query.trim().toLowerCase();
-  const filteredCities = q ? cityList.filter((c) => c.label.toLowerCase().includes(q)) : cityList;
-  const hasExactMatch = cityList.some((c) => c.label.toLowerCase() === q);
+  const q = normalizeText(query.trim());
+  const filteredCities = q ? cityList.filter((c) => normalizeText(c.label).includes(q)) : cityList;
+  const hasExactMatch = cityList.some((c) => normalizeText(c.label) === q);
+  // Hide geocoder suggestions for cities that are already in the list
+  // (accent-insensitive), so "Montréal" isn't offered when "Montreal" exists.
+  const existingNames = new Set(cityList.map((c) => normalizeText(c.name)));
+  const newSuggestions = suggestions.filter(
+    (s) => !existingNames.has(normalizeText(s.label.split(',')[0]))
+  );
 
   function updateUrl(slug) {
     if (typeof window !== 'undefined') {
@@ -343,7 +358,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                     ))}
 
                     {/* Geocoder suggestions (cities not yet added) */}
-                    {suggestions.length > 0 && (
+                    {newSuggestions.length > 0 && (
                       <>
                         <p
                           className="px-3 pt-2 pb-1 text-xs font-bold uppercase tracking-wide"
@@ -351,7 +366,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                         >
                           Add a city
                         </p>
-                        {suggestions.map((s) => (
+                        {newSuggestions.map((s) => (
                           <button
                             key={s.key}
                             onMouseDown={(e) => e.preventDefault()}
@@ -372,7 +387,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                     )}
 
                     {/* Fallback: add the raw text if the geocoder returned nothing */}
-                    {query.trim() && !hasExactMatch && !searchLoading && suggestions.length === 0 && (
+                    {query.trim() && !hasExactMatch && !searchLoading && newSuggestions.length === 0 && (
                       <button
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => loadCity(query)}
