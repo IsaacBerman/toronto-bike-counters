@@ -1,8 +1,8 @@
 // Client-only canvas rendering for the share card. Produces a single image with
 // the user's polygon and the crowd heatmap side by side, each over a real (muted)
 // street basemap with the area outside the city dimmed, under a bold "civic data"
-// header. Basemap tiles come from CARTO Positron, which sends CORS headers, so the
-// canvas stays untainted and toBlob() works everywhere.
+// header. Basemap tiles come from CARTO Voyager, which shows major roads/labels
+// and sends CORS headers, so the canvas stays untainted and toBlob() works.
 
 const MARGIN = 44;
 const HEADER_H = 150;
@@ -88,7 +88,7 @@ async function drawBasemap(ctx, m, rect) {
   for (let tx = tileMinX; tx <= tileMaxX; tx++) {
     for (let ty = tileMinY; ty <= tileMaxY; ty++) {
       const subdomain = TILE_SUBDOMAINS[sub++ % TILE_SUBDOMAINS.length];
-      const url = `https://${subdomain}.basemaps.cartocdn.com/light_all/${m.z}/${tx}/${ty}@2x.png`;
+      const url = `https://${subdomain}.basemaps.cartocdn.com/rastertiles/voyager/${m.z}/${tx}/${ty}@2x.png`;
       const dx = m.ox + (tx * TILE - m.xTL) * m.scale;
       const dy = m.oy + (ty * TILE - m.yTL) * m.scale;
       jobs.push(
@@ -170,7 +170,9 @@ function drawChoropleth(ctx, m, rect, grid) {
   ctx.clip();
   for (const feature of grid.features) {
     if (feature.properties.noData) continue;
-    ctx.globalAlpha = feature.properties.opacity ?? 0.8;
+    // Slightly more translucent than the interactive map so basemap roads
+    // remain legible through the heatmap in the shared image.
+    ctx.globalAlpha = Math.min(feature.properties.opacity ?? 0.8, 0.7);
     ctx.fillStyle = feature.properties.color;
     for (const rings of polygonRings(feature.geometry)) {
       traceRings(ctx, m.project, rings);
