@@ -1,5 +1,6 @@
 import './globals.css';
 import { Archivo } from 'next/font/google';
+import SiteFooter from './components/site-footer';
 
 const archivo = Archivo({
   subsets: ['latin'],
@@ -25,6 +26,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="antialiased">
         {children}
+        <SiteFooter />
       </body>
     </html>
   )
