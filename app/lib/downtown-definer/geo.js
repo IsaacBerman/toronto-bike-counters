@@ -227,18 +227,24 @@ export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
     }
   }
 
+  const totalSubmissions = clippedPolygons.length;
   for (const feature of features) {
     const { count } = feature.properties;
-    // Hue and opacity both track the relative bucket (count / maxCount): the
-    // lowest bucket is faint, the highest is solid, so low-agreement areas
-    // recede and consensus areas stand out. Only the fields the client renders
-    // are kept (color, opacity, noData) to keep the payload small.
+    // Hue and opacity track the relative bucket (count / maxCount): the lowest
+    // bucket is faint, the highest solid. `pct` is the ABSOLUTE share of
+    // submitters who included the cell — used by the hover tooltip. Only the
+    // fields the client needs are kept, to keep the payload small.
     const noData = count === 0;
+    if (noData) {
+      feature.properties = { noData: true, color: NO_DATA_COLOR, opacity: 0.12 };
+      continue;
+    }
     const intensity = maxCount > 0 ? count / maxCount : 0;
     feature.properties = {
-      noData,
-      color: noData ? NO_DATA_COLOR : colorForIntensity(intensity),
-      opacity: noData ? 0.12 : round2(opacityForIntensity(intensity)),
+      color: colorForIntensity(intensity),
+      opacity: round2(opacityForIntensity(intensity)),
+      // At least 1% for any voted cell so a real vote never reads as "0%".
+      pct: totalSubmissions > 0 ? Math.max(1, Math.round((count / totalSubmissions) * 100)) : 0,
     };
   }
 

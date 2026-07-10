@@ -192,15 +192,70 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, onVe
 
     if (mode !== 'choropleth' || !grid) return;
 
-    choroplethLayerRef.current = L.geoJSON(grid, {
+    // Group voted cells by their bucket color so hovering one can outline the
+    // whole bucket. No-data cells stay non-interactive.
+    const colorGroups = new Map();
+    let activeColor = null;
+    let clearTimer = null;
+
+    const tooltip = L.tooltip({ sticky: true, direction: 'top', offset: [0, -4], opacity: 1 });
+
+    function resetActive() {
+      if (activeColor && colorGroups.has(activeColor)) {
+        for (const lyr of colorGroups.get(activeColor)) lyr.setStyle({ weight: 0 });
+      }
+      activeColor = null;
+    }
+
+    function clearHover() {
+      resetActive();
+      if (map.hasLayer(tooltip)) map.removeLayer(tooltip);
+    }
+
+    const layer = L.geoJSON(grid, {
       style: (feature) => ({
         color: feature.properties.color,
         weight: 0,
         fillColor: feature.properties.color,
         fillOpacity: feature.properties.opacity ?? 0.75,
-        interactive: false,
+        interactive: !feature.properties.noData,
       }),
+      onEachFeature: (feature, lyr) => {
+        if (feature.properties.noData) return;
+        const color = feature.properties.color;
+        if (!colorGroups.has(color)) colorGroups.set(color, []);
+        colorGroups.get(color).push(lyr);
+
+        const pct = feature.properties.pct ?? 0;
+        lyr.on('mouseover', (e) => {
+          if (clearTimer) {
+            clearTimeout(clearTimer);
+            clearTimer = null;
+          }
+          if (activeColor !== color) {
+            resetActive();
+            for (const other of colorGroups.get(color)) other.setStyle({ weight: 1, color: '#000' });
+            activeColor = color;
+          }
+          tooltip.setContent(`${pct}% of people agree this is in downtown`);
+          tooltip.setLatLng(e.latlng);
+          if (!map.hasLayer(tooltip)) tooltip.addTo(map);
+        });
+        lyr.on('mousemove', (e) => tooltip.setLatLng(e.latlng));
+        // Small delay so moving between adjacent cells doesn't flicker; only
+        // clears when the pointer actually leaves the heatmap.
+        lyr.on('mouseout', () => {
+          clearTimer = setTimeout(clearHover, 60);
+        });
+      },
     }).addTo(map);
+
+    choroplethLayerRef.current = layer;
+
+    return () => {
+      if (clearTimer) clearTimeout(clearTimer);
+      if (map.hasLayer(tooltip)) map.removeLayer(tooltip);
+    };
   }, [mode, grid, mapReady]);
 
   return <div ref={mapRef} className={className || 'h-96 w-full rounded-lg border border-gray-200'} />;
