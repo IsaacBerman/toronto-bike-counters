@@ -99,6 +99,11 @@ function rotate(x, y, cos, sin) {
   return [x * cos - y * sin, x * sin + y * cos];
 }
 
+// Coordinates rounded to 4 decimals (~11 m) — far finer than the ~282 m cells,
+// so no visible change, but it roughly halves the grid payload.
+const round4 = (n) => Math.round(n * 1e4) / 1e4;
+const round2 = (n) => Math.round(n * 100) / 100;
+
 // Convex hull of the boundary, projected to meters (open ring), or null.
 function hullPointsXY(boundary, proj) {
   try {
@@ -210,7 +215,8 @@ export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
         [rx, ry + cell],
       ].map(([px, py]) => {
         const [x, y] = rotate(px, py, cosA, sinA);
-        return proj.toLngLat(x, y);
+        const [lng, lat] = proj.toLngLat(x, y);
+        return [round4(lng), round4(lat)];
       });
 
       features.push({
@@ -225,13 +231,15 @@ export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
     const { count } = feature.properties;
     // Hue and opacity both track the relative bucket (count / maxCount): the
     // lowest bucket is faint, the highest is solid, so low-agreement areas
-    // recede and consensus areas stand out.
+    // recede and consensus areas stand out. Only the fields the client renders
+    // are kept (color, opacity, noData) to keep the payload small.
     const noData = count === 0;
     const intensity = maxCount > 0 ? count / maxCount : 0;
-    feature.properties.noData = noData;
-    feature.properties.intensity = intensity;
-    feature.properties.color = noData ? NO_DATA_COLOR : colorForIntensity(intensity);
-    feature.properties.opacity = noData ? 0.12 : opacityForIntensity(intensity);
+    feature.properties = {
+      noData,
+      color: noData ? NO_DATA_COLOR : colorForIntensity(intensity),
+      opacity: noData ? 0.12 : round2(opacityForIntensity(intensity)),
+    };
   }
 
   return { type: 'FeatureCollection', features, maxCount };
