@@ -127,6 +127,15 @@ body {
   padding: 0.55rem 0.75rem;
 }
 
+/* On touch devices, use a >=16px font so iOS Safari doesn't zoom in on focus.
+   Desktop keeps the smaller size. */
+@media (pointer: coarse) {
+  .dd-input,
+  .dd-select {
+    font-size: 16px;
+  }
+}
+
 .dd-link-accent {
   color: var(--accent);
   font-weight: 600;
