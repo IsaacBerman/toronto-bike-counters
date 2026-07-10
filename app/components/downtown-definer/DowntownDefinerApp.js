@@ -34,6 +34,14 @@ function titleCaseCity(name) {
     .join('');
 }
 
+// Display name for a city: if it has 2+ commas (e.g. "Regina, Saskatchewan,
+// Canada"), drop everything from the second comma on -> "Regina, Saskatchewan".
+function displayCityName(name) {
+  const parts = (name || '').split(',');
+  const trimmed = parts.length > 2 ? parts.slice(0, 2).join(',') : name;
+  return titleCaseCity(trimmed);
+}
+
 // Converts a stored GeoJSON Polygon/MultiPolygon (outer ring, [lng, lat]) into
 // the [lat, lng] point list the map and share card expect. Drops the closing
 // duplicate vertex.
@@ -124,7 +132,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   // Cities shown in the picker (always include Toronto as a suggestion), each
   // with a title-cased display label, filtered by the search query.
   const cityList = (() => {
-    const list = cities.map((c) => ({ slug: c.slug, name: c.name, label: titleCaseCity(c.name) }));
+    const list = cities.map((c) => ({ slug: c.slug, name: c.name, label: displayCityName(c.name) }));
     if (!list.some((c) => c.slug === 'toronto')) {
       list.unshift({ slug: 'toronto', name: 'Toronto', label: 'Toronto' });
     }
@@ -134,7 +142,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   const filteredCities = q ? cityList.filter((c) => normalizeText(c.label).includes(q)) : cityList;
   // Hide geocoder suggestions for cities that are already in the list
   // (accent-insensitive), so "Montréal" isn't offered when "Montreal" exists.
-  const existingNames = new Set(cityList.map((c) => normalizeText(c.name)));
+  const existingNames = new Set(cityList.map((c) => normalizeText(c.name.split(',')[0])));
   const newSuggestions = suggestions.filter(
     (s) => !existingNames.has(normalizeText(s.label.split(',')[0]))
   );
@@ -148,7 +156,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   // Once we have a city object, reflect it in the URL and either show the
   // results (if this visitor already submitted) or the drawing tools.
   async function enterCity(city) {
-    setSelectedCity({ ...city, name: titleCaseCity(city.name) });
+    setSelectedCity({ ...city, name: displayCityName(city.name) });
     updateUrl(city.slug);
     setPickerOpen(false);
 
