@@ -301,9 +301,9 @@ export async function renderShareCard({ cityName, boundary, bbox, yourPoints, gr
     ctx,
     W,
     H,
-    'Downtown, defined',
+    'Where is downtown?',
     cityName,
-    `${submissionCount} definition${submissionCount === 1 ? '' : 's'} · DowntownDefiner`
+    `Based on ${submissionCount} definition${submissionCount === 1 ? '' : 's'}`
   );
 
   return canvas;

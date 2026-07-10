@@ -2,10 +2,10 @@ import SiteHeader from '../components/site-header';
 import DowntownDefinerApp from '../components/downtown-definer/DowntownDefinerApp';
 
 export const metadata = {
-  title: 'DowntownDefiner',
+  title: 'Where is Downtown?',
   description: 'Draw what you consider "downtown" for a city and see how it compares to everyone else\'s.',
   openGraph: {
-    title: 'DowntownDefiner — Observing the City',
+    title: 'Where is Downtown? — Observing the City',
     description: 'Draw the boundary of what you call "downtown" and watch it merge into a crowd heatmap.',
     url: 'https://www.observingthecity.ca/downtown-definer',
     siteName: 'Observing the City',
@@ -13,7 +13,7 @@ export const metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'DowntownDefiner — Observing the City',
+    title: 'Where is Downtown? — Observing the City',
     description: 'Draw the boundary of what you call "downtown" and watch it merge into a crowd heatmap.',
   },
 };

@@ -188,7 +188,7 @@ export default function DowntownDefinerApp() {
         <div className="mb-6">
           <p className="dd-kicker mb-2">Community map</p>
           <h1 className="dd-title text-4xl sm:text-5xl mb-2" style={{ color: 'var(--ink)' }}>
-            DowntownDefiner
+            Where is Downtown?
           </h1>
           <p className="text-base max-w-2xl leading-relaxed" style={{ color: 'var(--ink-2)' }}>
             Draw what you consider &ldquo;downtown&rdquo; and see how it compares to everyone else&apos;s.

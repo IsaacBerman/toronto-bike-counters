@@ -31,7 +31,7 @@ export default function SiteHeader({ current }) {
         </Link>
         <nav className="flex gap-5 items-center">
           {navItem('/bike-counters', 'Bicycle Counters', 'bike-counters')}
-          {navItem('/downtown-definer', 'DowntownDefiner', 'downtown-definer')}
+          {navItem('/downtown-definer', 'Where is Downtown?', 'downtown-definer')}
         </nav>
       </div>
     </header>

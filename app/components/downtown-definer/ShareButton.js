@@ -32,7 +32,7 @@ export default function ShareButton({ cityName, boundary, bbox, yourPoints, grid
   const [error, setError] = useState(null);
   const filesRef = useRef(null);
 
-  const text = `I mapped what I think counts as downtown ${cityName}. See how it compares:`;
+  const text = `Where is downtown ${cityName}? I mapped what I think counts. See how it compares:`;
   const links = {
     x: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(SITE_URL)}`,
     bluesky: `https://bsky.app/intent/compose?text=${encodeURIComponent(`${text} ${SITE_URL}`)}`,
