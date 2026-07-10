@@ -132,7 +132,6 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   })();
   const q = normalizeText(query.trim());
   const filteredCities = q ? cityList.filter((c) => normalizeText(c.label).includes(q)) : cityList;
-  const hasExactMatch = cityList.some((c) => normalizeText(c.label) === q);
   // Hide geocoder suggestions for cities that are already in the list
   // (accent-insensitive), so "Montréal" isn't offered when "Montreal" exists.
   const existingNames = new Set(cityList.map((c) => normalizeText(c.name)));
@@ -386,21 +385,16 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                       </p>
                     )}
 
-                    {/* Fallback: add the raw text if the geocoder returned nothing */}
-                    {query.trim() && !hasExactMatch && !searchLoading && newSuggestions.length === 0 && (
-                      <button
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => loadCity(query)}
-                        className="block w-full text-left px-3 py-2 text-sm font-semibold hover:bg-gray-50"
-                        style={{ color: 'var(--accent)', borderTop: filteredCities.length ? '1px solid var(--line)' : 'none' }}
-                      >
-                        + Add &ldquo;{titleCaseCity(query.trim())}&rdquo;
-                      </button>
+                    {/* Only real geocoded cities can be added — no arbitrary text. */}
+                    {query.trim() && !searchLoading && filteredCities.length === 0 && newSuggestions.length === 0 && (
+                      <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
+                        No city found for &ldquo;{query.trim()}&rdquo;.
+                      </p>
                     )}
 
                     {!filteredCities.length && !query.trim() && (
                       <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
-                        No cities yet.
+                        Start typing a city name.
                       </p>
                     )}
                   </div>
