@@ -35,7 +35,7 @@ function polygonToPoints(geometry) {
   return points;
 }
 
-export default function DowntownDefinerApp() {
+export default function DowntownDefinerApp({ initialCitySlug }) {
   const [phase, setPhase] = useState('picking-city');
   const [cities, setCities] = useState([]);
   const [selectValue, setSelectValue] = useState('Toronto');
@@ -62,6 +62,12 @@ export default function DowntownDefinerApp() {
       .catch(() => setCities([]));
   }, []);
 
+  // Deep link support: if the URL carries a city slug, load it on mount.
+  useEffect(() => {
+    if (initialCitySlug) loadCityBySlug(initialCitySlug);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCitySlug]);
+
   useEffect(() => {
     if (phase !== 'drawing') return;
     function handleKeyDown(e) {
@@ -78,6 +84,35 @@ export default function DowntownDefinerApp() {
     return names.includes('Toronto') ? names : ['Toronto', ...names];
   })();
 
+  function updateUrl(slug) {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', slug ? `/downtown-definer/${slug}` : '/downtown-definer');
+    }
+  }
+
+  // Once we have a city object, reflect it in the URL and either show the
+  // results (if this visitor already submitted) or the drawing tools.
+  async function enterCity(city) {
+    setSelectedCity(city);
+    updateUrl(city.slug);
+
+    const status = await fetch(`/api/downtown-definer/status?city=${city.slug}`)
+      .then((r) => r.json())
+      .catch(() => ({ submitted: false }));
+
+    if (status.submitted) {
+      await goToResults(city, polygonToPoints(status.yourPolygon));
+    } else {
+      setPoints([]);
+      setPhase('drawing');
+    }
+
+    fetch('/api/downtown-definer/cities')
+      .then((r) => r.json())
+      .then((d) => setCities(d.cities || []))
+      .catch(() => {});
+  }
+
   async function loadCity(name) {
     if (!name?.trim()) return;
     setCityError(null);
@@ -93,27 +128,42 @@ export default function DowntownDefinerApp() {
         setCityError(data.error || 'Could not load that city.');
         return;
       }
-      setSelectedCity(data.city);
-
-      // If this visitor already submitted for the city, skip drawing and go
-      // straight to the results/heatmap view showing their previous shape.
-      const status = await fetch(`/api/downtown-definer/status?city=${data.city.slug}`)
-        .then((r) => r.json())
-        .catch(() => ({ submitted: false }));
-
-      if (status.submitted) {
-        await goToResults(data.city, polygonToPoints(status.yourPolygon));
-      } else {
-        setPoints([]);
-        setPhase('drawing');
-      }
-
-      fetch('/api/downtown-definer/cities')
-        .then((r) => r.json())
-        .then((d) => setCities(d.cities || []))
-        .catch(() => {});
+      await enterCity(data.city);
     } catch {
       setCityError('Could not load that city.');
+    } finally {
+      setCityLoading(false);
+    }
+  }
+
+  // Deep link: /downtown-definer/<slug>. Use the cached city if present,
+  // otherwise resolve the slug as a city name (fetch its boundary and cache it).
+  async function loadCityBySlug(slug) {
+    setCityError(null);
+    setCityLoading(true);
+    try {
+      const cached = await fetch(`/api/downtown-definer/cities/${slug}`);
+      if (cached.ok) {
+        const data = await cached.json();
+        await enterCity(data.city);
+        return;
+      }
+      const res = await fetch('/api/downtown-definer/cities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: slug.replace(/-/g, ' ') }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCityError(data.error || 'Could not find that city.');
+        setPhase('picking-city');
+        updateUrl(null);
+        return;
+      }
+      await enterCity(data.city);
+    } catch {
+      setCityError('Could not load that city.');
+      setPhase('picking-city');
     } finally {
       setCityLoading(false);
     }
@@ -175,6 +225,7 @@ export default function DowntownDefinerApp() {
     setPoints([]);
     setResults(null);
     setSubmitError(null);
+    updateUrl(null);
   }
 
   function resetDevIdentity() {
