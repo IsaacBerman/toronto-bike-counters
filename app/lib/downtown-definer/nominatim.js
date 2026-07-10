@@ -13,11 +13,21 @@ function getUserAgent() {
   return `observingthecity.ca DowntownDefiner${contact ? ` (${contact})` : ''}`;
 }
 
+// Prefer an actual city/town over larger administrative areas (state, region,
+// county) so e.g. "New York" resolves to New York City rather than the state —
+// which also lets OSM-id de-duplication collapse "New York" / "New York City".
+const CITY_TYPES = ['city', 'town', 'municipality', 'borough', 'village'];
+
 function pickBestResult(results) {
   const withPolygon = results.filter(
     (r) => r.geojson && (r.geojson.type === 'Polygon' || r.geojson.type === 'MultiPolygon')
   );
   if (withPolygon.length === 0) return null;
+
+  const cityLike = withPolygon.find(
+    (r) => CITY_TYPES.includes(r.addresstype) || CITY_TYPES.includes(r.type)
+  );
+  if (cityLike) return cityLike;
 
   const administrative = withPolygon.find((r) => r.class === 'boundary' && r.type === 'administrative');
   return administrative || withPolygon[0];
@@ -48,6 +58,8 @@ export async function fetchCityBoundary(name) {
       displayName: best.display_name,
       boundary: best.geojson,
       bbox: turfBbox(best.geojson),
+      osmType: best.osm_type || null,
+      osmId: best.osm_id != null ? String(best.osm_id) : null,
     };
   } catch (error) {
     console.error('Error fetching city boundary:', error);

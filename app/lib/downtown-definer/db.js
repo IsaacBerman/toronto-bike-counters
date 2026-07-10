@@ -42,13 +42,27 @@ export async function getCityBySlug(slug) {
   }
 }
 
-export async function insertCity({ slug, name, displayName, boundary, bbox }) {
+export async function getCityByOsm(osmType, osmId) {
+  if (!osmId) return null;
+  try {
+    const rows = await query(
+      'SELECT * FROM cities WHERE osm_type = $1 AND osm_id = $2 LIMIT 1',
+      [osmType, osmId]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Error loading city by osm id:', error);
+    return null;
+  }
+}
+
+export async function insertCity({ slug, name, displayName, boundary, bbox, osmType, osmId }) {
   const rows = await query(
-    `INSERT INTO cities (slug, name, display_name, boundary, bbox)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO cities (slug, name, display_name, boundary, bbox, osm_type, osm_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (slug) DO NOTHING
      RETURNING *`,
-    [slug, name, displayName, JSON.stringify(boundary), JSON.stringify(bbox)]
+    [slug, name, displayName, JSON.stringify(boundary), JSON.stringify(bbox), osmType || null, osmId || null]
   );
   if (rows[0]) return rows[0];
   return getCityBySlug(slug);

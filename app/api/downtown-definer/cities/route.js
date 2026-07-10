@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCities, getCityBySlug, insertCity } from '../../../lib/downtown-definer/db';
+import { getCities, getCityBySlug, getCityByOsm, insertCity } from '../../../lib/downtown-definer/db';
 import { fetchCityBoundary, slugify } from '../../../lib/downtown-definer/nominatim';
 
 export async function GET() {
@@ -30,12 +30,21 @@ export async function POST(request) {
     return NextResponse.json({ error: `Could not find a boundary for "${name}".` }, { status: 404 });
   }
 
+  // De-duplicate on the resolved OpenStreetMap entity so different names for the
+  // same place (e.g. "New York" / "New York City" / "NYC") collapse to one city.
+  const existingByOsm = await getCityByOsm(boundaryData.osmType, boundaryData.osmId);
+  if (existingByOsm) {
+    return NextResponse.json({ city: existingByOsm });
+  }
+
   const city = await insertCity({
     slug,
     name,
     displayName: boundaryData.displayName,
     boundary: boundaryData.boundary,
     bbox: boundaryData.bbox,
+    osmType: boundaryData.osmType,
+    osmId: boundaryData.osmId,
   });
 
   return NextResponse.json({ city });

@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS cities (
   display_name TEXT,
   boundary JSONB NOT NULL,
   bbox JSONB NOT NULL,
+  osm_type TEXT,
+  osm_id TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
