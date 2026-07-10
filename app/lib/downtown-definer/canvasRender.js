@@ -54,11 +54,12 @@ function drawBoundary(ctx, project, boundary) {
 }
 
 function drawUserPolygon(ctx, project, points) {
-  const rings = [[...points.map(([lat, lng]) => [lng, lat])]];
+  // tracePolygon expects an array of rings; wrap the single ring accordingly.
+  const rings = [points.map(([lat, lng]) => [lng, lat])];
   ctx.fillStyle = 'rgba(37, 99, 235, 0.35)';
   ctx.strokeStyle = '#1d4ed8';
   ctx.lineWidth = 3;
-  tracePolygon(ctx, project, rings[0]);
+  tracePolygon(ctx, project, rings);
   ctx.fill();
   ctx.stroke();
 }

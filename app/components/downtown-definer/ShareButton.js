@@ -29,28 +29,34 @@ export default function ShareButton({ cityName, boundary, bbox, yourPoints, grid
     setBusy(true);
     setError(null);
     setDownloadUrls(null);
-    try {
-      const files = await buildFiles();
-      const shareData = {
-        files,
-        title: `${cityName}'s downtown, defined`,
-        text: `Here's my definition of downtown ${cityName}, and how it compares to everyone else's — via DowntownDefiner`,
-      };
 
+    // Step 1: build the images. If this fails, surface the real reason.
+    let files;
+    try {
+      files = await buildFiles();
+    } catch (err) {
+      console.error('DowntownDefiner share: image generation failed', err);
+      setError(`Could not generate share images: ${err?.message || err}`);
+      setBusy(false);
+      return;
+    }
+
+    // Step 2: try the native share sheet, otherwise offer downloads.
+    try {
       if (navigator.canShare?.({ files })) {
-        await navigator.share(shareData);
+        await navigator.share({
+          files,
+          title: `${cityName}'s downtown, defined`,
+          text: `Here's my definition of downtown ${cityName}, and how it compares to everyone else's — via DowntownDefiner`,
+        });
       } else {
         setDownloadUrls(files.map((file) => ({ name: file.name, url: URL.createObjectURL(file) })));
       }
     } catch (err) {
       if (err?.name !== 'AbortError') {
+        console.error('DowntownDefiner share: navigator.share failed', err);
         setError('Could not open the share sheet — you can still download the images below.');
-        try {
-          const files = await buildFiles();
-          setDownloadUrls(files.map((file) => ({ name: file.name, url: URL.createObjectURL(file) })));
-        } catch {
-          setError('Could not generate share images.');
-        }
+        setDownloadUrls(files.map((file) => ({ name: file.name, url: URL.createObjectURL(file) })));
       }
     } finally {
       setBusy(false);
