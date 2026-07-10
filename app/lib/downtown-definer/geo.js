@@ -60,7 +60,7 @@ export function clipPolygonToBoundary(points, boundary) {
 // Builds a square grid over the city bbox, keeps only cells whose center is
 // inside the boundary, and colors each by how many submissions cover its
 // center. Returns a GeoJSON FeatureCollection ready to render as-is.
-export function buildHeatmapGrid(boundary, bbox, clippedPolygons, targetCellsAlongLongSide = 100) {
+export function buildHeatmapGrid(boundary, bbox, clippedPolygons, targetCellsAlongLongSide = 200) {
   const [minLng, minLat, maxLng, maxLat] = bbox;
   const lngSpan = maxLng - minLng;
   const latSpan = maxLat - minLat;
