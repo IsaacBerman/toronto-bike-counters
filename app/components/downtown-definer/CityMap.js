@@ -15,6 +15,8 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
   const drawLayerRef = useRef(null);
   const staticLayerRef = useRef(null);
   const choroplethLayerRef = useRef(null);
+  const resizeObserverRef = useRef(null);
+  const bboxRef = useRef(bbox);
   const onMapClickRef = useRef(onMapClick);
   // Leaflet loads asynchronously; flip this to true once the map exists so the
   // layer effects below re-run (a ref assignment alone wouldn't re-render).
@@ -44,10 +46,31 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
       leafletRef.current = L;
       leafletMapRef.current = map;
       setMapReady(true);
+
+      // Keep the map filling its container and re-fit to the city whenever the
+      // container is resized (breakpoint changes, late layout). Without this,
+      // two maps initialising together can lock in different sizes/zoom.
+      if (typeof ResizeObserver !== 'undefined' && mapRef.current) {
+        const ro = new ResizeObserver(() => {
+          if (!leafletMapRef.current) return;
+          leafletMapRef.current.invalidateSize();
+          const b = bboxRef.current;
+          if (b) {
+            const [minLng, minLat, maxLng, maxLat] = b;
+            leafletMapRef.current.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
+          }
+        });
+        ro.observe(mapRef.current);
+        resizeObserverRef.current = ro;
+      }
     });
 
     return () => {
       cancelled = true;
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+        resizeObserverRef.current = null;
+      }
       if (leafletMapRef.current) {
         leafletMapRef.current.remove();
         leafletMapRef.current = null;
@@ -70,7 +93,9 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, stat
       style: { color: '#334155', weight: 2, fillOpacity: 0.03, interactive: false },
     }).addTo(map);
 
+    bboxRef.current = bbox;
     if (bbox) {
+      map.invalidateSize();
       const [minLng, minLat, maxLng, maxLat] = bbox;
       map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
     }
