@@ -340,6 +340,11 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 <span className="text-sm font-mono" style={{ color: 'var(--ink-3)' }}>
                   {points.length} point{points.length === 1 ? '' : 's'}
                 </span>
+                {points.length > 0 && (
+                  <span className="text-xs" style={{ color: 'var(--ink-3)' }}>
+                    click and drag to edit an already-placed point
+                  </span>
+                )}
                 <button
                   onClick={handleSubmit}
                   disabled={points.length < 3 || submitting}
