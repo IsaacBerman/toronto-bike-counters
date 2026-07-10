@@ -99,6 +99,25 @@ function rotate(x, y, cos, sin) {
   return [x * cos - y * sin, x * sin + y * cos];
 }
 
+// [minLng, minLat, maxLng, maxLat] of a Polygon/MultiPolygon geometry.
+function geometryBbox(geometry) {
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+  const scan = (coords) => {
+    for (const c of coords) {
+      if (typeof c[0] === 'number') {
+        if (c[0] < minLng) minLng = c[0];
+        if (c[0] > maxLng) maxLng = c[0];
+        if (c[1] < minLat) minLat = c[1];
+        if (c[1] > maxLat) maxLat = c[1];
+      } else {
+        scan(c);
+      }
+    }
+  };
+  scan(geometry.coordinates);
+  return [minLng, minLat, maxLng, maxLat];
+}
+
 // Coordinates rounded to 4 decimals (~11 m) — far finer than the ~282 m cells,
 // so no visible change, but it roughly halves the grid payload.
 const round4 = (n) => Math.round(n * 1e4) / 1e4;
@@ -182,10 +201,11 @@ export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
   if (estCells > MAX_CELLS) cell *= Math.sqrt(estCells / MAX_CELLS);
 
   const boundaryFeature = { type: 'Feature', properties: {}, geometry: boundary };
-  const submissionFeatures = clippedPolygons.map((geometry) => ({
-    type: 'Feature',
-    properties: {},
-    geometry,
+  // Precompute each submission's bbox so the counting loop can skip the
+  // expensive point-in-polygon test for submissions nowhere near a cell.
+  const submissions = clippedPolygons.map((geometry) => ({
+    feature: { type: 'Feature', properties: {}, geometry },
+    bbox: geometryBbox(geometry),
   }));
 
   const features = [];
@@ -202,9 +222,12 @@ export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
       const center = proj.toLngLat(cx, cy);
       if (!booleanPointInPolygon(center, boundaryFeature)) continue;
 
+      const [clng, clat] = center;
       let count = 0;
-      for (const f of submissionFeatures) {
-        if (booleanPointInPolygon(center, f)) count++;
+      for (const s of submissions) {
+        const bb = s.bbox;
+        if (clng < bb[0] || clng > bb[2] || clat < bb[1] || clat > bb[3]) continue;
+        if (booleanPointInPolygon(center, s.feature)) count++;
       }
       if (count > maxCount) maxCount = count;
 
