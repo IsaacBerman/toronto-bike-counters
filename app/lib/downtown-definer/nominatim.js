@@ -72,7 +72,10 @@ export async function searchCities(query) {
     const addr = r.address || {};
     const region = addr.state && addr.state !== name ? addr.state : addr.country;
     const label = region ? `${name}, ${region}` : name;
-    const searchQuery = [name, addr.state, addr.country].filter(Boolean).join(', ');
+    // Don't repeat the name (e.g. state "Shanghai" == name "Shanghai") — an
+    // over-qualified query can resolve to a point with no boundary.
+    const state = addr.state && addr.state !== name ? addr.state : null;
+    const searchQuery = [name, state, addr.country].filter(Boolean).join(', ');
 
     suggestions.push({ key, label, query: searchQuery, osmId: r.osm_id != null ? String(r.osm_id) : null });
     if (suggestions.length >= 6) break;
@@ -81,35 +84,52 @@ export async function searchCities(query) {
   return suggestions;
 }
 
+async function queryBoundary(q) {
+  const params = new URLSearchParams({
+    q,
+    format: 'jsonv2',
+    polygon_geojson: '1',
+    polygon_threshold: '0.005',
+    addressdetails: '1',
+    'accept-language': 'en',
+    limit: '5',
+  });
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+    headers: { 'User-Agent': getUserAgent() },
+  });
+  if (!response.ok) throw new Error(`Nominatim request failed: ${response.status}`);
+
+  const results = await response.json();
+  const best = pickBestResult(results);
+  if (!best) return null;
+
+  return {
+    displayName: best.display_name,
+    boundary: best.geojson,
+    bbox: turfBbox(best.geojson),
+    osmType: best.osm_type || null,
+    osmId: best.osm_id != null ? String(best.osm_id) : null,
+  };
+}
+
+// A very specific query (e.g. "Shanghai, Shanghai, China") can resolve to a
+// point with no polygon. Try the given name, then progressively broaden
+// ("City, Country", then "City") until one yields an actual boundary.
 export async function fetchCityBoundary(name) {
+  const parts = name.split(',').map((s) => s.trim()).filter(Boolean);
+  const candidates = [name];
+  if (parts.length >= 3) candidates.push(`${parts[0]}, ${parts[parts.length - 1]}`);
+  if (parts.length >= 2) candidates.push(parts[0]);
+
+  const tried = new Set();
   try {
-    const params = new URLSearchParams({
-      q: name,
-      format: 'jsonv2',
-      polygon_geojson: '1',
-      polygon_threshold: '0.005',
-      addressdetails: '1',
-      'accept-language': 'en',
-      limit: '5',
-    });
-
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
-      headers: { 'User-Agent': getUserAgent() },
-    });
-
-    if (!response.ok) throw new Error(`Nominatim request failed: ${response.status}`);
-
-    const results = await response.json();
-    const best = pickBestResult(results);
-    if (!best) return null;
-
-    return {
-      displayName: best.display_name,
-      boundary: best.geojson,
-      bbox: turfBbox(best.geojson),
-      osmType: best.osm_type || null,
-      osmId: best.osm_id != null ? String(best.osm_id) : null,
-    };
+    for (const q of candidates) {
+      if (tried.has(q)) continue;
+      tried.add(q);
+      const result = await queryBoundary(q);
+      if (result) return result;
+    }
+    return null;
   } catch (error) {
     console.error('Error fetching city boundary:', error);
     return null;
