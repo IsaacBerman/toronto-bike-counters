@@ -51,6 +51,8 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   const [cities, setCities] = useState([]);
   const [query, setQuery] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [cityLoading, setCityLoading] = useState(false);
   const [cityError, setCityError] = useState(null);
 
@@ -78,6 +80,26 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     if (initialCitySlug) loadCityBySlug(initialCitySlug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCitySlug]);
+
+  // Live geocoder autocomplete (debounced) so typing surfaces cities not yet
+  // added — e.g. "Mexico" -> "Ciudad de México".
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    const timer = setTimeout(() => {
+      fetch(`/api/downtown-definer/search?q=${encodeURIComponent(q)}`)
+        .then((r) => r.json())
+        .then((d) => setSuggestions(d.suggestions || []))
+        .catch(() => setSuggestions([]))
+        .finally(() => setSearchLoading(false));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   useEffect(() => {
     if (phase !== 'drawing') return;
@@ -320,7 +342,37 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                       </button>
                     ))}
 
-                    {query.trim() && !hasExactMatch && (
+                    {/* Geocoder suggestions (cities not yet added) */}
+                    {suggestions.length > 0 && (
+                      <>
+                        <p
+                          className="px-3 pt-2 pb-1 text-xs font-bold uppercase tracking-wide"
+                          style={{ color: 'var(--ink-3)', borderTop: filteredCities.length ? '1px solid var(--line)' : 'none' }}
+                        >
+                          Add a city
+                        </p>
+                        {suggestions.map((s) => (
+                          <button
+                            key={s.key}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => loadCity(s.query)}
+                            className="block w-full text-left px-3 py-2 text-sm font-semibold hover:bg-gray-50"
+                            style={{ color: 'var(--accent)' }}
+                          >
+                            + {s.label}
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {searchLoading && (
+                      <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
+                        Searching…
+                      </p>
+                    )}
+
+                    {/* Fallback: add the raw text if the geocoder returned nothing */}
+                    {query.trim() && !hasExactMatch && !searchLoading && suggestions.length === 0 && (
                       <button
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => loadCity(query)}
