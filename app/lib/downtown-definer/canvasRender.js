@@ -264,8 +264,9 @@ async function createCanvas(W, H) {
 
 // Single share image. With a user polygon it renders two panels side by side
 // (My downtown | Everyone's downtown); without one it renders just the heatmap.
-export async function renderShareCard({ cityName, boundary, bbox, yourPoints, grid, submissionCount }) {
+export async function renderShareCard({ cityName, boundary, bbox, yourPoints, grid, submissionCount, score }) {
   const hasYours = yourPoints && yourPoints.length >= 3;
+  const yourLabel = score != null ? `My downtown · Score ${score}` : 'My downtown';
   const W = hasYours ? 1680 : 1080;
   const H = hasYours ? 1000 : 1080;
   const { canvas, ctx } = await createCanvas(W, H);
@@ -279,7 +280,7 @@ export async function renderShareCard({ cityName, boundary, bbox, yourPoints, gr
       bbox,
       boundary,
       points: yourPoints,
-      label: 'My downtown',
+      label: yourLabel,
       labelColor: ACCENT,
     });
     await drawPanel(ctx, { x: MARGIN + panelW + GAP, y: panelTop, w: panelW, h: panelH }, {

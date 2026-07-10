@@ -560,6 +560,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 yourPoints={results.yourPoints}
                 grid={results.grid}
                 submissionCount={results.submissionCount}
+                score={results.score}
               />
             </div>
           )}

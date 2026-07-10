@@ -27,7 +27,7 @@ function FacebookIcon() {
   );
 }
 
-export default function ShareButton({ cityName, citySlug, boundary, bbox, yourPoints, grid, submissionCount }) {
+export default function ShareButton({ cityName, citySlug, boundary, bbox, yourPoints, grid, submissionCount, score }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const filesRef = useRef(null);
@@ -42,7 +42,7 @@ export default function ShareButton({ cityName, citySlug, boundary, bbox, yourPo
 
   async function buildFiles() {
     if (filesRef.current) return filesRef.current;
-    const canvas = await renderShareCard({ cityName, boundary, bbox, yourPoints, grid, submissionCount });
+    const canvas = await renderShareCard({ cityName, boundary, bbox, yourPoints, grid, submissionCount, score });
     const file = await canvasToFile(canvas, `${cityName}-downtown.png`);
     filesRef.current = [file];
     return filesRef.current;
