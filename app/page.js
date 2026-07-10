@@ -5,37 +5,65 @@ export const metadata = {
   description: 'Data and community tools exploring how cities move and how people see them',
 };
 
+function ProjectCard({ href, index, title, blurb, tag }) {
+  return (
+    <Link
+      href={href}
+      className="group block dd-panel-ruled p-6 transition-transform hover:-translate-y-0.5"
+    >
+      <div className="flex items-baseline justify-between mb-6">
+        <span className="text-sm font-mono font-bold" style={{ color: 'var(--ink-3)' }}>
+          {index}
+        </span>
+        <span className="dd-kicker">{tag}</span>
+      </div>
+      <h2 className="dd-title text-2xl mb-2" style={{ color: 'var(--ink)' }}>
+        {title}
+      </h2>
+      <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--ink-2)' }}>
+        {blurb}
+      </p>
+      <span
+        className="inline-flex items-center gap-1 text-sm font-bold group-hover:gap-2 transition-all"
+        style={{ color: 'var(--accent)' }}
+      >
+        Open →
+      </span>
+    </Link>
+  );
+}
+
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-16">
-      <div className="container mx-auto px-4 max-w-4xl text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-3 tracking-tight">
-          Observing the City
-        </h1>
-        <p className="text-lg text-gray-600 mb-12 max-w-2xl mx-auto leading-relaxed">
-          Data and community tools exploring how cities move and how people see them.
-        </p>
+    <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
+      <div className="container mx-auto px-4 max-w-4xl py-20">
+        <div className="mb-14">
+          <p className="dd-kicker mb-3">Observing the City</p>
+          <h1 className="dd-title text-5xl sm:text-6xl mb-5" style={{ color: 'var(--ink)' }}>
+            How cities move,
+            <br />
+            and how we see them.
+          </h1>
+          <p className="text-lg max-w-xl leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+            A small set of data and community tools about urban life. Pick one below.
+          </p>
+        </div>
 
-        <div className="grid sm:grid-cols-2 gap-6">
-          <Link
+        <div className="grid sm:grid-cols-2 gap-5">
+          <ProjectCard
             href="/bike-counters"
-            className="block bg-white p-8 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl hover:-translate-y-0.5 transition"
-          >
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Toronto Bicycle Counters</h2>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Explore bicycle traffic data from permanent counting stations across Toronto.
-            </p>
-          </Link>
-
-          <Link
+            index="01"
+            tag="Live data"
+            title="Toronto Bicycle Counters"
+            blurb="Bicycle traffic from permanent counting stations across Toronto, updated from the city's live feed."
+          />
+          <ProjectCard
             href="/downtown-definer"
-            className="block bg-white p-8 rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl hover:-translate-y-0.5 transition"
-          >
-            <h2 className="text-xl font-bold text-gray-900 mb-2">DowntownDefiner</h2>
-            <p className="text-sm text-gray-600 leading-relaxed">
-              Draw the boundary of what you consider &ldquo;downtown&rdquo; and see how it compares to everyone else&apos;s.
-            </p>
-          </Link>
+            index="02"
+            tag="Community map"
+            title="DowntownDefiner"
+            blurb="Draw the boundary of what you call &ldquo;downtown&rdquo; and watch it merge into a crowd heatmap."
+          />
         </div>
       </div>
     </div>

@@ -1,27 +1,39 @@
 import Link from 'next/link';
 
 export default function SiteHeader({ current }) {
+  const navItem = (href, label, key) => {
+    const active = current === key;
+    return (
+      <Link
+        href={href}
+        className="relative py-1 text-sm font-semibold"
+        style={{ color: active ? 'var(--ink)' : 'var(--ink-2)' }}
+      >
+        {label}
+        {active && (
+          <span
+            className="absolute -bottom-[3px] left-0 right-0 h-[3px]"
+            style={{ background: 'var(--accent)' }}
+          />
+        )}
+      </Link>
+    );
+  };
+
   return (
-    <div className="bg-white border-b border-gray-100">
-      <div className="container mx-auto px-4 max-w-7xl py-3 flex items-center justify-between">
-        <Link href="/" className="font-bold text-gray-900 tracking-tight hover:text-blue-600">
-          Observing the City
+    <header style={{ background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+      <div className="container mx-auto px-4 max-w-6xl py-3 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2">
+          <span className="inline-block h-4 w-4 rounded-sm" style={{ background: 'var(--accent)' }} />
+          <span className="dd-title text-base" style={{ color: 'var(--ink)' }}>
+            Observing the City
+          </span>
         </Link>
-        <nav className="flex gap-4 text-sm font-medium">
-          <Link
-            href="/bike-counters"
-            className={current === 'bike-counters' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}
-          >
-            Bicycle Counters
-          </Link>
-          <Link
-            href="/downtown-definer"
-            className={current === 'downtown-definer' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}
-          >
-            DowntownDefiner
-          </Link>
+        <nav className="flex gap-5 items-center">
+          {navItem('/bike-counters', 'Bicycle Counters', 'bike-counters')}
+          {navItem('/downtown-definer', 'DowntownDefiner', 'downtown-definer')}
         </nav>
       </div>
-    </div>
+    </header>
   );
 }
