@@ -7,16 +7,16 @@ import {
   area as turfArea,
 } from '@turf/turf';
 
-// Diverging blue -> white -> red "heatmap" ramp (13 steps, coolwarm-style).
-// Low agreement reads cool/blue, mid is near-white, peak consensus reads hot/red.
+// Warm sequential "heatmap" ramp (13 steps, ColorBrewer YlOrRd-style).
+// Low agreement reads pale yellow, peak consensus reads deep red.
 const HEATMAP_RAMP = [
-  '#3b4cc0', '#5967c8', '#7782cf', '#949dd7', '#b2b8df', '#d0d3e6',
-  '#eeeeee', '#e4c7cd', '#dba0ab', '#d1798a', '#c75269', '#be2b47', '#b40426',
+  '#ffffcc', '#fff3af', '#ffe692', '#fed976', '#febf5a', '#fea647',
+  '#fd8d3c', '#fc6330', '#f43d25', '#e31a1c', '#ca0923', '#a90026', '#800026',
 ];
 
-// Faint fill for cells inside the city that nobody marked as downtown. Kept
-// distinct from the ramp's light midpoint by rendering at low opacity (see
-// buildHeatmapGrid) so "no votes" doesn't read the same as "mid agreement".
+// Faint neutral fill for cells inside the city that nobody marked as downtown,
+// rendered at low opacity (see buildHeatmapGrid) so "no votes" stays distinct
+// from the ramp's pale-yellow low end.
 export const NO_DATA_COLOR = '#dcdcd6';
 
 export function colorForIntensity(intensity) {
