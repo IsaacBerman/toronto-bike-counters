@@ -19,7 +19,10 @@
       "Bash(curl -s -o /dev/null -w '%{http_code}' -X POST https://www.observingthecity.ca/api/downtown-definer/cities -H 'Content-Type: application/json' -d '{\\\\\"name\\\\\":\\\\\"toronto\\\\\"}')",
       "Bash(curl -s \"https://www.observingthecity.ca/api/downtown-definer/cities\")",
       "Bash(curl -s \"https://www.observingthecity.ca/api/downtown-definer/cities/toronto\")",
-      "Bash(curl -s \"https://www.observingthecity.ca/api/downtown-definer/status?city=toronto\")"
+      "Bash(curl -s \"https://www.observingthecity.ca/api/downtown-definer/status?city=toronto\")",
+      "Bash(sed -i '' 's/return NextResponse.json\\(cached.payload\\);/return NextResponse.json\\(cached.payload, { headers: EDGE_CACHE }\\);/' app/api/downtown-definer/heatmap/route.js)",
+      "Bash(sed -i '' 's/      return NextResponse.json\\(payload\\);/      return NextResponse.json\\(payload, { headers: EDGE_CACHE }\\);/' app/api/downtown-definer/heatmap/route.js)",
+      "Bash(sed -i '' 's/^  return NextResponse.json\\(payload\\);/  return NextResponse.json\\(payload, { headers: EDGE_CACHE }\\);/' app/api/downtown-definer/heatmap/route.js)"
     ]
   }
 }

@@ -312,17 +312,23 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     }
   }
 
-  async function fetchHeatmap(citySlug) {
-    const res = await fetch(`/api/downtown-definer/heatmap?city=${citySlug}`);
+  async function fetchHeatmap(citySlug, fresh) {
+    // `fresh` cache-busts the edge cache so a just-submitted vote is reflected
+    // immediately for the submitter; normal views hit the shared CDN cache.
+    const url = fresh
+      ? `/api/downtown-definer/heatmap?city=${citySlug}&t=${Date.now()}`
+      : `/api/downtown-definer/heatmap?city=${citySlug}`;
+    const res = await fetch(url, fresh ? { cache: 'no-store' } : undefined);
     const data = await res.json();
     return data;
   }
 
   // Fetch the heatmap for a city and switch to the results view. `yourPoints`
   // is the visitor's own shape (from a fresh submission or a stored one); when
-  // omitted it's fetched from the status endpoint.
-  async function goToResults(city, yourPoints) {
-    const heatmap = await fetchHeatmap(city.slug);
+  // omitted it's fetched from the status endpoint. `fresh` bypasses the CDN
+  // cache (used right after submitting).
+  async function goToResults(city, yourPoints, fresh) {
+    const heatmap = await fetchHeatmap(city.slug, fresh);
     let mine = yourPoints ?? null;
     if (!mine) {
       const status = await fetch(`/api/downtown-definer/status?city=${city.slug}`)
@@ -360,7 +366,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
         return;
       }
 
-      await goToResults(selectedCity, points);
+      await goToResults(selectedCity, points, true); // fresh: reflect the new vote
     } catch {
       setSubmitError('Something went wrong.');
     } finally {

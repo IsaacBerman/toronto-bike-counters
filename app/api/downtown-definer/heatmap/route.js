@@ -13,7 +13,11 @@ import {
   HEATMAP_ALGO_VERSION,
 } from '../../../lib/downtown-definer/geo';
 
-export const dynamic = 'force-dynamic';
+// Let Vercel's edge cache the heatmap so repeat views of a popular city are
+// served from the CDN — no function invocation, no DB query. Kept short so new
+// submissions show up within ~1 min (the post-submit fetch cache-busts for the
+// submitter so they see their own vote immediately).
+const EDGE_CACHE = { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' };
 
 // In-memory grid cache (per warm instance), keyed by city slug. Reused while the
 // submission count is unchanged so we skip both the DB read and the rebuild.
@@ -52,7 +56,7 @@ export async function GET(request) {
   // 1) Warm in-memory grid cache.
   const cached = gridCache.get(citySlug);
   if (cached && cached.count === count && Date.now() - cached.ts < CACHE_TTL_MS) {
-    return NextResponse.json(cached.payload);
+    return NextResponse.json(cached.payload, { headers: EDGE_CACHE });
   }
 
   // 2) Persistent counts cache — rebuild geometry from the (cached) boundary and
@@ -69,7 +73,7 @@ export async function GET(request) {
       const grid = finalizeGrid(cells, dbCache.counts, count);
       const payload = { grid, submissionCount: count };
       rememberInMemory(citySlug, count, payload);
-      return NextResponse.json(payload);
+      return NextResponse.json(payload, { headers: EDGE_CACHE });
     }
   }
 
@@ -83,5 +87,5 @@ export async function GET(request) {
   await saveHeatmapCache(city.id, clippedPolygons.length, HEATMAP_ALGO_VERSION, counts);
   rememberInMemory(citySlug, clippedPolygons.length, payload);
 
-  return NextResponse.json(payload);
+  return NextResponse.json(payload, { headers: EDGE_CACHE });
 }

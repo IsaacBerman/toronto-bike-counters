@@ -4,7 +4,11 @@ import { fetchCityBoundary, slugify } from '../../../lib/downtown-definer/nomina
 
 export async function GET() {
   const cities = await getCities();
-  return NextResponse.json({ cities });
+  // Cities change rarely — let the edge cache serve the dropdown list.
+  return NextResponse.json(
+    { cities },
+    { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600' } }
+  );
 }
 
 export async function POST(request) {
