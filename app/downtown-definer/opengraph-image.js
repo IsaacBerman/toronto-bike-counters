@@ -26,17 +26,6 @@ export default function OgImage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div
-            style={{
-              fontSize: '30px',
-              fontWeight: 700,
-              color: '#e8590c',
-              letterSpacing: '0.14em',
-              marginBottom: '12px',
-            }}
-          >
-            COMMUNITY MAP
-          </div>
           <div style={{ fontSize: '104px', fontWeight: 800, color: '#16150f', lineHeight: 1, letterSpacing: '-0.03em' }}>
             Where is Downtown?
           </div>

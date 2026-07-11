@@ -202,7 +202,6 @@ export default function BicycleCountersContent() {
       <div className="container mx-auto px-4 max-w-7xl">
         {/* Header Section */}
         <div className="mb-6">
-          <p className="dd-kicker mb-2">Live data</p>
           <h1 className="dd-title text-4xl sm:text-5xl mb-2" style={{ color: 'var(--ink)' }}>
             Toronto Bicycle Counters
           </h1>
