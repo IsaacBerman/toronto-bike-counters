@@ -612,7 +612,6 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 grid={results.grid}
                 submissionCount={results.submissionCount}
                 score={results.score}
-                frameBbox={results.frame}
               />
             </div>
           )}

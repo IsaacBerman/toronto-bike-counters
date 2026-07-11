@@ -123,6 +123,32 @@ function traceRings(ctx, project, rings) {
   }
 }
 
+function drawBoundaryMask(ctx, m, rect, boundary) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.w, rect.h);
+  for (const rings of polygonRings(boundary)) {
+    for (const ring of rings) {
+      ring.forEach(([lng, lat], index) => {
+        const [x, y] = m.project(lng, lat);
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+    }
+  }
+  ctx.fillStyle = 'rgba(243, 242, 236, 0.72)';
+  ctx.fill('evenodd');
+  ctx.restore();
+
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.5;
+  for (const rings of polygonRings(boundary)) {
+    traceRings(ctx, m.project, rings);
+    ctx.stroke();
+  }
+}
+
 function drawUserPolygon(ctx, m, rect, points) {
   ctx.save();
   ctx.beginPath();
@@ -176,11 +202,10 @@ function drawPanelLabel(ctx, rect, label, color) {
   ctx.textBaseline = 'alphabetic';
 }
 
-async function drawPanel(ctx, rect, { bbox, points, grid, label, labelColor }) {
+async function drawPanel(ctx, rect, { bbox, boundary, points, grid, label, labelColor }) {
   const m = setupMercator(bbox, rect);
   await drawBasemap(ctx, m, rect);
-  // No city boundary/mask on the share image (its unclipped outline could spill
-  // into the adjacent panel); just the basemap with the polygon / heatmap.
+  drawBoundaryMask(ctx, m, rect, boundary);
   if (points) drawUserPolygon(ctx, m, rect, points);
   if (grid) drawChoropleth(ctx, m, rect, grid);
   ctx.strokeStyle = INK;
@@ -239,11 +264,9 @@ async function createCanvas(W, H) {
 
 // Single share image. With a user polygon it renders two panels side by side
 // (My downtown | Everyone's downtown); without one it renders just the heatmap.
-export async function renderShareCard({ cityName, boundary, bbox, yourPoints, grid, submissionCount, score, frameBbox }) {
+export async function renderShareCard({ cityName, boundary, bbox, yourPoints, grid, submissionCount, score }) {
   const hasYours = yourPoints && yourPoints.length >= 3;
   const yourLabel = score != null ? `My downtown · Score: ${score}` : 'My downtown';
-  // Frame both panels to the same region (consensus + user's shape) when given.
-  const frame = frameBbox || bbox;
   const W = hasYours ? 1680 : 1080;
   const H = hasYours ? 1000 : 1080;
   const { canvas, ctx } = await createCanvas(W, H);
@@ -254,14 +277,14 @@ export async function renderShareCard({ cityName, boundary, bbox, yourPoints, gr
   if (hasYours) {
     const panelW = (W - MARGIN * 2 - GAP) / 2;
     await drawPanel(ctx, { x: MARGIN, y: panelTop, w: panelW, h: panelH }, {
-      bbox: frame,
+      bbox,
       boundary,
       points: yourPoints,
       label: yourLabel,
       labelColor: ACCENT,
     });
     await drawPanel(ctx, { x: MARGIN + panelW + GAP, y: panelTop, w: panelW, h: panelH }, {
-      bbox: frame,
+      bbox,
       boundary,
       grid,
       label: "Everyone's downtown",
@@ -269,7 +292,7 @@ export async function renderShareCard({ cityName, boundary, bbox, yourPoints, gr
     });
   } else {
     await drawPanel(ctx, { x: MARGIN, y: panelTop, w: W - MARGIN * 2, h: panelH }, {
-      bbox: frame,
+      bbox,
       boundary,
       grid,
       label: "Everyone's downtown",
