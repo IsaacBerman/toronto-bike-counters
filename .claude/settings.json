@@ -11,7 +11,15 @@
       "Bash(curl -s \"https://nominatim.openstreetmap.org/search?q=Shanghai%2C%20Shanghai%2C%20China&format=jsonv2&polygon_geojson=1&addressdetails=1&accept-language=en&limit=5\" -H \"User-Agent: observingthecity.ca test\")",
       "Bash(curl -s \"https://nominatim.openstreetmap.org/search?q=Shanghai&format=jsonv2&polygon_geojson=1&addressdetails=1&accept-language=en&limit=5\" -H \"User-Agent: observingthecity.ca test\")",
       "Bash(curl -s \"https://nominatim.openstreetmap.org/search?q=Shanghai%2C%20China&format=jsonv2&polygon_geojson=1&addressdetails=1&accept-language=en&limit=3\" -H \"User-Agent: observingthecity.ca test\")",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://www.observingthecity.ca/api/downtown-definer/search?q=toronto)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://www.observingthecity.ca/api/downtown-definer/status?city=toronto)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://www.observingthecity.ca/api/downtown-definer/heatmap?city=toronto)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://www.observingthecity.ca/api/downtown-definer/cities/toronto)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' -X POST https://www.observingthecity.ca/api/downtown-definer/cities -H 'Content-Type: application/json' -d '{\\\\\"name\\\\\":\\\\\"toronto\\\\\"}')",
+      "Bash(curl -s \"https://www.observingthecity.ca/api/downtown-definer/cities\")",
+      "Bash(curl -s \"https://www.observingthecity.ca/api/downtown-definer/cities/toronto\")",
+      "Bash(curl -s \"https://www.observingthecity.ca/api/downtown-definer/status?city=toronto\")"
     ]
   }
 }

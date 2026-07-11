@@ -23,39 +23,49 @@ async function query(text, params) {
   return result.rows;
 }
 
-// Self-bootstrap the optional `label` column (admin display-name override) once
-// per instance, so we don't need a manual migration step.
-let schemaReady = null;
-export function ensureSchema() {
-  if (!schemaReady) {
-    schemaReady = getPool()
-      .query('ALTER TABLE cities ADD COLUMN IF NOT EXISTS label TEXT')
-      .catch((error) => {
-        schemaReady = null;
-        throw error;
-      });
+// Cities (and their large, immutable boundaries) rarely change, so cache them in
+// memory. This is the key egress saver — the full boundary was previously
+// re-downloaded from the DB on every heatmap/status/city request.
+const CITY_CACHE_TTL = 10 * 60 * 1000;
+const CITY_CACHE_MAX = 40;
+let citiesCache = null; // { rows, ts }
+const cityBySlugCache = new Map(); // slug -> { row, ts }
+
+function cacheCity(slug, row) {
+  cityBySlugCache.set(slug, { row, ts: Date.now() });
+  if (cityBySlugCache.size > CITY_CACHE_MAX) {
+    cityBySlugCache.delete(cityBySlugCache.keys().next().value);
   }
-  return schemaReady;
+}
+
+export function invalidateCityCaches() {
+  citiesCache = null;
+  cityBySlugCache.clear();
 }
 
 export async function getCities() {
+  if (citiesCache && Date.now() - citiesCache.ts < CITY_CACHE_TTL) return citiesCache.rows;
   try {
-    await ensureSchema();
-    return await query('SELECT id, slug, name, label FROM cities ORDER BY name ASC');
+    const rows = await query('SELECT id, slug, name, label FROM cities ORDER BY name ASC');
+    citiesCache = { rows, ts: Date.now() };
+    return rows;
   } catch (error) {
     console.error('Error loading cities:', error);
-    return [];
+    return citiesCache?.rows || [];
   }
 }
 
 export async function getCityBySlug(slug) {
+  const cached = cityBySlugCache.get(slug);
+  if (cached && Date.now() - cached.ts < CITY_CACHE_TTL) return cached.row;
   try {
-    await ensureSchema();
     const rows = await query('SELECT * FROM cities WHERE slug = $1 LIMIT 1', [slug]);
-    return rows[0] || null;
+    const row = rows[0] || null;
+    if (row) cacheCity(slug, row);
+    return row;
   } catch (error) {
     console.error('Error loading city:', error);
-    return null;
+    return cached?.row || null;
   }
 }
 
@@ -81,6 +91,7 @@ export async function insertCity({ slug, name, displayName, boundary, bbox, osmT
      RETURNING *`,
     [slug, name, displayName, JSON.stringify(boundary), JSON.stringify(bbox), osmType || null, osmId || null]
   );
+  invalidateCityCaches(); // new city should appear in the cached list right away
   if (rows[0]) return rows[0];
   return getCityBySlug(slug);
 }
