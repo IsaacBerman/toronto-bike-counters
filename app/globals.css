@@ -145,6 +145,22 @@ body {
   text-decoration: underline;
 }
 
+/* Show "Hover" on pointer devices, "Tap" on touch devices. */
+.dd-touch-only {
+  display: none;
+}
+.dd-hover-only {
+  display: inline;
+}
+@media (pointer: coarse) {
+  .dd-touch-only {
+    display: inline;
+  }
+  .dd-hover-only {
+    display: none;
+  }
+}
+
 /* Hover tooltip (e.g. on the score). */
 .dd-tip {
   position: relative;

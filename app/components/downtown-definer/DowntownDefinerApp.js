@@ -619,6 +619,12 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 </div>
               </div>
 
+              <p className="text-xs -mt-1" style={{ color: 'var(--ink-3)' }}>
+                <span className="dd-hover-only">Hover over</span>
+                <span className="dd-touch-only">Tap</span> a cell to see the percentage of people who
+                believe it&apos;s &ldquo;downtown&rdquo;.
+              </p>
+
               <ShareButton
                 cityName={selectedCity.name}
                 citySlug={selectedCity.slug}
