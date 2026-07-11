@@ -25,7 +25,7 @@ export default function SiteHeader({ current }) {
       <div className="container mx-auto px-4 max-w-6xl py-3 flex items-center justify-between gap-x-5 gap-y-2 flex-wrap">
         <Link href="/" className="flex items-center gap-2">
           <span className="inline-block h-4 w-4 rounded-sm" style={{ background: 'var(--accent)' }} />
-          <span className="dd-title text-base" style={{ color: 'var(--ink)' }}>
+          <span className="dd-title text-base hidden sm:inline" style={{ color: 'var(--ink)' }}>
             Observing the City
           </span>
         </Link>

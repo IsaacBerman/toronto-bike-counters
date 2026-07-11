@@ -5,18 +5,12 @@ export const metadata = {
   description: 'Data and community tools exploring how cities move and how people see them',
 };
 
-function ProjectCard({ href, index, title, blurb, tag }) {
+function ProjectCard({ href, title, blurb }) {
   return (
     <Link
       href={href}
       className="group block dd-panel-ruled p-6 transition-transform hover:-translate-y-0.5"
     >
-      <div className="flex items-baseline justify-between mb-6">
-        <span className="text-sm font-mono font-bold" style={{ color: 'var(--ink-3)' }}>
-          {index}
-        </span>
-        <span className="dd-kicker">{tag}</span>
-      </div>
       <h2 className="dd-title text-2xl mb-2" style={{ color: 'var(--ink)' }}>
         {title}
       </h2>
@@ -62,15 +56,11 @@ export default function Home() {
         <div className="grid sm:grid-cols-2 gap-5">
           <ProjectCard
             href="/bike-counters"
-            index="01"
-            tag="Live data"
             title="Toronto Bicycle Counters"
             blurb="Bicycle traffic from permanent counting stations across Toronto, updated from the city's live feed."
           />
           <ProjectCard
             href="/downtown-definer"
-            index="02"
-            tag="Community map"
             title="Where is Downtown?"
             blurb="Draw the boundary of what you call &ldquo;downtown&rdquo; and watch it merge into a crowd heatmap."
           />
