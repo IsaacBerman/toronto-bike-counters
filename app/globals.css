@@ -144,3 +144,34 @@ body {
 .dd-link-accent:hover {
   text-decoration: underline;
 }
+
+/* Hover tooltip (e.g. on the score). */
+.dd-tip {
+  position: relative;
+}
+.dd-tip-bubble {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: 250px;
+  max-width: 70vw;
+  padding: 9px 11px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-transform: none;
+  border-radius: 5px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  z-index: 50;
+  pointer-events: none;
+}
+.dd-tip:hover .dd-tip-bubble {
+  opacity: 1;
+  visibility: visible;
+}
