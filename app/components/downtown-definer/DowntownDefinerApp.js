@@ -580,7 +580,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                         <>
                           {' · '}
                           <span
-                            title="How closely your drawing matches the consensus downtown (the top 6 of 13 agreement levels). Range 0–100: it's the overlapping area divided by the combined area (intersection ÷ union) of the two shapes. 100 = same shape in the same place; 0 = no overlap."
+                            title="How closely your drawing matches the consensus (>50%) downtown. Range 0–100: it's the overlapping area divided by the combined area (intersection ÷ union) of the two shapes. 100 = same shape in the same place; 0 = no overlap."
                             style={{
                               color: 'var(--accent)',
                               cursor: 'help',
