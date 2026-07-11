@@ -253,6 +253,22 @@ export function countVotesForCells(cells, clippedPolygons) {
   return counts;
 }
 
+// Fold one clipped polygon's coverage into an existing counts array (in place).
+// Cheap (cells x 1), so a new vote can be added to the cached heatmap counts
+// without re-reading and re-counting every submission.
+export function incrementCounts(counts, cells, clippedGeometry) {
+  const bb = geometryBbox(clippedGeometry);
+  const feature = { type: 'Feature', properties: {}, geometry: clippedGeometry };
+  for (let i = 0; i < cells.length; i++) {
+    const center = cells[i].center;
+    const clng = center[0];
+    const clat = center[1];
+    if (clng < bb[0] || clng > bb[2] || clat < bb[1] || clat > bb[3]) continue;
+    if (booleanPointInPolygon(center, feature)) counts[i]++;
+  }
+  return counts;
+}
+
 // Assemble the final FeatureCollection from cells + counts. Hue and opacity track
 // the relative bucket (count / maxCount); `pct` is the absolute share of
 // submitters. Only client-rendered fields are kept, to keep the payload small.

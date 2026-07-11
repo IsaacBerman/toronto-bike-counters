@@ -1,7 +1,37 @@
 import { NextResponse } from 'next/server';
-import { getCityBySlug, insertSubmission } from '../../../lib/downtown-definer/db';
-import { clipPolygonToBoundary, pointsToPolygonGeometry } from '../../../lib/downtown-definer/geo';
+import {
+  getCityBySlug,
+  insertSubmission,
+  getHeatmapCache,
+  saveHeatmapCache,
+} from '../../../lib/downtown-definer/db';
+import {
+  clipPolygonToBoundary,
+  pointsToPolygonGeometry,
+  buildGridCells,
+  incrementCounts,
+  HEATMAP_ALGO_VERSION,
+} from '../../../lib/downtown-definer/geo';
 import { getSubmitterIdentity, DEV_IDENTITY_COOKIE } from '../../../lib/downtown-definer/identity';
+
+// Fold the new vote into the cached heatmap counts (cheap, O(cells)) instead of
+// forcing a full recompute (which re-reads every submission polygon) on the next
+// view. Best-effort: if the cache is missing/stale, we skip and the next heatmap
+// view rebuilds it once. A lost update (concurrent submits) leaves the cached
+// count short of the real count, which the heatmap route detects and self-heals.
+async function foldVoteIntoHeatmapCache(city, clippedPolygon) {
+  try {
+    const cache = await getHeatmapCache(city.id);
+    if (!cache || cache.algo_version !== HEATMAP_ALGO_VERSION || !Array.isArray(cache.counts)) return;
+    const cells = buildGridCells(city.boundary, city.bbox);
+    if (cells.length !== cache.counts.length) return;
+    const counts = cache.counts.slice();
+    incrementCounts(counts, cells, clippedPolygon);
+    await saveHeatmapCache(city.id, cache.submission_count + 1, HEATMAP_ALGO_VERSION, counts);
+  } catch (error) {
+    console.error('Heatmap incremental update failed:', error);
+  }
+}
 
 function isValidPoints(points) {
   return (
@@ -54,6 +84,8 @@ export async function POST(request) {
       { status: 409 }
     );
   }
+
+  await foldVoteIntoHeatmapCache(city, clippedPolygon);
 
   const response = NextResponse.json({ success: true });
   if (newCookieValue) {
