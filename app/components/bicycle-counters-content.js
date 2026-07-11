@@ -205,14 +205,6 @@ export default function BicycleCountersContent() {
           <h1 className="dd-title text-4xl sm:text-5xl mb-2" style={{ color: 'var(--ink)' }}>
             Toronto Bicycle Counters
           </h1>
-          <p className="text-base max-w-2xl leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            Explore bicycle traffic data from counting stations across Toronto.
-          </p>
-          {currentEST && (
-            <p className="text-xs mt-2 font-mono" style={{ color: 'var(--ink-3)' }}>
-              All times in Eastern Time (EST/EDT) • Current: {getESTTimeDisplay()}
-            </p>
-          )}
         </div>
 
         {/* Control Panel */}
