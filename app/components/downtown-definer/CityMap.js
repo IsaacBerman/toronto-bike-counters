@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 //   - 'drawing': click-to-add-point polygon the user is drawing (`points`, `onMapClick`)
 //   - 'static': one fixed polygon to display (`polygon`)
 //   - 'choropleth': a pre-colored GeoJSON grid (`grid`, features carry properties.color)
-export default function CityMap({ boundary, bbox, mode, points, onMapClick, onVertexMove, staticPoints, grid, className }) {
+export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapClick, onVertexMove, staticPoints, grid, className }) {
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
   const leafletRef = useRef(null);
@@ -95,13 +95,16 @@ export default function CityMap({ boundary, bbox, mode, points, onMapClick, onVe
       style: { color: '#334155', weight: 2, fillOpacity: 0.03, interactive: false },
     }).addTo(map);
 
-    bboxRef.current = bbox;
-    if (bbox) {
+    // Frame to fitBbox when provided (e.g. results maps zoom to the consensus +
+    // the user's shape), otherwise the full city bbox.
+    const fit = fitBbox || bbox;
+    bboxRef.current = fit;
+    if (fit) {
       map.invalidateSize();
-      const [minLng, minLat, maxLng, maxLat] = bbox;
+      const [minLng, minLat, maxLng, maxLat] = fit;
       map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
     }
-  }, [boundary, bbox, mapReady]);
+  }, [boundary, bbox, fitBbox, mapReady]);
 
   // Drawing layer (points + vertex markers).
   useEffect(() => {

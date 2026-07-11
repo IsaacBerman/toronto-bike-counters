@@ -264,9 +264,11 @@ async function createCanvas(W, H) {
 
 // Single share image. With a user polygon it renders two panels side by side
 // (My downtown | Everyone's downtown); without one it renders just the heatmap.
-export async function renderShareCard({ cityName, boundary, bbox, yourPoints, grid, submissionCount, score }) {
+export async function renderShareCard({ cityName, boundary, bbox, yourPoints, grid, submissionCount, score, frameBbox }) {
   const hasYours = yourPoints && yourPoints.length >= 3;
   const yourLabel = score != null ? `My downtown · Score: ${score}` : 'My downtown';
+  // Frame both panels to the same region (consensus + user's shape) when given.
+  const frame = frameBbox || bbox;
   const W = hasYours ? 1680 : 1080;
   const H = hasYours ? 1000 : 1080;
   const { canvas, ctx } = await createCanvas(W, H);
@@ -277,14 +279,14 @@ export async function renderShareCard({ cityName, boundary, bbox, yourPoints, gr
   if (hasYours) {
     const panelW = (W - MARGIN * 2 - GAP) / 2;
     await drawPanel(ctx, { x: MARGIN, y: panelTop, w: panelW, h: panelH }, {
-      bbox,
+      bbox: frame,
       boundary,
       points: yourPoints,
       label: yourLabel,
       labelColor: ACCENT,
     });
     await drawPanel(ctx, { x: MARGIN + panelW + GAP, y: panelTop, w: panelW, h: panelH }, {
-      bbox,
+      bbox: frame,
       boundary,
       grid,
       label: "Everyone's downtown",
@@ -292,7 +294,7 @@ export async function renderShareCard({ cityName, boundary, bbox, yourPoints, gr
     });
   } else {
     await drawPanel(ctx, { x: MARGIN, y: panelTop, w: W - MARGIN * 2, h: panelH }, {
-      bbox,
+      bbox: frame,
       boundary,
       grid,
       label: "Everyone's downtown",

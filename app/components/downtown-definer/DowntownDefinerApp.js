@@ -100,6 +100,40 @@ function computeSimilarityScore(yourPoints, grid) {
   return Math.round((100 * intersection) / union);
 }
 
+// Frame for the results maps: the union of the "second-lowest contour" (cells in
+// the 2nd-lowest bucket or higher — trims sparse 1-vote outliers) and the user's
+// drawn shape, with a small margin. Returns [minLng, minLat, maxLng, maxLat] or null.
+function computeResultsFrame(grid, yourPoints) {
+  if (!grid?.features?.length) return null;
+  const buckets = new Set();
+  for (const f of grid.features) {
+    if (!f.properties.noData && f.properties.b != null) buckets.add(f.properties.b);
+  }
+  const sorted = [...buckets].sort((a, b) => a - b);
+  const level = sorted.length >= 2 ? sorted[1] : (sorted[0] ?? 0);
+
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+  const extend = (lng, lat) => {
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  };
+
+  for (const f of grid.features) {
+    if (f.properties.noData || (f.properties.b ?? -1) < level) continue;
+    for (const [lng, lat] of f.geometry.coordinates[0]) extend(lng, lat);
+  }
+  if (yourPoints) {
+    for (const [lat, lng] of yourPoints) extend(lng, lat);
+  }
+  if (minLng === Infinity) return null;
+
+  const padLng = (maxLng - minLng) * 0.05 || 0.005;
+  const padLat = (maxLat - minLat) * 0.05 || 0.005;
+  return [minLng - padLng, minLat - padLat, maxLng + padLng, maxLat + padLat];
+}
+
 export default function DowntownDefinerApp({ initialCitySlug }) {
   const [phase, setPhase] = useState('picking-city');
   const [cities, setCities] = useState([]);
@@ -301,6 +335,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
       submissionCount: heatmap.submissionCount,
       yourPoints: mine,
       score: computeSimilarityScore(mine, heatmap.grid),
+      frame: computeResultsFrame(heatmap.grid, mine),
     });
     setPhase('results');
     setDevIdentity(readCookie(DEV_IDENTITY_COOKIE));
@@ -549,6 +584,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                       mode="static"
                       boundary={selectedCity.boundary}
                       bbox={selectedCity.bbox}
+                      fitBbox={results.frame}
                       staticPoints={results.yourPoints}
                       className="h-72 lg:h-[32rem] w-full rounded-sm"
                     />
@@ -560,6 +596,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                     mode="choropleth"
                     boundary={selectedCity.boundary}
                     bbox={selectedCity.bbox}
+                    fitBbox={results.frame}
                     grid={results.grid}
                     className="h-72 lg:h-[32rem] w-full rounded-sm"
                   />
@@ -575,6 +612,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 grid={results.grid}
                 submissionCount={results.submissionCount}
                 score={results.score}
+                frameBbox={results.frame}
               />
             </div>
           )}
