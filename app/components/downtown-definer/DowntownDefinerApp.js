@@ -577,7 +577,21 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                     <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>
                       Your downtown
                       {results.score != null && (
-                        <span style={{ color: 'var(--accent)' }}> · Score: {results.score}</span>
+                        <>
+                          {' · '}
+                          <span
+                            title="How closely your drawing matches the consensus downtown (the top 6 of 13 agreement levels). Range 0–100: it's the overlapping area divided by the combined area (intersection ÷ union) of the two shapes. 100 = same shape in the same place; 0 = no overlap."
+                            style={{
+                              color: 'var(--accent)',
+                              cursor: 'help',
+                              textDecoration: 'underline',
+                              textDecorationStyle: 'dotted',
+                              textUnderlineOffset: '2px',
+                            }}
+                          >
+                            Score: {results.score}
+                          </span>
+                        </>
                       )}
                     </p>
                     <CityMap
