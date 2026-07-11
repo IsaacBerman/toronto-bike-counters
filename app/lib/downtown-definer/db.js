@@ -145,3 +145,56 @@ export async function getClippedPolygonsForCity(cityId) {
     return [];
   }
 }
+
+// Persistent heatmap cache: stores just the per-cell vote counts (tiny) so a
+// cold instance can rebuild the grid without re-downloading every submission
+// polygon from the DB (the main remaining egress source).
+let heatmapTableReady = null;
+function ensureHeatmapTable() {
+  if (!heatmapTableReady) {
+    heatmapTableReady = getPool()
+      .query(
+        `CREATE TABLE IF NOT EXISTS heatmap_cache (
+           city_id INTEGER PRIMARY KEY REFERENCES cities(id) ON DELETE CASCADE,
+           submission_count INTEGER NOT NULL,
+           algo_version INTEGER NOT NULL,
+           counts JSONB NOT NULL,
+           updated_at TIMESTAMPTZ DEFAULT now()
+         )`
+      )
+      .catch((error) => {
+        heatmapTableReady = null;
+        throw error;
+      });
+  }
+  return heatmapTableReady;
+}
+
+export async function getHeatmapCache(cityId) {
+  try {
+    await ensureHeatmapTable();
+    const rows = await query(
+      'SELECT submission_count, algo_version, counts FROM heatmap_cache WHERE city_id = $1',
+      [cityId]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    console.error('Error reading heatmap cache:', error);
+    return null;
+  }
+}
+
+export async function saveHeatmapCache(cityId, submissionCount, algoVersion, counts) {
+  try {
+    await ensureHeatmapTable();
+    await query(
+      `INSERT INTO heatmap_cache (city_id, submission_count, algo_version, counts, updated_at)
+       VALUES ($1, $2, $3, $4, now())
+       ON CONFLICT (city_id) DO UPDATE
+         SET submission_count = $2, algo_version = $3, counts = $4, updated_at = now()`,
+      [cityId, submissionCount, algoVersion, JSON.stringify(counts)]
+    );
+  } catch (error) {
+    console.error('Error writing heatmap cache:', error);
+  }
+}

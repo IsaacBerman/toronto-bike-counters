@@ -165,21 +165,23 @@ function minAreaRectAngle(points) {
   return bestAngle;
 }
 
-// Builds a fixed-cell-size grid, rotated to align with the city's minimum-area
-// bounding rectangle (so it tends to follow the street grid), keeps only cells
-// whose center is inside the boundary, and colors each by how many submissions
-// cover its center. Returns a GeoJSON FeatureCollection ready to render.
-export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
+// Bump when anything about the grid geometry/order changes, so a stored counts
+// array from an older algorithm is treated as a cache miss instead of misaligned.
+export const HEATMAP_ALGO_VERSION = 1;
+
+// Deterministic grid cells (geometry only) for a city, rotated to align with the
+// city's minimum-area bounding rectangle. The order is stable, so a stored counts
+// array can be zipped back onto these cells (that's what the persistent cache
+// relies on). No submissions needed — depends only on the boundary + bbox.
+export function buildGridCells(boundary, bbox) {
   const [minLng, minLat, maxLng, maxLat] = bbox;
   const proj = makeLocalProjector((minLng + maxLng) / 2, (minLat + maxLat) / 2);
 
-  // Grid orientation from the convex hull's min-area rectangle.
   const hull = hullPointsXY(boundary, proj);
   const angle = hull && hull.length >= 3 ? minAreaRectAngle(hull) : 0;
-  const cosA = Math.cos(angle), sinA = Math.sin(angle); // rotated frame -> meters
-  const cosI = Math.cos(-angle), sinI = Math.sin(-angle); // meters -> rotated frame
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  const cosI = Math.cos(-angle), sinI = Math.sin(-angle);
 
-  // Extent of the city in the rotated (grid-aligned) frame.
   const extentPts = hull || [
     proj.toXY(minLng, minLat), proj.toXY(maxLng, minLat),
     proj.toXY(maxLng, maxLat), proj.toXY(minLng, maxLat),
@@ -195,43 +197,23 @@ export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
   const rWidth = rMaxX - rMinX;
   const rHeight = rMaxY - rMinY;
 
-  // Fixed cell size, enlarged only if needed to stay under the cell cap.
   let cell = CELL_SIZE_METERS;
   const estCells = Math.ceil(rWidth / cell) * Math.ceil(rHeight / cell);
   if (estCells > MAX_CELLS) cell *= Math.sqrt(estCells / MAX_CELLS);
 
   const boundaryFeature = { type: 'Feature', properties: {}, geometry: boundary };
-  // Precompute each submission's bbox so the counting loop can skip the
-  // expensive point-in-polygon test for submissions nowhere near a cell.
-  const submissions = clippedPolygons.map((geometry) => ({
-    feature: { type: 'Feature', properties: {}, geometry },
-    bbox: geometryBbox(geometry),
-  }));
-
-  const features = [];
-  let maxCount = 0;
-
+  const cells = [];
   const nx = Math.ceil(rWidth / cell);
   const ny = Math.ceil(rHeight / cell);
   for (let iy = 0; iy < ny; iy++) {
     for (let ix = 0; ix < nx; ix++) {
       const rx = rMinX + ix * cell;
       const ry = rMinY + iy * cell;
-
       const [cx, cy] = rotate(rx + cell / 2, ry + cell / 2, cosA, sinA);
       const center = proj.toLngLat(cx, cy);
       if (!booleanPointInPolygon(center, boundaryFeature)) continue;
 
-      const [clng, clat] = center;
-      let count = 0;
-      for (const s of submissions) {
-        const bb = s.bbox;
-        if (clng < bb[0] || clng > bb[2] || clat < bb[1] || clat > bb[3]) continue;
-        if (booleanPointInPolygon(center, s.feature)) count++;
-      }
-      if (count > maxCount) maxCount = count;
-
-      const corners = [
+      const ring = [
         [rx, ry],
         [rx + cell, ry],
         [rx + cell, ry + cell],
@@ -241,37 +223,67 @@ export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
         const [lng, lat] = proj.toLngLat(x, y);
         return [round4(lng), round4(lat)];
       });
-
-      features.push({
-        type: 'Feature',
-        properties: { count },
-        geometry: { type: 'Polygon', coordinates: [[...corners, corners[0]]] },
-      });
+      ring.push(ring[0]);
+      cells.push({ center, ring });
     }
   }
+  return cells;
+}
 
-  const totalSubmissions = clippedPolygons.length;
-  for (const feature of features) {
-    const { count } = feature.properties;
-    // Hue and opacity track the relative bucket (count / maxCount): the lowest
-    // bucket is faint, the highest solid. `pct` is the ABSOLUTE share of
-    // submitters who included the cell — used by the hover tooltip. Only the
-    // fields the client needs are kept, to keep the payload small.
-    const noData = count === 0;
-    if (noData) {
-      feature.properties = { noData: true, color: NO_DATA_COLOR, opacity: 0.12 };
-      continue;
+// Count how many submissions cover each cell's center (bbox pre-filter). Returns
+// a counts array aligned to `cells`. This is the expensive step we cache.
+export function countVotesForCells(cells, clippedPolygons) {
+  const submissions = clippedPolygons.map((geometry) => ({
+    feature: { type: 'Feature', properties: {}, geometry },
+    bbox: geometryBbox(geometry),
+  }));
+  const counts = new Array(cells.length).fill(0);
+  for (let i = 0; i < cells.length; i++) {
+    const center = cells[i].center;
+    const clng = center[0];
+    const clat = center[1];
+    let count = 0;
+    for (const s of submissions) {
+      const bb = s.bbox;
+      if (clng < bb[0] || clng > bb[2] || clat < bb[1] || clat > bb[3]) continue;
+      if (booleanPointInPolygon(center, s.feature)) count++;
     }
-    const intensity = maxCount > 0 ? count / maxCount : 0;
-    const bucket = Math.round(Math.max(0, Math.min(1, intensity)) * (HEATMAP_RAMP.length - 1));
-    feature.properties = {
-      color: HEATMAP_RAMP[bucket],
-      opacity: round2(opacityForIntensity(intensity)),
-      // At least 1% for any voted cell so a real vote never reads as "0%".
-      pct: totalSubmissions > 0 ? Math.max(1, Math.round((count / totalSubmissions) * 100)) : 0,
-      b: bucket, // bucket index (0..12), used by the hover contour outline
-    };
+    counts[i] = count;
   }
+  return counts;
+}
+
+// Assemble the final FeatureCollection from cells + counts. Hue and opacity track
+// the relative bucket (count / maxCount); `pct` is the absolute share of
+// submitters. Only client-rendered fields are kept, to keep the payload small.
+export function finalizeGrid(cells, counts, totalSubmissions) {
+  let maxCount = 0;
+  for (const c of counts) if (c > maxCount) maxCount = c;
+
+  const features = cells.map((cell, i) => {
+    const count = counts[i] || 0;
+    let properties;
+    if (count === 0) {
+      properties = { noData: true, color: NO_DATA_COLOR, opacity: 0.12 };
+    } else {
+      const intensity = maxCount > 0 ? count / maxCount : 0;
+      const bucket = Math.round(Math.max(0, Math.min(1, intensity)) * (HEATMAP_RAMP.length - 1));
+      properties = {
+        color: HEATMAP_RAMP[bucket],
+        opacity: round2(opacityForIntensity(intensity)),
+        pct: totalSubmissions > 0 ? Math.max(1, Math.round((count / totalSubmissions) * 100)) : 0,
+        b: bucket,
+      };
+    }
+    return { type: 'Feature', properties, geometry: { type: 'Polygon', coordinates: [cell.ring] } };
+  });
 
   return { type: 'FeatureCollection', features, maxCount };
+}
+
+// Convenience: build the whole grid straight from submission polygons.
+export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
+  const cells = buildGridCells(boundary, bbox);
+  const counts = countVotesForCells(cells, clippedPolygons);
+  return finalizeGrid(cells, counts, clippedPolygons.length);
 }

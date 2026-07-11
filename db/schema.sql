@@ -20,3 +20,13 @@ CREATE TABLE IF NOT EXISTS submissions (
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE (city_id, submitter_hash)
 );
+
+-- Persistent heatmap cache: per-cell vote counts, so the grid can be rebuilt
+-- without re-reading every submission polygon.
+CREATE TABLE IF NOT EXISTS heatmap_cache (
+  city_id INTEGER PRIMARY KEY REFERENCES cities(id) ON DELETE CASCADE,
+  submission_count INTEGER NOT NULL,
+  algo_version INTEGER NOT NULL,
+  counts JSONB NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
