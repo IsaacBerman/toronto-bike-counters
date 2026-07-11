@@ -123,32 +123,6 @@ function traceRings(ctx, project, rings) {
   }
 }
 
-function drawBoundaryMask(ctx, m, rect, boundary) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(rect.x, rect.y, rect.w, rect.h);
-  for (const rings of polygonRings(boundary)) {
-    for (const ring of rings) {
-      ring.forEach(([lng, lat], index) => {
-        const [x, y] = m.project(lng, lat);
-        if (index === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.closePath();
-    }
-  }
-  ctx.fillStyle = 'rgba(243, 242, 236, 0.72)';
-  ctx.fill('evenodd');
-  ctx.restore();
-
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = 2.5;
-  for (const rings of polygonRings(boundary)) {
-    traceRings(ctx, m.project, rings);
-    ctx.stroke();
-  }
-}
-
 function drawUserPolygon(ctx, m, rect, points) {
   ctx.save();
   ctx.beginPath();
@@ -202,10 +176,11 @@ function drawPanelLabel(ctx, rect, label, color) {
   ctx.textBaseline = 'alphabetic';
 }
 
-async function drawPanel(ctx, rect, { bbox, boundary, points, grid, label, labelColor }) {
+async function drawPanel(ctx, rect, { bbox, points, grid, label, labelColor }) {
   const m = setupMercator(bbox, rect);
   await drawBasemap(ctx, m, rect);
-  drawBoundaryMask(ctx, m, rect, boundary);
+  // No city boundary/mask on the share image (its unclipped outline could spill
+  // into the adjacent panel); just the basemap with the polygon / heatmap.
   if (points) drawUserPolygon(ctx, m, rect, points);
   if (grid) drawChoropleth(ctx, m, rect, grid);
   ctx.strokeStyle = INK;
