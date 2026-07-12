@@ -274,15 +274,20 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
 
     const layer = L.geoJSON(grid, {
       // Stroke each cell in its own fill color so adjacent hexagons don't leave
-      // anti-aliased transparent seams when zoomed out.
-      style: (feature) => ({
-        color: feature.properties.color,
-        weight: 1,
-        opacity: feature.properties.opacity ?? 0.75,
-        fillColor: feature.properties.color,
-        fillOpacity: feature.properties.opacity ?? 0.75,
-        interactive: !feature.properties.noData,
-      }),
+      // anti-aliased transparent seams when zoomed out. Shared edges get two
+      // overlapping strokes, so use a lower stroke alpha that composites back to
+      // the fill opacity when doubled (1 - sqrt(1 - fill)), avoiding dark seams.
+      style: (feature) => {
+        const op = feature.properties.opacity ?? 0.75;
+        return {
+          color: feature.properties.color,
+          weight: 1,
+          opacity: 1 - Math.sqrt(Math.max(0, 1 - op)),
+          fillColor: feature.properties.color,
+          fillOpacity: op,
+          interactive: !feature.properties.noData,
+        };
+      },
       onEachFeature: (feature, lyr) => {
         if (feature.properties.noData) return;
         const b = feature.properties.b ?? 0;

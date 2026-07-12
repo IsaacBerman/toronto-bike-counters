@@ -172,11 +172,19 @@ function drawChoropleth(ctx, m, rect, grid) {
     if (feature.properties.noData) continue;
     // Slightly more translucent than the interactive map so basemap roads
     // remain legible through the heatmap in the shared image.
-    ctx.globalAlpha = feature.properties.opacity ?? 0.8;
+    const op = feature.properties.opacity ?? 0.8;
+    // Lower stroke alpha so overlapping strokes on shared hex edges composite
+    // back to the fill opacity (no dark seams) while still closing hairline gaps.
+    const strokeOp = 1 - Math.sqrt(Math.max(0, 1 - op));
     ctx.fillStyle = feature.properties.color;
+    ctx.strokeStyle = feature.properties.color;
+    ctx.lineWidth = 1;
     for (const rings of polygonRings(feature.geometry)) {
       traceRings(ctx, m.project, rings);
+      ctx.globalAlpha = op;
       ctx.fill();
+      ctx.globalAlpha = strokeOp;
+      ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
