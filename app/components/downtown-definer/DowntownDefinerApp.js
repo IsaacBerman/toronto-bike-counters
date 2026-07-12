@@ -151,6 +151,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   const [points, setPoints] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [viewingResults, setViewingResults] = useState(false);
 
   const [results, setResults] = useState(null);
   const [devIdentity, setDevIdentity] = useState(null);
@@ -330,24 +331,41 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   // is the visitor's own shape (from a fresh submission or a stored one); when
   // omitted it's fetched from the status endpoint. `fresh` bypasses the CDN
   // cache (used right after submitting).
-  async function goToResults(city, yourPoints, fresh) {
+  async function goToResults(city, yourPoints, fresh, viewOnly) {
     const heatmap = await fetchHeatmap(city.slug, fresh);
-    let mine = yourPoints ?? null;
-    if (!mine) {
-      const status = await fetch(`/api/downtown-definer/status?city=${city.slug}`)
-        .then((r) => r.json())
-        .catch(() => null);
-      mine = polygonToPoints(status?.yourPolygon);
+    // View-only ("Show results"): the consensus heatmap only — no "my downtown",
+    // no score, no share. Otherwise resolve the visitor's own shape.
+    let mine = null;
+    if (!viewOnly) {
+      mine = yourPoints ?? null;
+      if (!mine) {
+        const status = await fetch(`/api/downtown-definer/status?city=${city.slug}`)
+          .then((r) => r.json())
+          .catch(() => null);
+        mine = polygonToPoints(status?.yourPolygon);
+      }
     }
     setResults({
       grid: heatmap.grid,
       submissionCount: heatmap.submissionCount,
       yourPoints: mine,
-      score: computeSimilarityScore(mine, heatmap.grid),
+      score: viewOnly ? null : computeSimilarityScore(mine, heatmap.grid),
       frame: computeResultsFrame(heatmap.grid, mine),
+      viewOnly: !!viewOnly,
     });
     setPhase('results');
     setDevIdentity(readCookie(DEV_IDENTITY_COOKIE));
+  }
+
+  // "Show results": view the consensus heatmap without drawing/submitting.
+  async function showResults() {
+    if (!selectedCity) return;
+    setViewingResults(true);
+    try {
+      await goToResults(selectedCity, null, false, true);
+    } finally {
+      setViewingResults(false);
+    }
   }
 
   async function handleSubmit() {
@@ -542,9 +560,14 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>
                   Draw your &ldquo;downtown&rdquo; for {selectedCity.name}
                 </h2>
-                <button onClick={resetToCityPicker} className="dd-link-accent text-sm">
-                  Change city
-                </button>
+                <div className="flex items-center gap-3">
+                  <button onClick={showResults} disabled={viewingResults} className="dd-btn dd-btn-ghost">
+                    {viewingResults ? 'Loading…' : 'Show results'}
+                  </button>
+                  <button onClick={resetToCityPicker} className="dd-link-accent text-sm">
+                    Change city
+                  </button>
+                </div>
               </div>
               <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
                 Tap the map to place points. Drag any point to adjust it. Submit once you have at least 3.
@@ -598,7 +621,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 </button>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className={results.yourPoints ? 'grid sm:grid-cols-2 gap-4' : 'grid gap-4'}>
                 {results.yourPoints && (
                   <div>
                     <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>
@@ -647,16 +670,18 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 believe it&apos;s &ldquo;downtown&rdquo;.
               </p>
 
-              <ShareButton
-                cityName={selectedCity.name}
-                citySlug={selectedCity.slug}
-                boundary={selectedCity.boundary}
-                bbox={selectedCity.bbox}
-                yourPoints={results.yourPoints}
-                grid={results.grid}
-                submissionCount={results.submissionCount}
-                score={results.score}
-              />
+              {!results.viewOnly && (
+                <ShareButton
+                  cityName={selectedCity.name}
+                  citySlug={selectedCity.slug}
+                  boundary={selectedCity.boundary}
+                  bbox={selectedCity.bbox}
+                  yourPoints={results.yourPoints}
+                  grid={results.grid}
+                  submissionCount={results.submissionCount}
+                  score={results.score}
+                />
+              )}
             </div>
           )}
         </div>
