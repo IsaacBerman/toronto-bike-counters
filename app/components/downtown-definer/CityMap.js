@@ -36,7 +36,9 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       import('leaflet/dist/leaflet.css');
       if (cancelled || !mapRef.current || leafletMapRef.current) return;
 
-      const map = L.map(mapRef.current, { center: [43.6532, -79.3832], zoom: 12 });
+      // zoomSnap < 1 lets fitBounds settle on a fractional zoom that hugs the
+      // frame, instead of rounding down a whole level and leaving a big margin.
+      const map = L.map(mapRef.current, { center: [43.6532, -79.3832], zoom: 12, zoomSnap: 0.25 });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
       }).addTo(map);

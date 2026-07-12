@@ -136,8 +136,8 @@ function computeResultsFrame(grid, yourPoints) {
   }
   if (minLng === Infinity) return null;
 
-  const padLng = (maxLng - minLng) * 0.05 || 0.005;
-  const padLat = (maxLat - minLat) * 0.05 || 0.005;
+  const padLng = (maxLng - minLng) * 0.02 || 0.002;
+  const padLat = (maxLat - minLat) * 0.02 || 0.002;
   return [minLng - padLng, minLat - padLat, maxLng + padLng, maxLat + padLat];
 }
 
