@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import CityMap from './CityMap';
 import ShareButton from './ShareButton';
+import { expandCompactGrid } from '../../lib/downtown-definer/heatmapGrid';
 
 // Mirrors identity.js's DEV_IDENTITY_COOKIE — duplicated as a literal here so
 // this client component never imports the server-only identity module.
@@ -320,6 +321,11 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
       : `/api/downtown-definer/heatmap?city=${citySlug}`;
     const res = await fetch(url, fresh ? { cache: 'no-store' } : undefined);
     const data = await res.json();
+    // The API sends a compact { params, counts } grid; expand it back into the
+    // GeoJSON FeatureCollection the rest of the UI expects.
+    if (data?.grid?.params) {
+      data.grid = expandCompactGrid(data.grid, data.submissionCount);
+    }
     return data;
   }
 

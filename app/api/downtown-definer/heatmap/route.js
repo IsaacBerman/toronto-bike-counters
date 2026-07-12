@@ -6,12 +6,7 @@ import {
   getHeatmapCache,
   saveHeatmapCache,
 } from '../../../lib/downtown-definer/db';
-import {
-  buildGridCells,
-  countVotesForCells,
-  finalizeGrid,
-  HEATMAP_ALGO_VERSION,
-} from '../../../lib/downtown-definer/geo';
+import { buildCompactGrid, HEATMAP_ALGO_VERSION } from '../../../lib/downtown-definer/geo';
 
 // Let Vercel's edge cache the heatmap so repeat views of a popular city are
 // served from the CDN — no function invocation, no DB query. Kept short so new
@@ -59,32 +54,26 @@ export async function GET(request) {
     return NextResponse.json(cached.payload, { headers: EDGE_CACHE });
   }
 
-  // 2) Persistent counts cache — rebuild geometry from the (cached) boundary and
-  //    the stored counts, avoiding a full download of every submission polygon.
+  // 2) Persistent compact-grid cache — send the tiny { params, counts } straight
+  //    through (the client rebuilds the geometry), with no polygon download.
   const dbCache = await getHeatmapCache(city.id);
   if (
     dbCache &&
     dbCache.submission_count === count &&
     dbCache.algo_version === HEATMAP_ALGO_VERSION &&
-    Array.isArray(dbCache.counts)
+    dbCache.counts?.params
   ) {
-    const cells = buildGridCells(city.boundary, city.bbox);
-    if (cells.length === dbCache.counts.length) {
-      const grid = finalizeGrid(cells, dbCache.counts, count);
-      const payload = { grid, submissionCount: count };
-      rememberInMemory(citySlug, count, payload);
-      return NextResponse.json(payload, { headers: EDGE_CACHE });
-    }
+    const payload = { grid: dbCache.counts, submissionCount: count };
+    rememberInMemory(citySlug, count, payload);
+    return NextResponse.json(payload, { headers: EDGE_CACHE });
   }
 
-  // 3) Full recompute: read the polygons once, count, and persist the counts.
+  // 3) Full recompute: read the polygons once, build the compact grid, persist it.
   const clippedPolygons = await getClippedPolygonsForCity(city.id);
-  const cells = buildGridCells(city.boundary, city.bbox);
-  const counts = countVotesForCells(cells, clippedPolygons);
-  const grid = finalizeGrid(cells, counts, clippedPolygons.length);
-  const payload = { grid, submissionCount: clippedPolygons.length };
+  const compact = buildCompactGrid(city.boundary, city.bbox, clippedPolygons);
+  const payload = { grid: compact, submissionCount: clippedPolygons.length };
 
-  await saveHeatmapCache(city.id, clippedPolygons.length, HEATMAP_ALGO_VERSION, counts);
+  await saveHeatmapCache(city.id, clippedPolygons.length, HEATMAP_ALGO_VERSION, compact);
   rememberInMemory(citySlug, clippedPolygons.length, payload);
 
   return NextResponse.json(payload, { headers: EDGE_CACHE });

@@ -8,26 +8,23 @@ import {
 import {
   clipPolygonToBoundary,
   pointsToPolygonGeometry,
-  buildGridCells,
-  incrementCounts,
+  incrementCompactCounts,
   HEATMAP_ALGO_VERSION,
 } from '../../../lib/downtown-definer/geo';
 import { getSubmitterIdentity, DEV_IDENTITY_COOKIE } from '../../../lib/downtown-definer/identity';
 
-// Fold the new vote into the cached heatmap counts (cheap, O(cells)) instead of
-// forcing a full recompute (which re-reads every submission polygon) on the next
-// view. Best-effort: if the cache is missing/stale, we skip and the next heatmap
-// view rebuilds it once. A lost update (concurrent submits) leaves the cached
-// count short of the real count, which the heatmap route detects and self-heals.
+// Fold the new vote into the cached compact grid (cheap, O(cells), no boundary
+// or polygon re-read) instead of forcing a full recompute on the next view.
+// Best-effort: if the cache is missing/stale, we skip and the next heatmap view
+// rebuilds it once. A lost update (concurrent submits) leaves the cached count
+// short of the real count, which the heatmap route detects and self-heals.
 async function foldVoteIntoHeatmapCache(city, clippedPolygon) {
   try {
     const cache = await getHeatmapCache(city.id);
-    if (!cache || cache.algo_version !== HEATMAP_ALGO_VERSION || !Array.isArray(cache.counts)) return;
-    const cells = buildGridCells(city.boundary, city.bbox);
-    if (cells.length !== cache.counts.length) return;
-    const counts = cache.counts.slice();
-    incrementCounts(counts, cells, clippedPolygon);
-    await saveHeatmapCache(city.id, cache.submission_count + 1, HEATMAP_ALGO_VERSION, counts);
+    if (!cache || cache.algo_version !== HEATMAP_ALGO_VERSION || !cache.counts?.params) return;
+    const compact = cache.counts; // { params, counts }
+    incrementCompactCounts(compact, clippedPolygon);
+    await saveHeatmapCache(city.id, cache.submission_count + 1, HEATMAP_ALGO_VERSION, compact);
   } catch (error) {
     console.error('Heatmap incremental update failed:', error);
   }

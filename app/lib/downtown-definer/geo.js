@@ -7,39 +7,13 @@ import {
   area as turfArea,
   convex,
 } from '@turf/turf';
-
-// Warm sequential "heatmap" ramp (13 steps, ColorBrewer YlOrRd-style).
-// Low agreement reads pale yellow, peak consensus reads deep red.
-const HEATMAP_RAMP = [
-  '#ffffcc', '#fff3af', '#ffe692', '#fed976', '#febf5a', '#fea647',
-  '#fd8d3c', '#fc6330', '#f43d25', '#e31a1c', '#ca0923', '#a90026', '#800026',
-];
-
-// Faint neutral fill for cells inside the city that nobody marked as downtown,
-// rendered at low opacity (see buildHeatmapGrid) so "no votes" stays distinct
-// from the ramp's pale-yellow low end.
-export const NO_DATA_COLOR = '#dcdcd6';
-
-export function colorForIntensity(intensity) {
-  const clamped = Math.max(0, Math.min(1, intensity));
-  const index = Math.round(clamped * (HEATMAP_RAMP.length - 1));
-  return HEATMAP_RAMP[index];
-}
-
-// Cell opacity by relative bucket (same 13 buckets used for hue): the very
-// lowest bucket is faint (0.2); every bucket above it ramps 0.5 -> 0.8.
-const CELL_LOWEST_OPACITY = 0.1; // bucket 0
-const CELL_MIN_OPACITY = 0.5; // bucket 1
-const CELL_MAX_OPACITY = 0.8; // top bucket
-
-export function opacityForIntensity(intensity) {
-  const clamped = Math.max(0, Math.min(1, intensity));
-  const lastBucket = HEATMAP_RAMP.length - 1; // 12
-  const bucket = Math.round(clamped * lastBucket); // 0..12
-  if (bucket === 0) return CELL_LOWEST_OPACITY;
-  const t = (bucket - 1) / (lastBucket - 1); // bucket 1 -> 0, top -> 1
-  return CELL_MIN_OPACITY + (CELL_MAX_OPACITY - CELL_MIN_OPACITY) * t;
-}
+import {
+  CELL_SIZE_METERS,
+  MAX_CELLS,
+  makeLocalProjector,
+  rotate,
+  cellCenterFromIndex,
+} from './heatmapGrid.js';
 
 function pointsToRing(points) {
   const ring = points.map(([lat, lng]) => [lng, lat]);
@@ -73,32 +47,6 @@ export function clipPolygonToBoundary(points, boundary) {
   }
 }
 
-const DEG = Math.PI / 180;
-const METERS_PER_DEG_LAT = 111320;
-
-// Fixed physical cell size (meters). Chosen so Toronto's long axis is ~150 cells
-// wide; every city uses this same size, so cells are the same size regardless of
-// the city's geographical extent.
-const CELL_SIZE_METERS = 282;
-// Safety cap so an unusually large boundary can't explode compute — the cell
-// size grows if the grid would otherwise exceed this many cells.
-const MAX_CELLS = 45000;
-
-// Local equirectangular projection (meters) around an origin — accurate enough
-// at city scale and lets us build a rotated, physically-square grid.
-function makeLocalProjector(lng0, lat0) {
-  const kx = Math.cos(lat0 * DEG) * METERS_PER_DEG_LAT;
-  const ky = METERS_PER_DEG_LAT;
-  return {
-    toXY: (lng, lat) => [(lng - lng0) * kx, (lat - lat0) * ky],
-    toLngLat: (x, y) => [lng0 + x / kx, lat0 + y / ky],
-  };
-}
-
-function rotate(x, y, cos, sin) {
-  return [x * cos - y * sin, x * sin + y * cos];
-}
-
 // [minLng, minLat, maxLng, maxLat] of a Polygon/MultiPolygon geometry.
 function geometryBbox(geometry) {
   let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
@@ -117,11 +65,6 @@ function geometryBbox(geometry) {
   scan(geometry.coordinates);
   return [minLng, minLat, maxLng, maxLat];
 }
-
-// Coordinates rounded to 4 decimals (~11 m) — far finer than the ~282 m cells,
-// so no visible change, but it roughly halves the grid payload.
-const round4 = (n) => Math.round(n * 1e4) / 1e4;
-const round2 = (n) => Math.round(n * 100) / 100;
 
 // Convex hull of the boundary, projected to meters (open ring), or null.
 function hullPointsXY(boundary, proj) {
@@ -165,17 +108,18 @@ function minAreaRectAngle(points) {
   return bestAngle;
 }
 
-// Bump when anything about the grid geometry/order changes, so a stored counts
-// array from an older algorithm is treated as a cache miss instead of misaligned.
-export const HEATMAP_ALGO_VERSION = 1;
+// Bump when the grid geometry/order changes, so a stored compact grid from an
+// older algorithm is treated as a cache miss instead of misaligned. (2 = the
+// compact { params, counts } format.)
+export const HEATMAP_ALGO_VERSION = 2;
 
-// Deterministic grid cells (geometry only) for a city, rotated to align with the
-// city's minimum-area bounding rectangle. The order is stable, so a stored counts
-// array can be zipped back onto these cells (that's what the persistent cache
-// relies on). No submissions needed — depends only on the boundary + bbox.
-export function buildGridCells(boundary, bbox) {
+// Grid parameters + inside/outside layout, from the boundary alone (no votes).
+// `counts` is length nx*ny: -1 = outside the city, 0 = inside with no votes yet.
+function buildGridSkeleton(boundary, bbox) {
   const [minLng, minLat, maxLng, maxLat] = bbox;
-  const proj = makeLocalProjector((minLng + maxLng) / 2, (minLat + maxLat) / 2);
+  const lng0 = (minLng + maxLng) / 2;
+  const lat0 = (minLat + maxLat) / 2;
+  const proj = makeLocalProjector(lng0, lat0);
 
   const hull = hullPointsXY(boundary, proj);
   const angle = hull && hull.length >= 3 ? minAreaRectAngle(hull) : 0;
@@ -194,52 +138,40 @@ export function buildGridCells(boundary, bbox) {
     if (ry < rMinY) rMinY = ry;
     if (ry > rMaxY) rMaxY = ry;
   }
-  const rWidth = rMaxX - rMinX;
-  const rHeight = rMaxY - rMinY;
-
   let cell = CELL_SIZE_METERS;
-  const estCells = Math.ceil(rWidth / cell) * Math.ceil(rHeight / cell);
+  const estCells = Math.ceil((rMaxX - rMinX) / cell) * Math.ceil((rMaxY - rMinY) / cell);
   if (estCells > MAX_CELLS) cell *= Math.sqrt(estCells / MAX_CELLS);
 
+  const nx = Math.ceil((rMaxX - rMinX) / cell);
+  const ny = Math.ceil((rMaxY - rMinY) / cell);
+  const params = { lng0, lat0, angle, cell, rMinX, rMinY, nx, ny };
+
   const boundaryFeature = { type: 'Feature', properties: {}, geometry: boundary };
-  const cells = [];
-  const nx = Math.ceil(rWidth / cell);
-  const ny = Math.ceil(rHeight / cell);
+  const counts = new Array(nx * ny).fill(-1);
   for (let iy = 0; iy < ny; iy++) {
     for (let ix = 0; ix < nx; ix++) {
-      const rx = rMinX + ix * cell;
-      const ry = rMinY + iy * cell;
-      const [cx, cy] = rotate(rx + cell / 2, ry + cell / 2, cosA, sinA);
+      const [cx, cy] = rotate(rMinX + ix * cell + cell / 2, rMinY + iy * cell + cell / 2, cosA, sinA);
       const center = proj.toLngLat(cx, cy);
-      if (!booleanPointInPolygon(center, boundaryFeature)) continue;
-
-      const ring = [
-        [rx, ry],
-        [rx + cell, ry],
-        [rx + cell, ry + cell],
-        [rx, ry + cell],
-      ].map(([px, py]) => {
-        const [x, y] = rotate(px, py, cosA, sinA);
-        const [lng, lat] = proj.toLngLat(x, y);
-        return [round4(lng), round4(lat)];
-      });
-      ring.push(ring[0]);
-      cells.push({ center, ring });
+      if (booleanPointInPolygon(center, boundaryFeature)) counts[iy * nx + ix] = 0;
     }
   }
-  return cells;
+  return { params, counts };
 }
 
-// Count how many submissions cover each cell's center (bbox pre-filter). Returns
-// a counts array aligned to `cells`. This is the expensive step we cache.
-export function countVotesForCells(cells, clippedPolygons) {
+// Full build of the compact grid { params, counts } from the boundary + all
+// submissions. Only runs on a cold cache / algorithm change.
+export function buildCompactGrid(boundary, bbox, clippedPolygons) {
+  const { params, counts } = buildGridSkeleton(boundary, bbox);
   const submissions = clippedPolygons.map((geometry) => ({
     feature: { type: 'Feature', properties: {}, geometry },
     bbox: geometryBbox(geometry),
   }));
-  const counts = new Array(cells.length).fill(0);
-  for (let i = 0; i < cells.length; i++) {
-    const center = cells[i].center;
+  const cosA = Math.cos(params.angle), sinA = Math.sin(params.angle);
+  const proj = makeLocalProjector(params.lng0, params.lat0);
+
+  for (let i = 0; i < counts.length; i++) {
+    if (counts[i] < 0) continue; // outside the boundary
+    const center = cellCenterFromIndex(params, i, cosA, sinA, proj);
     const clng = center[0];
     const clat = center[1];
     let count = 0;
@@ -250,56 +182,23 @@ export function countVotesForCells(cells, clippedPolygons) {
     }
     counts[i] = count;
   }
-  return counts;
+  return { params, counts };
 }
 
-// Fold one clipped polygon's coverage into an existing counts array (in place).
-// Cheap (cells x 1), so a new vote can be added to the cached heatmap counts
-// without re-reading and re-counting every submission.
-export function incrementCounts(counts, cells, clippedGeometry) {
+// Fold one new vote into an existing compact grid (in place). Inside cells are
+// known from counts (>= 0) and their centers are derived from params, so this
+// needs neither the boundary nor a re-read of other submissions — O(cells).
+export function incrementCompactCounts(compact, clippedGeometry) {
+  const { params, counts } = compact;
+  const cosA = Math.cos(params.angle), sinA = Math.sin(params.angle);
+  const proj = makeLocalProjector(params.lng0, params.lat0);
   const bb = geometryBbox(clippedGeometry);
   const feature = { type: 'Feature', properties: {}, geometry: clippedGeometry };
-  for (let i = 0; i < cells.length; i++) {
-    const center = cells[i].center;
-    const clng = center[0];
-    const clat = center[1];
-    if (clng < bb[0] || clng > bb[2] || clat < bb[1] || clat > bb[3]) continue;
+  for (let i = 0; i < counts.length; i++) {
+    if (counts[i] < 0) continue;
+    const center = cellCenterFromIndex(params, i, cosA, sinA, proj);
+    if (center[0] < bb[0] || center[0] > bb[2] || center[1] < bb[1] || center[1] > bb[3]) continue;
     if (booleanPointInPolygon(center, feature)) counts[i]++;
   }
-  return counts;
-}
-
-// Assemble the final FeatureCollection from cells + counts. Hue and opacity track
-// the relative bucket (count / maxCount); `pct` is the absolute share of
-// submitters. Only client-rendered fields are kept, to keep the payload small.
-export function finalizeGrid(cells, counts, totalSubmissions) {
-  let maxCount = 0;
-  for (const c of counts) if (c > maxCount) maxCount = c;
-
-  const features = cells.map((cell, i) => {
-    const count = counts[i] || 0;
-    let properties;
-    if (count === 0) {
-      properties = { noData: true, color: NO_DATA_COLOR, opacity: 0.12 };
-    } else {
-      const intensity = maxCount > 0 ? count / maxCount : 0;
-      const bucket = Math.round(Math.max(0, Math.min(1, intensity)) * (HEATMAP_RAMP.length - 1));
-      properties = {
-        color: HEATMAP_RAMP[bucket],
-        opacity: round2(opacityForIntensity(intensity)),
-        pct: totalSubmissions > 0 ? Math.max(1, Math.round((count / totalSubmissions) * 100)) : 0,
-        b: bucket,
-      };
-    }
-    return { type: 'Feature', properties, geometry: { type: 'Polygon', coordinates: [cell.ring] } };
-  });
-
-  return { type: 'FeatureCollection', features, maxCount };
-}
-
-// Convenience: build the whole grid straight from submission polygons.
-export function buildHeatmapGrid(boundary, bbox, clippedPolygons) {
-  const cells = buildGridCells(boundary, bbox);
-  const counts = countVotesForCells(cells, clippedPolygons);
-  return finalizeGrid(cells, counts, clippedPolygons.length);
+  return compact;
 }
