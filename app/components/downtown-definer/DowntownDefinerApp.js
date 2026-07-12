@@ -24,6 +24,12 @@ function normalizeText(text) {
     .trim();
 }
 
+// Mirrors the server's slugify so we can tell whether a geocoder suggestion
+// (by its full "City, Region, Country" query) is already an added city.
+function slugifyCity(name) {
+  return normalizeText(name).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
 // Title-case a city name for display (keeps apostrophes intact, capitalizes
 // across spaces and hyphens): "new york" -> "New York", "st. john's" -> "St. John's".
 function titleCaseCity(name) {
@@ -216,12 +222,11 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   })();
   const q = normalizeText(query.trim());
   const filteredCities = q ? cityList.filter((c) => normalizeText(c.label).includes(q)) : cityList;
-  // Hide geocoder suggestions for cities that are already in the list
-  // (accent-insensitive), so "Montréal" isn't offered when "Montreal" exists.
-  const existingNames = new Set(cityList.map((c) => normalizeText(c.name.split(',')[0])));
-  const newSuggestions = suggestions.filter(
-    (s) => !existingNames.has(normalizeText(s.label.split(',')[0]))
-  );
+  // Hide a geocoder suggestion only if that exact city is already added (matched
+  // by the slug its full query would produce) — so "Portland, Maine" still shows
+  // even when "Portland, Oregon" exists.
+  const existingSlugs = new Set(cityList.map((c) => c.slug));
+  const newSuggestions = suggestions.filter((s) => !existingSlugs.has(slugifyCity(s.query)));
   // Only show geocoder results if they belong to what's currently typed.
   const searchIsCurrent = searchedQuery !== '' && searchedQuery === query.trim();
 
