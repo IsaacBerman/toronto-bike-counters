@@ -26,7 +26,7 @@ async function query(text, params) {
 // Cities (and their large, immutable boundaries) rarely change, so cache them in
 // memory. This is the key egress saver — the full boundary was previously
 // re-downloaded from the DB on every heatmap/status/city request.
-const CITY_CACHE_TTL = 10 * 60 * 1000;
+const CITY_CACHE_TTL = 30 * 60 * 1000;
 const CITY_CACHE_MAX = 40;
 let citiesCache = null; // { rows, ts }
 const cityBySlugCache = new Map(); // slug -> { row, ts }

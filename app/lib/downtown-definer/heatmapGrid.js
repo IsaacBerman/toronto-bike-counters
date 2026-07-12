@@ -15,8 +15,30 @@ const CELL_MAX_OPACITY = 0.8;
 
 export const DEG = Math.PI / 180;
 export const METERS_PER_DEG_LAT = 111320;
-export const CELL_SIZE_METERS = 282;
+// Flat-top hexagonal cells. CELL_SIZE_METERS is the nearest-neighbour spacing
+// (center to center); the circumradius r = spacing / sqrt(3).
+export const CELL_SIZE_METERS = 225;
 export const MAX_CELLS = 45000;
+
+const SQRT3 = Math.sqrt(3);
+// Flat-top hex vertex angles (0°,60°,…,300°) — gives horizontal flat top/bottom.
+const HEX_ANGLES = [0, 1, 2, 3, 4, 5].map((k) => (k * Math.PI) / 3);
+
+// Column/row spacing for a flat-top hex grid of circumradius r.
+export function hexColSpacing(r) {
+  return 1.5 * r;
+}
+export function hexRowSpacing(r) {
+  return SQRT3 * r;
+}
+
+// Center of hex (ix, iy) in the rotated meter-frame. Odd columns are offset down
+// by half a row so the hexes interlock (standard flat-top offset layout).
+export function hexCenterXY(r, rMinX, rMinY, ix, iy) {
+  const x = rMinX + ix * hexColSpacing(r);
+  const y = rMinY + iy * hexRowSpacing(r) + (ix % 2 ? hexRowSpacing(r) / 2 : 0);
+  return [x, y];
+}
 
 export const round4 = (n) => Math.round(n * 1e4) / 1e4;
 export const round2 = (n) => Math.round(n * 100) / 100;
@@ -64,12 +86,13 @@ export function cellProperties(count, maxCount, totalSubmissions) {
   };
 }
 
-// Center [lng, lat] of the cell at linear index `i` (iy*nx + ix), from params.
+// Center [lng, lat] of the hex at linear index `i` (iy*nx + ix), from params.
 export function cellCenterFromIndex(params, i, cosA, sinA, proj) {
-  const { cell, rMinX, rMinY, nx } = params;
+  const { r, rMinX, rMinY, nx } = params;
   const ix = i % nx;
   const iy = Math.floor(i / nx);
-  const [cx, cy] = rotate(rMinX + ix * cell + cell / 2, rMinY + iy * cell + cell / 2, cosA, sinA);
+  const [hx, hy] = hexCenterXY(r, rMinX, rMinY, ix, iy);
+  const [cx, cy] = rotate(hx, hy, cosA, sinA);
   return proj.toLngLat(cx, cy);
 }
 
@@ -78,7 +101,7 @@ export function cellCenterFromIndex(params, i, cosA, sinA, proj) {
 // nx*ny: -1 = outside the city (skipped), otherwise the vote count.
 export function expandCompactGrid(compact, submissionCount) {
   const { params, counts } = compact;
-  const { cell, rMinX, rMinY, nx, angle, lng0, lat0 } = params;
+  const { r, rMinX, rMinY, nx, angle, lng0, lat0 } = params;
   const cosA = Math.cos(angle);
   const sinA = Math.sin(angle);
   const proj = makeLocalProjector(lng0, lat0);
@@ -92,14 +115,10 @@ export function expandCompactGrid(compact, submissionCount) {
     if (count < 0) continue; // outside the boundary
     const ix = i % nx;
     const iy = Math.floor(i / nx);
-    const rx = rMinX + ix * cell;
-    const ry = rMinY + iy * cell;
-    const ring = [
-      [rx, ry],
-      [rx + cell, ry],
-      [rx + cell, ry + cell],
-      [rx, ry + cell],
-    ].map(([px, py]) => {
+    const [hx, hy] = hexCenterXY(r, rMinX, rMinY, ix, iy);
+    const ring = HEX_ANGLES.map((a) => {
+      const px = hx + r * Math.cos(a);
+      const py = hy + r * Math.sin(a);
       const [x, y] = rotate(px, py, cosA, sinA);
       const [lng, lat] = proj.toLngLat(x, y);
       return [round4(lng), round4(lat)];

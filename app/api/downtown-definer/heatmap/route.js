@@ -12,12 +12,15 @@ import { buildCompactGrid, HEATMAP_ALGO_VERSION } from '../../../lib/downtown-de
 // served from the CDN — no function invocation, no DB query. Kept short so new
 // submissions show up within ~1 min (the post-submit fetch cache-busts for the
 // submitter so they see their own vote immediately).
-const EDGE_CACHE = { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' };
+// Longer TTL now that samples are large: one more vote barely changes the map,
+// so serving it a few minutes stale is invisible. The submitter still sees their
+// own vote immediately (their post-submit fetch cache-busts).
+const EDGE_CACHE = { 'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=3600' };
 
 // In-memory grid cache (per warm instance), keyed by city slug. Reused while the
 // submission count is unchanged so we skip both the DB read and the rebuild.
 const gridCache = new Map(); // slug -> { count, payload, ts }
-const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_TTL_MS = 30 * 60 * 1000;
 const CACHE_MAX_CITIES = 24;
 
 function rememberInMemory(slug, count, payload) {

@@ -13,6 +13,9 @@ import {
   makeLocalProjector,
   rotate,
   cellCenterFromIndex,
+  hexCenterXY,
+  hexColSpacing,
+  hexRowSpacing,
 } from './heatmapGrid.js';
 
 function pointsToRing(points) {
@@ -109,9 +112,9 @@ function minAreaRectAngle(points) {
 }
 
 // Bump when the grid geometry/order changes, so a stored compact grid from an
-// older algorithm is treated as a cache miss instead of misaligned. (2 = the
-// compact { params, counts } format.)
-export const HEATMAP_ALGO_VERSION = 2;
+// older algorithm is treated as a cache miss instead of misaligned. (2 = compact
+// square grid; 3 = flat-top hexagonal cells.)
+export const HEATMAP_ALGO_VERSION = 3;
 
 // Grid parameters + inside/outside layout, from the boundary alone (no votes).
 // `counts` is length nx*ny: -1 = outside the city, 0 = inside with no votes yet.
@@ -138,19 +141,24 @@ function buildGridSkeleton(boundary, bbox) {
     if (ry < rMinY) rMinY = ry;
     if (ry > rMaxY) rMaxY = ry;
   }
-  let cell = CELL_SIZE_METERS;
-  const estCells = Math.ceil((rMaxX - rMinX) / cell) * Math.ceil((rMaxY - rMinY) / cell);
-  if (estCells > MAX_CELLS) cell *= Math.sqrt(estCells / MAX_CELLS);
+  const width = rMaxX - rMinX;
+  const height = rMaxY - rMinY;
+  // Flat-top hex circumradius from the target spacing; coarsen if a huge city
+  // would exceed the cell cap.
+  let r = CELL_SIZE_METERS / Math.sqrt(3);
+  const estCells = Math.ceil(width / hexColSpacing(r) + 1) * Math.ceil(height / hexRowSpacing(r) + 1);
+  if (estCells > MAX_CELLS) r *= Math.sqrt(estCells / MAX_CELLS);
 
-  const nx = Math.ceil((rMaxX - rMinX) / cell);
-  const ny = Math.ceil((rMaxY - rMinY) / cell);
-  const params = { lng0, lat0, angle, cell, rMinX, rMinY, nx, ny };
+  const nx = Math.ceil(width / hexColSpacing(r)) + 1;
+  const ny = Math.ceil(height / hexRowSpacing(r)) + 1;
+  const params = { lng0, lat0, angle, r, rMinX, rMinY, nx, ny };
 
   const boundaryFeature = { type: 'Feature', properties: {}, geometry: boundary };
   const counts = new Array(nx * ny).fill(-1);
   for (let iy = 0; iy < ny; iy++) {
     for (let ix = 0; ix < nx; ix++) {
-      const [cx, cy] = rotate(rMinX + ix * cell + cell / 2, rMinY + iy * cell + cell / 2, cosA, sinA);
+      const [hx, hy] = hexCenterXY(r, rMinX, rMinY, ix, iy);
+      const [cx, cy] = rotate(hx, hy, cosA, sinA);
       const center = proj.toLngLat(cx, cy);
       if (booleanPointInPolygon(center, boundaryFeature)) counts[iy * nx + ix] = 0;
     }

@@ -4,10 +4,12 @@ import { fetchCityBoundary, slugify } from '../../../lib/downtown-definer/nomina
 
 export async function GET() {
   const cities = await getCities();
-  // Cities change rarely — let the edge cache serve the dropdown list.
+  // Cities change rarely — let the edge cache serve the dropdown list for a
+  // while. A newly added city may take up to ~30 min to appear for other users
+  // (the person who added it sees it immediately on their own client).
   return NextResponse.json(
     { cities },
-    { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600' } }
+    { headers: { 'Cache-Control': 'public, s-maxage=1800, stale-while-revalidate=86400' } }
   );
 }
 
