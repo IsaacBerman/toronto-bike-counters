@@ -387,6 +387,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   function resetDevIdentity() {
     document.cookie = `${DEV_IDENTITY_COOKIE}=; Max-Age=0; path=/`;
     setDevIdentity(null);
+    
   }
 
   return (
