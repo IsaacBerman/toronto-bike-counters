@@ -22,18 +22,35 @@ function getUserAgent() {
 // which also lets OSM-id de-duplication collapse "New York" / "New York City".
 const CITY_TYPES = ['city', 'town', 'municipality', 'borough', 'village'];
 
+// Largest bbox span (degrees) we'll treat as a "city" when a place is an
+// administrative area rather than a tagged city — lets in city-counties /
+// city-states / unitary authorities (Brighton and Hove, Kuala Lumpur, Shanghai)
+// while excluding real states, provinces and countries, which are far larger.
+const CITY_ADMIN_MAX_SPAN_DEG = 1.2;
+
+function bboxSpanDeg(boundingbox) {
+  if (!Array.isArray(boundingbox) || boundingbox.length < 4) return Infinity;
+  const [south, north, west, east] = boundingbox.map(Number);
+  if ([south, north, west, east].some(Number.isNaN)) return Infinity;
+  return Math.max(Math.abs(north - south), Math.abs(east - west));
+}
+
+function isCityResult(r) {
+  if (CITY_TYPES.includes(r.addresstype) || CITY_TYPES.includes(r.type)) return true;
+  // A compact administrative area (city-county, unitary authority, city-state).
+  return r.type === 'administrative' && bboxSpanDeg(r.boundingbox) <= CITY_ADMIN_MAX_SPAN_DEG;
+}
+
 function pickBestResult(results) {
   const withPolygon = results.filter(
     (r) => r.geojson && (r.geojson.type === 'Polygon' || r.geojson.type === 'MultiPolygon')
   );
   if (withPolygon.length === 0) return null;
 
-  const cityLike = withPolygon.find(
-    (r) => CITY_TYPES.includes(r.addresstype) || CITY_TYPES.includes(r.type)
-  );
+  const cityLike = withPolygon.find(isCityResult);
   if (cityLike) return cityLike;
 
-  const administrative = withPolygon.find((r) => r.class === 'boundary' && r.type === 'administrative');
+  const administrative = withPolygon.find((r) => r.type === 'administrative');
   return administrative || withPolygon[0];
 }
 
@@ -61,8 +78,7 @@ export async function searchCities(query) {
   const suggestions = [];
 
   for (const r of results) {
-    const kind = r.addresstype || r.type;
-    if (!CITY_TYPES.includes(kind)) continue;
+    if (!isCityResult(r)) continue;
 
     const key = `${r.osm_type}/${r.osm_id}`;
     if (seen.has(key)) continue;
@@ -113,13 +129,15 @@ async function queryBoundary(q) {
 }
 
 // A very specific query (e.g. "Shanghai, Shanghai, China") can resolve to a
-// point with no polygon. Try the given name, then progressively broaden
-// ("City, Country", then "City") until one yields an actual boundary.
+// point with no polygon, so we broaden by dropping the middle part -> "City,
+// Country" (which still finds the real municipality). We deliberately DON'T
+// broaden to the bare "City": that would cross countries and could return a
+// different same-named city with a boundary (e.g. "Brighton" -> Brighton,
+// Colorado). If no in-country boundary exists, we return null (not addable).
 export async function fetchCityBoundary(name) {
   const parts = name.split(',').map((s) => s.trim()).filter(Boolean);
   const candidates = [name];
   if (parts.length >= 3) candidates.push(`${parts[0]}, ${parts[parts.length - 1]}`);
-  if (parts.length >= 2) candidates.push(parts[0]);
 
   const tried = new Set();
   try {
