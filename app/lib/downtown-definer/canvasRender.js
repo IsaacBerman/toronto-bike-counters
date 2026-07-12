@@ -173,9 +173,9 @@ function drawChoropleth(ctx, m, rect, grid) {
     // Slightly more translucent than the interactive map so basemap roads
     // remain legible through the heatmap in the shared image.
     const op = feature.properties.opacity ?? 0.8;
-    // Lower stroke alpha so overlapping strokes on shared hex edges composite
-    // back to the fill opacity (no dark seams) while still closing hairline gaps.
-    const strokeOp = 1 - Math.sqrt(Math.max(0, 1 - op));
+    // Stroke at half the fill opacity so overlapping strokes on shared hex edges
+    // don't read as dark seams while still closing hairline gaps.
+    const strokeOp = op / 2;
     ctx.fillStyle = feature.properties.color;
     ctx.strokeStyle = feature.properties.color;
     ctx.lineWidth = 1;
