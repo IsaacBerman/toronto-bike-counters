@@ -200,11 +200,17 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     // edge is on that union's boundary when exactly one of its two adjacent
     // cells is in the set; a grid-edge cell counts the empty side as "out".
     const edges = new Map(); // edgeKey -> { seg, buckets: number[] }
+    const bucketColor = {}; // bucket -> fill color
+    const bucketOpacity = {}; // bucket -> fill opacity
     let maxBucket = 0;
     for (const feature of grid.features) {
       if (feature.properties.noData) continue;
       const b = feature.properties.b ?? 0;
       if (b > maxBucket) maxBucket = b;
+      if (bucketColor[b] === undefined) {
+        bucketColor[b] = feature.properties.color;
+        bucketOpacity[b] = feature.properties.opacity ?? 0.6;
+      }
       const ring = feature.geometry.coordinates[0]; // closed ring (hexagon = 7 pts)
       for (let i = 0; i < ring.length - 1; i++) {
         const a = ring[i];
@@ -228,6 +234,19 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     }
     const levelOutlines = levelSegs.map((segs) =>
       L.polyline(segs, { color: '#ffffff', weight: 2, interactive: false })
+    );
+
+    // Always-visible contour for each bucket, drawn on its own boundary in that
+    // bucket's fill color. As well as reading like a contour map, these lines sit
+    // exactly on the seams between adjacent (differently-colored) bucket regions,
+    // covering the hairline anti-aliasing gaps that show when zoomed out.
+    const staticContours = levelSegs.map((segs, k) =>
+      L.polyline(segs, {
+        color: bucketColor[k] ?? '#000000',
+        weight: 1.5,
+        opacity: bucketOpacity[k] ?? 0.6,
+        interactive: false,
+      })
     );
 
     let activeLevel = null;
@@ -340,7 +359,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       },
     });
 
-    const layer = L.layerGroup([fillLayer, cellLayer]).addTo(map);
+    const layer = L.layerGroup([fillLayer, ...staticContours, cellLayer]).addTo(map);
     choroplethLayerRef.current = layer;
 
     return () => {
