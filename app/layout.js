@@ -19,6 +19,8 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={archivo.variable}>
        <head>
+        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6437776129058819"
+     crossorigin="anonymous"></script>
         <link rel="icon" href="/bike.png" type="image/png" sizes="any" />
         <link rel="icon" href="/bike.png" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/bike.png" />
