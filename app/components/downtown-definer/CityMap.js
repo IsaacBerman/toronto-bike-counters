@@ -272,21 +272,45 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     }
     map.on('click', onMapClick);
 
-    const layer = L.geoJSON(grid, {
-      // Stroke each cell in its own fill color so adjacent hexagons don't leave
-      // anti-aliased transparent seams when zoomed out. Stroke at half the fill
-      // opacity so overlapping strokes on shared edges don't read as dark seams.
-      style: (feature) => {
-        const op = feature.properties.opacity ?? 0.75;
-        return {
-          color: feature.properties.color,
-          weight: 1,
-          opacity: op / 2,
-          fillColor: feature.properties.color,
-          fillOpacity: op,
-          interactive: !feature.properties.noData,
-        };
-      },
+    // VISIBLE fill: merge all cells sharing a color+opacity (i.e. the same
+    // bucket) into a single MultiPolygon and fill it in one pass. Because it's
+    // one fill, the shared hex edges are interior — no anti-aliased seams and no
+    // stroke needed. Rendered non-interactive, below the hit-test layer.
+    const groups = new Map(); // `${color}|${opacity}` -> { color, opacity, polys }
+    for (const feature of grid.features) {
+      const { color, opacity } = feature.properties;
+      const key = `${color}|${opacity}`;
+      let g = groups.get(key);
+      if (!g) {
+        g = { color, opacity: opacity ?? 0.75, polys: [] };
+        groups.set(key, g);
+      }
+      g.polys.push(feature.geometry.coordinates); // a Polygon's [ring]
+    }
+    const mergedFeatures = [...groups.values()].map((g) => ({
+      type: 'Feature',
+      properties: { color: g.color, opacity: g.opacity },
+      geometry: { type: 'MultiPolygon', coordinates: g.polys },
+    }));
+    const fillLayer = L.geoJSON(mergedFeatures, {
+      style: (f) => ({
+        stroke: false,
+        weight: 0,
+        fillColor: f.properties.color,
+        fillOpacity: f.properties.opacity,
+        interactive: false,
+      }),
+    });
+
+    // INVISIBLE hit-test layer: the individual cells, transparent but interactive,
+    // on top — so the tooltip/contour hover still works per cell.
+    const cellLayer = L.geoJSON(grid, {
+      style: (feature) => ({
+        stroke: false,
+        weight: 0,
+        fillOpacity: 0,
+        interactive: !feature.properties.noData,
+      }),
       onEachFeature: (feature, lyr) => {
         if (feature.properties.noData) return;
         const b = feature.properties.b ?? 0;
@@ -314,8 +338,9 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
           clearTimer = setTimeout(clearHover, 60);
         });
       },
-    }).addTo(map);
+    });
 
+    const layer = L.layerGroup([fillLayer, cellLayer]).addTo(map);
     choroplethLayerRef.current = layer;
 
     return () => {

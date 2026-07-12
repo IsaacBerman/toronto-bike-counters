@@ -168,24 +168,39 @@ function drawChoropleth(ctx, m, rect, grid) {
   ctx.beginPath();
   ctx.rect(rect.x, rect.y, rect.w, rect.h);
   ctx.clip();
+
+  // Group cells by color+opacity (bucket) and fill each group in a single path,
+  // so shared hex edges are interior — no anti-aliased seams, no stroke needed.
+  const groups = new Map();
   for (const feature of grid.features) {
     if (feature.properties.noData) continue;
-    // Slightly more translucent than the interactive map so basemap roads
-    // remain legible through the heatmap in the shared image.
-    const op = feature.properties.opacity ?? 0.8;
-    // Stroke at half the fill opacity so overlapping strokes on shared hex edges
-    // don't read as dark seams while still closing hairline gaps.
-    const strokeOp = op / 2;
-    ctx.fillStyle = feature.properties.color;
-    ctx.strokeStyle = feature.properties.color;
-    ctx.lineWidth = 1;
-    for (const rings of polygonRings(feature.geometry)) {
-      traceRings(ctx, m.project, rings);
-      ctx.globalAlpha = op;
-      ctx.fill();
-      ctx.globalAlpha = strokeOp;
-      ctx.stroke();
+    const { color, opacity } = feature.properties;
+    const key = `${color}|${opacity}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = { color, opacity: opacity ?? 0.8, features: [] };
+      groups.set(key, g);
     }
+    g.features.push(feature);
+  }
+
+  for (const g of groups.values()) {
+    ctx.globalAlpha = g.opacity;
+    ctx.fillStyle = g.color;
+    ctx.beginPath();
+    for (const feature of g.features) {
+      for (const rings of polygonRings(feature.geometry)) {
+        for (const ring of rings) {
+          ring.forEach(([lng, lat], index) => {
+            const [x, y] = m.project(lng, lat);
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.closePath();
+        }
+      }
+    }
+    ctx.fill();
   }
   ctx.globalAlpha = 1;
   ctx.restore();
