@@ -205,8 +205,8 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       if (feature.properties.noData) continue;
       const b = feature.properties.b ?? 0;
       if (b > maxBucket) maxBucket = b;
-      const ring = feature.geometry.coordinates[0]; // 5 [lng,lat] points (closed)
-      for (let i = 0; i < 4; i++) {
+      const ring = feature.geometry.coordinates[0]; // closed ring (hexagon = 7 pts)
+      for (let i = 0; i < ring.length - 1; i++) {
         const a = ring[i];
         const c = ring[i + 1];
         const ka = `${a[0]},${a[1]}`;
@@ -273,9 +273,12 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     map.on('click', onMapClick);
 
     const layer = L.geoJSON(grid, {
+      // Stroke each cell in its own fill color so adjacent hexagons don't leave
+      // anti-aliased transparent seams when zoomed out.
       style: (feature) => ({
         color: feature.properties.color,
-        weight: 0,
+        weight: 1,
+        opacity: feature.properties.opacity ?? 0.75,
         fillColor: feature.properties.color,
         fillOpacity: feature.properties.opacity ?? 0.75,
         interactive: !feature.properties.noData,
