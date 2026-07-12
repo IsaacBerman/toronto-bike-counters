@@ -141,6 +141,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   const [query, setQuery] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
+  const [searchedQuery, setSearchedQuery] = useState(''); // query the suggestions belong to
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(false);
   const [cityLoading, setCityLoading] = useState(false);
@@ -171,32 +172,26 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCitySlug]);
 
-  // Live geocoder autocomplete (debounced) so typing surfaces cities not yet
-  // added — e.g. "Mexico" -> "Ciudad de México".
-  useEffect(() => {
+  // The geocoder is only queried when the user explicitly clicks "Add a city"
+  // (not on every keystroke) — typing just filters the already-loaded list,
+  // which avoids a request per keystroke and keeps Nominatim/Vercel usage low.
+  async function runCitySearch() {
     const q = query.trim();
-    if (q.length < 3) {
-      setSuggestions([]);
-      setSearchLoading(false);
-      setSearchError(false);
-      return;
-    }
+    if (q.length < 3) return;
     setSearchLoading(true);
-    const timer = setTimeout(() => {
-      fetch(`/api/downtown-definer/search?q=${encodeURIComponent(q)}`)
-        .then((r) => r.json())
-        .then((d) => {
-          setSuggestions(d.suggestions || []);
-          setSearchError(!!d.error);
-        })
-        .catch(() => {
-          setSuggestions([]);
-          setSearchError(true);
-        })
-        .finally(() => setSearchLoading(false));
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [query]);
+    setSearchError(false);
+    setSearchedQuery(q);
+    try {
+      const d = await fetch(`/api/downtown-definer/search?q=${encodeURIComponent(q)}`).then((r) => r.json());
+      setSuggestions(d.suggestions || []);
+      setSearchError(!!d.error);
+    } catch {
+      setSuggestions([]);
+      setSearchError(true);
+    } finally {
+      setSearchLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (phase !== 'drawing') return;
@@ -226,6 +221,8 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   const newSuggestions = suggestions.filter(
     (s) => !existingNames.has(normalizeText(s.label.split(',')[0]))
   );
+  // Only show geocoder results if they belong to what's currently typed.
+  const searchIsCurrent = searchedQuery !== '' && searchedQuery === query.trim();
 
   function updateUrl(slug) {
     if (typeof window !== 'undefined') {
@@ -461,45 +458,63 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                       </button>
                     ))}
 
-                    {/* Geocoder suggestions (cities not yet added) */}
-                    {newSuggestions.length > 0 && (
+                    {/* Geocoder results — only after the user clicks "Add a city". */}
+                    {searchIsCurrent && (
                       <>
-                        <p
-                          className="px-3 pt-2 pb-1 text-xs font-bold uppercase tracking-wide"
-                          style={{ color: 'var(--ink-3)', borderTop: filteredCities.length ? '1px solid var(--line)' : 'none' }}
-                        >
-                          Add a city
-                        </p>
-                        {newSuggestions.map((s) => (
-                          <button
-                            key={s.key}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => loadCity(s.query)}
-                            className="block w-full text-left px-3 py-2 text-sm font-semibold hover:bg-gray-50"
-                            style={{ color: 'var(--accent)' }}
-                          >
-                            + {s.label}
-                          </button>
-                        ))}
+                        {searchLoading && (
+                          <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
+                            Searching…
+                          </p>
+                        )}
+                        {!searchLoading && searchError && (
+                          <p className="px-3 py-2 text-sm" style={{ color: 'var(--accent)' }}>
+                            Search is temporarily unavailable. Try again in a moment.
+                          </p>
+                        )}
+                        {!searchLoading && !searchError && newSuggestions.length > 0 && (
+                          <>
+                            <p
+                              className="px-3 pt-2 pb-1 text-xs font-bold uppercase tracking-wide"
+                              style={{ color: 'var(--ink-3)', borderTop: filteredCities.length ? '1px solid var(--line)' : 'none' }}
+                            >
+                              Add a city
+                            </p>
+                            {newSuggestions.map((s) => (
+                              <button
+                                key={s.key}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => loadCity(s.query)}
+                                className="block w-full text-left px-3 py-2 text-sm font-semibold hover:bg-gray-50"
+                                style={{ color: 'var(--accent)' }}
+                              >
+                                + {s.label}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                        {!searchLoading && !searchError && newSuggestions.length === 0 && (
+                          <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
+                            No city found for &ldquo;{query.trim()}&rdquo;.
+                          </p>
+                        )}
                       </>
                     )}
 
-                    {searchLoading && (
-                      <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
-                        Searching…
-                      </p>
+                    {/* "Add a city" trigger — runs the geocoder only on click. */}
+                    {query.trim().length >= 3 && !searchIsCurrent && (
+                      <button
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={runCitySearch}
+                        className="block w-full text-left px-3 py-2 text-sm font-semibold hover:bg-gray-50"
+                        style={{ color: 'var(--accent)', borderTop: filteredCities.length ? '1px solid var(--line)' : 'none' }}
+                      >
+                        + Add a city matching &ldquo;{query.trim()}&rdquo;
+                      </button>
                     )}
 
-                    {searchError && !searchLoading && (
-                      <p className="px-3 py-2 text-sm" style={{ color: 'var(--accent)' }}>
-                        Search is temporarily unavailable. Try again in a moment.
-                      </p>
-                    )}
-
-                    {/* Only real geocoded cities can be added — no arbitrary text. */}
-                    {query.trim() && !searchLoading && !searchError && filteredCities.length === 0 && newSuggestions.length === 0 && (
+                    {!filteredCities.length && query.trim().length > 0 && query.trim().length < 3 && (
                       <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
-                        No city found for &ldquo;{query.trim()}&rdquo;.
+                        Keep typing…
                       </p>
                     )}
 
