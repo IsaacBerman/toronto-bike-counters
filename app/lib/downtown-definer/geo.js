@@ -113,8 +113,8 @@ function minAreaRectAngle(points) {
 
 // Bump when the grid geometry/order changes, so a stored compact grid from an
 // older algorithm is treated as a cache miss instead of misaligned. (2 = compact
-// square grid; 3 = flat-top hexagonal cells.)
-export const HEATMAP_ALGO_VERSION = 3;
+// square grid; 3 = flat-top hexagonal cells., 4 = back to 280m)
+export const HEATMAP_ALGO_VERSION = 4;
 
 // Grid parameters + inside/outside layout, from the boundary alone (no votes).
 // `counts` is length nx*ny: -1 = outside the city, 0 = inside with no votes yet.

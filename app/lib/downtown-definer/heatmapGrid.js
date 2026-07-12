@@ -17,7 +17,7 @@ export const DEG = Math.PI / 180;
 export const METERS_PER_DEG_LAT = 111320;
 // Flat-top hexagonal cells. CELL_SIZE_METERS is the nearest-neighbour spacing
 // (center to center); the circumradius r = spacing / sqrt(3).
-export const CELL_SIZE_METERS = 225;
+export const CELL_SIZE_METERS = 280;
 export const MAX_CELLS = 45000;
 
 const SQRT3 = Math.sqrt(3);
