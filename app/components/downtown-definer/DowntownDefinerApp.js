@@ -402,7 +402,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
 
   useEffect(()=>{
     console.log(results.frame)
-  },[results.frame])
+  }, [results.frame])
 
   function resetToCityPicker() {
     setPhase('picking-city');
