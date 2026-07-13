@@ -8,11 +8,22 @@ import { expandCompactGrid } from '../../lib/downtown-definer/heatmapGrid';
 // Mirrors identity.js's DEV_IDENTITY_COOKIE — duplicated as a literal here so
 // this client component never imports the server-only identity module.
 const DEV_IDENTITY_COOKIE = 'dd_dev_identity';
+// Mirrors identity.js's SUBMITTED_CITIES_COOKIE (same reason). Set by the
+// submissions API; lists the city slugs this browser has submitted for.
+const SUBMITTED_CITIES_COOKIE = 'dd_submitted';
 
 function readCookie(name) {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]+)`));
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+// Whether this browser has submitted for the city, per the cookie. When false
+// we skip the status call entirely — no function invocation, no DB wake. The
+// rare false negative (cookie cleared / same IP, other device) is corrected at
+// submit time by the 409 flow.
+function hasSubmittedCity(slug) {
+  return (readCookie(SUBMITTED_CITIES_COOKIE) || '').split('|').includes(slug);
 }
 
 // Accent-insensitive, lowercased text for matching: "Montréal" -> "montreal".
@@ -243,9 +254,11 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     updateUrl(city.slug);
     setPickerOpen(false);
 
-    const status = await fetch(`/api/downtown-definer/status?city=${city.slug}`)
-      .then((r) => r.json())
-      .catch(() => ({ submitted: false }));
+    const status = hasSubmittedCity(city.slug)
+      ? await fetch(`/api/downtown-definer/status?city=${city.slug}`)
+          .then((r) => r.json())
+          .catch(() => ({ submitted: false }))
+      : { submitted: false };
 
     if (status.submitted) {
       await goToResults(city, polygonToPoints(status.yourPolygon));
@@ -343,7 +356,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     let mine = null;
     if (!viewOnly) {
       mine = yourPoints ?? null;
-      if (!mine) {
+      if (!mine && hasSubmittedCity(city.slug)) {
         const status = await fetch(`/api/downtown-definer/status?city=${city.slug}`)
           .then((r) => r.json())
           .catch(() => null);
@@ -412,8 +425,10 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
 
   function resetDevIdentity() {
     document.cookie = `${DEV_IDENTITY_COOKIE}=; Max-Age=0; path=/`;
+    // Also forget which cities "this submitter" submitted for, so the fresh
+    // identity starts at the drawing phase instead of a stale results view.
+    document.cookie = `${SUBMITTED_CITIES_COOKIE}=; Max-Age=0; path=/`;
     setDevIdentity(null);
-    
   }
 
   return (

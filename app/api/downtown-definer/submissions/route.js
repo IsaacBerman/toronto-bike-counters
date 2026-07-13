@@ -11,7 +11,23 @@ import {
   incrementCompactCounts,
   HEATMAP_ALGO_VERSION,
 } from '../../../lib/downtown-definer/geo';
-import { getSubmitterIdentity, DEV_IDENTITY_COOKIE } from '../../../lib/downtown-definer/identity';
+import {
+  getSubmitterIdentity,
+  withSubmittedCity,
+  DEV_IDENTITY_COOKIE,
+  SUBMITTED_CITIES_COOKIE,
+} from '../../../lib/downtown-definer/identity';
+
+// Readable by client JS (httpOnly: false) so the app can skip the status
+// call entirely for cities this browser never submitted for.
+function markCitySubmitted(response, request, slug) {
+  response.cookies.set(SUBMITTED_CITIES_COOKIE, withSubmittedCity(request, slug), {
+    httpOnly: false,
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 365,
+    path: '/',
+  });
+}
 
 // Fold the new vote into the cached compact grid (cheap, O(cells), no boundary
 // or polygon re-read) instead of forcing a full recompute on the next view.
@@ -76,15 +92,21 @@ export async function POST(request) {
   });
 
   if (!inserted) {
-    return NextResponse.json(
+    const conflict = NextResponse.json(
       { error: "You've already submitted a definition for this city." },
       { status: 409 }
     );
+    // Same submitter from a browser without the cookie (cleared, or another
+    // device on the same IP): restore it so the follow-up status fetch — and
+    // future visits — work as if they'd submitted here.
+    markCitySubmitted(conflict, request, city.slug);
+    return conflict;
   }
 
   await foldVoteIntoHeatmapCache(city, clippedPolygon);
 
   const response = NextResponse.json({ success: true });
+  markCitySubmitted(response, request, city.slug);
   if (newCookieValue) {
     response.cookies.set(DEV_IDENTITY_COOKIE, newCookieValue, {
       httpOnly: false,
