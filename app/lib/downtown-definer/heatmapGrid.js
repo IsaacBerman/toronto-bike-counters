@@ -41,6 +41,12 @@ export function hexCenterXY(r, rMinX, rMinY, ix, iy) {
 }
 
 export const round4 = (n) => Math.round(n * 1e4) / 1e4;
+// Higher precision for the client-rebuilt hex vertices. expandCompactGrid runs
+// only in the browser (no payload cost), so we keep ~0.1m precision: adjacent
+// hexagons then share EXACTLY equal shared-edge vertices, letting the merged
+// per-bucket fill dissolve internal edges instead of leaving hairline seams that
+// eat the fill when zoomed out.
+export const round6 = (n) => Math.round(n * 1e6) / 1e6;
 export const round2 = (n) => Math.round(n * 100) / 100;
 
 export function colorForIntensity(intensity) {
@@ -121,7 +127,7 @@ export function expandCompactGrid(compact, submissionCount) {
       const py = hy + r * Math.sin(a);
       const [x, y] = rotate(px, py, cosA, sinA);
       const [lng, lat] = proj.toLngLat(x, y);
-      return [round4(lng), round4(lat)];
+      return [round6(lng), round6(lat)];
     });
     ring.push(ring[0]);
     features.push({
