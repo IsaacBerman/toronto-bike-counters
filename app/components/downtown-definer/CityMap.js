@@ -17,11 +17,23 @@ function fitToFrame(map, frame, attempt = 0) {
   map.invalidateSize();
   const size = map.getSize();
   if ((size.x < 20 || size.y < 20) && attempt < 30) {
-    requestAnimationFrame(() => fitToFrame(map, frame, attempt + 1));
+    setTimeout(() => fitToFrame(map, frame, attempt + 1), 100);
     return;
   }
   const [minLng, minLat, maxLng, maxLat] = frame;
   map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
+}
+
+// Scale a closed hex ring outward from its centroid by `factor` (>1), so that
+// adjacent same-bucket hexagons overlap when merged and fill as a seamless solid.
+function dilateRing(ring, factor) {
+  const pts = ring.slice(0, -1); // drop the repeated closing vertex
+  let cx = 0, cy = 0;
+  for (const [x, y] of pts) { cx += x; cy += y; }
+  cx /= pts.length; cy /= pts.length;
+  const out = pts.map(([x, y]) => [cx + (x - cx) * factor, cy + (y - cy) * factor]);
+  out.push(out[0]);
+  return out;
 }
 
 export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapClick, onVertexMove, staticPoints, grid, className }) {
@@ -303,9 +315,12 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     map.on('click', onMapClick);
 
     // VISIBLE fill: merge all cells sharing a color+opacity (i.e. the same
-    // bucket) into a single MultiPolygon and fill it in one pass. Because it's
-    // one fill, the shared hex edges are interior — no anti-aliased seams and no
-    // stroke needed. Rendered non-interactive, below the hit-test layer.
+    // bucket) into a single MultiPolygon and fill it in one pass. Each hexagon is
+    // dilated slightly first so same-bucket neighbours OVERLAP instead of just
+    // touching: overlapping subpaths fill as a solid union with no interior edge,
+    // so there's nothing for the browser to anti-alias into a seam — at any zoom.
+    // (Coincident edges alone aren't enough; Chrome still seams semi-transparent
+    // fills along them.) Non-interactive, below the hit-test layer.
     const groups = new Map(); // `${color}|${opacity}` -> { color, opacity, polys }
     for (const feature of grid.features) {
       const { color, opacity } = feature.properties;
@@ -315,7 +330,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         g = { color, opacity: opacity ?? 0.75, polys: [] };
         groups.set(key, g);
       }
-      g.polys.push(feature.geometry.coordinates); // a Polygon's [ring]
+      g.polys.push([dilateRing(feature.geometry.coordinates[0], 1.04)]);
     }
     const mergedFeatures = [...groups.values()].map((g) => ({
       type: 'Feature',
