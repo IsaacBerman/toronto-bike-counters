@@ -200,14 +200,14 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
 
     if (mode !== 'choropleth' || !grid) return;
 
-    // Precompute, for each bucket level k, the white outline of the union of all
-    // cells with bucket >= k (a nested "this agreement or higher" contour). An
-    // edge is on that union's boundary when exactly one of its two adjacent
-    // cells is in the set; a grid-edge cell counts the empty side as "out".
+    // ==========================================
+    // Build contours from the grid
+    // ==========================================
     const edges = new Map(); // edgeKey -> { seg, buckets: number[] }
     const bucketColor = {}; // bucket -> fill color
     const bucketOpacity = {}; // bucket -> fill opacity
     let maxBucket = 0;
+    
     for (const feature of grid.features) {
       if (feature.properties.noData) continue;
       const b = feature.properties.b ?? 0;
@@ -229,6 +229,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       }
     }
 
+    // Build contours for each bucket level
     const levelSegs = Array.from({ length: maxBucket + 1 }, () => []);
     for (const { seg, buckets } of edges.values()) {
       for (let k = 0; k <= maxBucket; k++) {
@@ -237,14 +238,140 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         if (inSet === 1) levelSegs[k].push(seg);
       }
     }
+
+    // ==========================================
+    // Build FILL polygons from contours
+    // ==========================================
+    // For each bucket level, we need to build closed polygons from the contour lines
+    // The contours are the boundaries - we need to trace them into closed shapes
+    function buildPolygonsFromContours(segments) {
+      if (segments.length === 0) return [];
+      
+      // Build a graph of connected segments
+      const graph = new Map();
+      for (const seg of segments) {
+        const key1 = `${seg[0][0]},${seg[0][1]}`;
+        const key2 = `${seg[1][0]},${seg[1][1]}`;
+        if (!graph.has(key1)) graph.set(key1, []);
+        if (!graph.has(key2)) graph.set(key2, []);
+        graph.get(key1).push({ point: seg[1], key: key2 });
+        graph.get(key2).push({ point: seg[0], key: key1 });
+      }
+      
+      // Find closed loops
+      const visited = new Set();
+      const polygons = [];
+      
+      for (const [startKey, connections] of graph) {
+        if (visited.has(startKey)) continue;
+        
+        // Find a cycle starting from this node
+        let currentKey = startKey;
+        let currentPoint = null;
+        const path = [];
+        const pathKeys = new Set();
+        let foundCycle = false;
+        
+        // Simple cycle detection - follow edges
+        let prevKey = null;
+        let attempts = 0;
+        const maxAttempts = graph.size * 2;
+        
+        while (attempts < maxAttempts) {
+          attempts++;
+          const neighbors = graph.get(currentKey) || [];
+          
+          // Find a neighbor that's not the previous node and not visited
+          let nextNeighbor = null;
+          for (const neighbor of neighbors) {
+            if (neighbor.key !== prevKey) {
+              nextNeighbor = neighbor;
+              break;
+            }
+          }
+          
+          if (!nextNeighbor) break;
+          
+          prevKey = currentKey;
+          currentKey = nextNeighbor.key;
+          currentPoint = nextNeighbor.point;
+          
+          // Check if we've returned to start
+          if (currentKey === startKey && path.length > 2) {
+            foundCycle = true;
+            break;
+          }
+          
+          if (pathKeys.has(currentKey)) break;
+          pathKeys.add(currentKey);
+          if (currentPoint) path.push(currentPoint);
+        }
+        
+        if (foundCycle && path.length > 2) {
+          // Close the polygon
+          const firstPoint = segments.find(s => 
+            (s[0][0] === path[0][0] && s[0][1] === path[0][1]) ||
+            (s[1][0] === path[0][0] && s[1][1] === path[0][1])
+          );
+          if (firstPoint) {
+            const firstPt = [firstPoint[0][0], firstPoint[0][1]];
+            path.push(firstPt);
+            polygons.push(path);
+            
+            // Mark all nodes in this polygon as visited
+            for (const p of path) {
+              const key = `${p[0]},${p[1]}`;
+              visited.add(key);
+            }
+          }
+        }
+      }
+      
+      return polygons;
+    }
+
+    // Build fill polygons for each bucket level
+    const fillPolygons = [];
+    for (let k = 0; k <= maxBucket; k++) {
+      const segs = levelSegs[k];
+      if (segs.length === 0) continue;
+      
+      const polygons = buildPolygonsFromContours(segs);
+      for (const polyCoords of polygons) {
+        if (polyCoords.length >= 3) {
+          fillPolygons.push({
+            type: 'Feature',
+            properties: {
+              bucket: k,
+              color: bucketColor[k] || '#000000',
+              opacity: bucketOpacity[k] || 0.6
+            },
+            geometry: {
+              type: 'Polygon',
+              coordinates: [polyCoords.map(p => [p[1], p[0]])] // Convert back to [lng, lat]
+            }
+          });
+        }
+      }
+    }
+
+    // Create fill layer from the contour-derived polygons
+    const fillLayer = L.geoJSON(fillPolygons, {
+      style: (f) => ({
+        stroke: false,
+        weight: 0,
+        fillColor: f.properties.color,
+        fillOpacity: f.properties.opacity,
+        interactive: false,
+      }),
+    });
+
+    // Contour outlines (white lines showing the boundaries)
     const levelOutlines = levelSegs.map((segs) =>
       L.polyline(segs, { color: '#ffffff', weight: 2, interactive: false })
     );
 
-    // Always-visible contour for each bucket, drawn on its own boundary in that
-    // bucket's fill color. As well as reading like a contour map, these lines sit
-    // exactly on the seams between adjacent (differently-colored) bucket regions,
-    // covering the hairline anti-aliasing gaps that show when zoomed out.
+    // Bucket boundary lines (colored lines on the seams)
     const staticContours = levelSegs.map((segs, k) =>
       L.polyline(segs, {
         color: bucketColor[k] ?? '#000000',
@@ -258,7 +385,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     let whiteLayer = null;
     let blackLayer = null;
     let clearTimer = null;
-    let sticky = false; // set by tap/click so the highlight persists on mobile
+    let sticky = false;
     const tooltip = L.tooltip({ sticky: true, direction: 'top', offset: [0, -4], opacity: 1 });
 
     function clearHover() {
@@ -269,7 +396,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       if (map.hasLayer(tooltip)) map.removeLayer(tooltip);
     }
 
-    // Show the contour + tooltip for a cell (shared by hover and tap).
     function showFor(b, pct, ring, latlng) {
       if (clearTimer) {
         clearTimeout(clearTimer);
@@ -281,7 +407,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         if (whiteLayer) whiteLayer.addTo(map);
         activeLevel = b;
       }
-      // Black outline around just this cell, drawn last (on top).
       if (blackLayer) map.removeLayer(blackLayer);
       blackLayer = L.polyline(ring, { color: '#000000', weight: 2.5, interactive: false }).addTo(map);
 
@@ -290,83 +415,12 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       if (!map.hasLayer(tooltip)) tooltip.addTo(map);
     }
 
-    // Tapping empty space (or a no-data cell) dismisses a stuck highlight.
     function onMapClick() {
       clearHover();
     }
     map.on('click', onMapClick);
 
-    // ==========================================
-    // FAST FIX: Use Canvas or CSS to merge fills
-    // ==========================================
-    
-    // Group cells by color for efficient rendering
-    const colorGroups = new Map();
-    for (const feature of grid.features) {
-      if (feature.properties.noData) continue;
-      const { color, opacity } = feature.properties;
-      const key = `${color}|${opacity}`;
-      if (!colorGroups.has(key)) {
-        colorGroups.set(key, { color, opacity: opacity ?? 0.75, features: [] });
-      }
-      colorGroups.get(key).features.push(feature);
-    }
-
-    // Build a single GeoJSON with all cells as a MultiPolygon per color group
-    // This avoids the union operation entirely
-    const mergedFeatures = [];
-    for (const [_, group] of colorGroups) {
-      const coords = group.features.map(f => f.geometry.coordinates);
-      mergedFeatures.push({
-        type: 'Feature',
-        properties: { 
-          color: group.color, 
-          opacity: group.opacity 
-        },
-        geometry: {
-          type: 'MultiPolygon',
-          coordinates: coords
-        }
-      });
-    }
-
-    // Create fill layer from merged geometries - but with a CSS trick to prevent seams
-    const fillLayer = L.geoJSON(mergedFeatures, {
-      style: (f) => ({
-        stroke: false,
-        weight: 0,
-        fillColor: f.properties.color,
-        fillOpacity: f.properties.opacity,
-        interactive: false,
-        // This CSS property helps prevent anti-aliasing seams
-        className: 'choropleth-fill'
-      }),
-    });
-
-    // Add CSS to prevent seams between adjacent polygons
-    const styleId = 'choropleth-fill-style';
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement('style');
-      style.id = styleId;
-      style.textContent = `
-        .choropleth-fill {
-          /* Prevent anti-aliasing seams between adjacent polygons */
-          shape-rendering: crispEdges;
-        }
-        /* For Leaflet's SVG overlay */
-        .leaflet-overlay-pane svg path {
-          shape-rendering: crispEdges;
-        }
-        /* Alternative: use a tiny blur to hide seams */
-        .leaflet-overlay-pane svg {
-          filter: blur(0.3px);
-        }
-      `;
-      document.head.appendChild(style);
-    }
-
-    // INVISIBLE hit-test layer: the individual cells, transparent but interactive,
-    // on top — so the tooltip/contour hover still works per cell.
+    // INVISIBLE hit-test layer
     const cellLayer = L.geoJSON(grid, {
       style: (feature) => ({
         stroke: false,
@@ -387,15 +441,11 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         lyr.on('mousemove', (e) => {
           if (!sticky) tooltip.setLatLng(e.latlng);
         });
-        // Tap/click: keep it shown until another tap. Stop the map-click that
-        // would otherwise immediately clear it.
         lyr.on('click', (e) => {
           L.DomEvent.stopPropagation(e);
           sticky = true;
           showFor(b, pct, ring, e.latlng);
         });
-        // Small delay so moving between adjacent cells doesn't flicker; only
-        // clears when the pointer actually leaves the heatmap.
         lyr.on('mouseout', () => {
           if (sticky) return;
           clearTimer = setTimeout(clearHover, 60);
@@ -403,7 +453,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       },
     });
 
-    const layer = L.layerGroup([fillLayer, ...staticContours, cellLayer]).addTo(map);
+    const layer = L.layerGroup([fillLayer, ...staticContours, ...levelOutlines, cellLayer]).addTo(map);
     choroplethLayerRef.current = layer;
 
     return () => {
