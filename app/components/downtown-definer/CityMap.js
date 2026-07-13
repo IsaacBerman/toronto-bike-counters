@@ -15,7 +15,6 @@ import { useEffect, useRef, useState } from 'react';
 function fitToFrame(map, frame, attempt = 0) {
   if (!map || !frame || !map._container || !map._container.isConnected) return;  
   const [minLng, minLat, maxLng, maxLat] = frame;
-  console.log("calling fit to bounds: ", minLng)
   map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
 }
 
@@ -34,10 +33,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
   // Leaflet loads asynchronously; flip this to true once the map exists so the
   // layer effects below re-run (a ref assignment alone wouldn't re-render).
   const [mapReady, setMapReady] = useState(false);
-
-  useEffect(()=>{
-    console.log(fitBbox)
-  },[fitBbox])
 
   useEffect(() => {
     onMapClickRef.current = onMapClick;
@@ -114,7 +109,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     if(fitBbox) {
       const fit = fitBbox;
       bboxRef.current = fit;
-      console.log('sending fit:', fit)
       fitToFrame(map, fit);
     }
   }, [boundary, bbox, fitBbox, mapReady]);
