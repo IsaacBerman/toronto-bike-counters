@@ -16,6 +16,8 @@ import {
   hexCenterXY,
   hexColSpacing,
   hexRowSpacing,
+  encodeRLE,
+  decodeRLE,
 } from './heatmapGrid.js';
 
 function pointsToRing(points) {
@@ -113,8 +115,10 @@ function minAreaRectAngle(points) {
 
 // Bump when the grid geometry/order changes, so a stored compact grid from an
 // older algorithm is treated as a cache miss instead of misaligned. (2 = compact
-// square grid; 3 = flat-top hexagonal cells., 4 = back to 280m)
-export const HEATMAP_ALGO_VERSION = 4;
+// square grid; 3 = flat-top hexagonal cells., 4 = back to 280m, 5 = 200m cells,
+// 75k cell cap, and RLE-encoded counts: { params, rle } instead of
+// { params, counts })
+export const HEATMAP_ALGO_VERSION = 5;
 
 // Grid parameters + inside/outside layout, from the boundary alone (no votes).
 // `counts` is length nx*ny: -1 = outside the city, 0 = inside with no votes yet.
@@ -190,14 +194,15 @@ export function buildCompactGrid(boundary, bbox, clippedPolygons) {
     }
     counts[i] = count;
   }
-  return { params, counts };
+  return { params, rle: encodeRLE(counts) };
 }
 
 // Fold one new vote into an existing compact grid (in place). Inside cells are
 // known from counts (>= 0) and their centers are derived from params, so this
 // needs neither the boundary nor a re-read of other submissions — O(cells).
 export function incrementCompactCounts(compact, clippedGeometry) {
-  const { params, counts } = compact;
+  const { params } = compact;
+  const counts = compact.counts || decodeRLE(compact.rle);
   const cosA = Math.cos(params.angle), sinA = Math.sin(params.angle);
   const proj = makeLocalProjector(params.lng0, params.lat0);
   const bb = geometryBbox(clippedGeometry);
@@ -208,5 +213,7 @@ export function incrementCompactCounts(compact, clippedGeometry) {
     if (center[0] < bb[0] || center[0] > bb[2] || center[1] < bb[1] || center[1] > bb[3]) continue;
     if (booleanPointInPolygon(center, feature)) counts[i]++;
   }
+  if (compact.rle) compact.rle = encodeRLE(counts);
+  else compact.counts = counts;
   return compact;
 }

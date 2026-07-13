@@ -38,7 +38,7 @@ async function foldVoteIntoHeatmapCache(city, clippedPolygon) {
   try {
     const cache = await getHeatmapCache(city.id);
     if (!cache || cache.algo_version !== HEATMAP_ALGO_VERSION || !cache.counts?.params) return;
-    const compact = cache.counts; // { params, counts }
+    const compact = cache.counts; // { params, rle } (column predates the RLE encoding)
     incrementCompactCounts(compact, clippedPolygon);
     await saveHeatmapCache(city.id, cache.submission_count + 1, HEATMAP_ALGO_VERSION, compact);
   } catch (error) {

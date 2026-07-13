@@ -17,8 +17,36 @@ export const DEG = Math.PI / 180;
 export const METERS_PER_DEG_LAT = 111320;
 // Flat-top hexagonal cells. CELL_SIZE_METERS is the nearest-neighbour spacing
 // (center to center); the circumradius r = spacing / sqrt(3).
-export const CELL_SIZE_METERS = 280;
-export const MAX_CELLS = 45000;
+export const CELL_SIZE_METERS = 200;
+export const MAX_CELLS = 75000;
+
+// Run-length encoding for the counts array, as flat [value, runLength, ...]
+// pairs. Grids are dominated by long runs of -1 (outside the city) and 0 (no
+// votes), so this shrinks the stored blob and wire payload several-fold —
+// gzip already helps on the wire, but the DB stores and serves the raw JSON.
+export function encodeRLE(counts) {
+  const rle = [];
+  for (let i = 0; i < counts.length; ) {
+    const v = counts[i];
+    let j = i + 1;
+    while (j < counts.length && counts[j] === v) j++;
+    rle.push(v, j - i);
+    i = j;
+  }
+  return rle;
+}
+
+export function decodeRLE(rle) {
+  let length = 0;
+  for (let i = 1; i < rle.length; i += 2) length += rle[i];
+  const counts = new Array(length);
+  let k = 0;
+  for (let i = 0; i < rle.length; i += 2) {
+    const v = rle[i];
+    for (let n = rle[i + 1]; n > 0; n--) counts[k++] = v;
+  }
+  return counts;
+}
 
 const SQRT3 = Math.sqrt(3);
 // Flat-top hex vertex angles (0°,60°,…,300°) — gives horizontal flat top/bottom.
@@ -106,7 +134,10 @@ export function cellCenterFromIndex(params, i, cosA, sinA, proj) {
 // identical to what the heatmap endpoint used to return. `counts` is length
 // nx*ny: -1 = outside the city (skipped), otherwise the vote count.
 export function expandCompactGrid(compact, submissionCount) {
-  const { params, counts } = compact;
+  const { params } = compact;
+  // v5+ grids carry RLE-encoded counts; older edge-cached payloads may still
+  // carry the plain array for a day or so after a deploy.
+  const counts = compact.counts || decodeRLE(compact.rle);
   const { r, rMinX, rMinY, nx, angle, lng0, lat0 } = params;
   const cosA = Math.cos(angle);
   const sinA = Math.sin(angle);

@@ -58,7 +58,7 @@ export async function GET(request) {
     return NextResponse.json(cached.payload, { headers: EDGE_CACHE });
   }
 
-  // 2) Persistent compact-grid cache — send the tiny { params, counts } straight
+  // 2) Persistent compact-grid cache — send the tiny { params, rle } straight
   //    through (the client rebuilds the geometry), with no polygon download.
   const dbCache = await getHeatmapCache(city.id);
   if (
