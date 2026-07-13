@@ -367,7 +367,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       },
     });
 
-    const layer = L.layerGroup([fillLayer, ...staticContours]).addTo(map);
+    const layer = L.layerGroup([fillLayer, ...staticContours, cellLayer]).addTo(map);
     choroplethLayerRef.current = layer;
 
     return () => {
