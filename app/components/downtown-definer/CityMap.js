@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { union, polygon, featureCollection } from '@turf/turf';
 
 // A single reusable Leaflet map for DowntownDefiner. It always shows the
 // city boundary, and layers one more thing on top depending on `mode`:
@@ -296,29 +297,102 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     }
     map.on('click', onMapClick);
 
-    // VISIBLE fill: merge all cells sharing a color+opacity (i.e. the same
-    // bucket) into a single MultiPolygon and fill it in one pass. Each hexagon is
-    // dilated slightly first so same-bucket neighbours OVERLAP instead of just
-    // touching: overlapping subpaths fill as a solid union with no interior edge,
-    // so there's nothing for the browser to anti-alias into a seam — at any zoom.
-    // (Coincident edges alone aren't enough; Chrome still seams semi-transparent
-    // fills along them.) Non-interactive, below the hit-test layer.
-    const groups = new Map(); // `${color}|${opacity}` -> { color, opacity, polys }
+    // ==========================================
+    // FIX: PROPERLY MERGE GEOMETRIES USING TURF
+    // ==========================================
+    // Group features by color + opacity
+    const groups = new Map();
     for (const feature of grid.features) {
+      if (feature.properties.noData) continue;
       const { color, opacity } = feature.properties;
       const key = `${color}|${opacity}`;
       let g = groups.get(key);
       if (!g) {
-        g = { color, opacity: opacity ?? 0.75, polys: [] };
+        g = { color, opacity: opacity ?? 0.75, polygons: [] };
         groups.set(key, g);
       }
-      g.polys.push([feature.geometry.coordinates[0], 1.04]);
+      // Store as proper polygon features (convert from GeoJSON coordinates)
+      g.polygons.push(polygon(feature.geometry.coordinates));
     }
-    const mergedFeatures = [...groups.values()].map((g) => ({
-      type: 'Feature',
-      properties: { color: g.color, opacity: g.opacity },
-      geometry: { type: 'MultiPolygon', coordinates: g.polys },
-    }));
+
+    // Actually merge polygons with same color+opacity using Turf's union
+    const mergedFeatures = [];
+    for (const [_, g] of groups) {
+      if (g.polygons.length === 0) continue;
+      
+      // If only one polygon, use it directly
+      if (g.polygons.length === 1) {
+        mergedFeatures.push({
+          type: 'Feature',
+          properties: { 
+            color: g.color, 
+            opacity: g.opacity 
+          },
+          geometry: g.polygons[0].geometry
+        });
+        continue;
+      }
+      
+      // For multiple polygons, merge them sequentially
+      try {
+        // Start with a feature collection of all polygons
+        const collection = featureCollection(g.polygons);
+        
+        // Merge all polygons together
+        let merged = g.polygons[0];
+        for (let i = 1; i < g.polygons.length; i++) {
+          try {
+            const result = union(merged, g.polygons[i]);
+            if (result && result.geometry) {
+              merged = result;
+            } else {
+              // If union returns null or invalid, skip this polygon
+              console.warn('Skipping invalid union result for polygon', i);
+            }
+          } catch (e) {
+            // If union fails, try to continue with the next one
+            console.warn('Union failed for polygon', i, e.message);
+            // Keep the current merged result
+          }
+        }
+        
+        if (merged && merged.geometry) {
+          mergedFeatures.push({
+            type: 'Feature',
+            properties: { 
+              color: g.color, 
+              opacity: g.opacity 
+            },
+            geometry: merged.geometry
+          });
+        } else {
+          // Fallback: use the first polygon if merging failed completely
+          mergedFeatures.push({
+            type: 'Feature',
+            properties: { 
+              color: g.color, 
+              opacity: g.opacity 
+            },
+            geometry: g.polygons[0].geometry
+          });
+        }
+      } catch (e) {
+        console.error('Error merging polygons for color', g.color, e);
+        // Fallback: add all polygons individually
+        for (const poly of g.polygons) {
+          mergedFeatures.push({
+            type: 'Feature',
+            properties: { 
+              color: g.color, 
+              opacity: g.opacity 
+            },
+            geometry: poly.geometry
+          });
+        }
+      }
+    }
+
+    // Create fill layer from merged geometries
     const fillLayer = L.geoJSON(mergedFeatures, {
       style: (f) => ({
         stroke: false,
