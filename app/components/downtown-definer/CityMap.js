@@ -7,6 +7,23 @@ import { useEffect, useRef, useState } from 'react';
 //   - 'drawing': click-to-add-point polygon the user is drawing (`points`, `onMapClick`)
 //   - 'static': one fixed polygon to display (`polygon`)
 //   - 'choropleth': a pre-colored GeoJSON grid (`grid`, features carry properties.color)
+// Fit the map to a [minLng, minLat, maxLng, maxLat] frame, but only once the
+// container actually has a size. Two maps initialising together (the results
+// view) can call fitBounds while flex layout hasn't settled and the container is
+// still 0-wide; fitBounds then locks in a bogus zoom (looks like "no zoom-in").
+// Retry on the next frame until the container is real, then fit deterministically.
+function fitToFrame(map, frame, attempt = 0) {
+  if (!map || !frame || !map._container || !map._container.isConnected) return;
+  map.invalidateSize();
+  const size = map.getSize();
+  if ((size.x < 20 || size.y < 20) && attempt < 30) {
+    requestAnimationFrame(() => fitToFrame(map, frame, attempt + 1));
+    return;
+  }
+  const [minLng, minLat, maxLng, maxLat] = frame;
+  map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
+}
+
 export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapClick, onVertexMove, staticPoints, grid, className }) {
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
@@ -58,11 +75,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         const ro = new ResizeObserver(() => {
           if (!leafletMapRef.current) return;
           leafletMapRef.current.invalidateSize();
-          const b = bboxRef.current;
-          if (b) {
-            const [minLng, minLat, maxLng, maxLat] = b;
-            leafletMapRef.current.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
-          }
+          fitToFrame(leafletMapRef.current, bboxRef.current);
         });
         ro.observe(mapRef.current);
         resizeObserverRef.current = ro;
@@ -101,11 +114,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     // the user's shape), otherwise the full city bbox.
     const fit = fitBbox || bbox;
     bboxRef.current = fit;
-    if (fit) {
-      map.invalidateSize();
-      const [minLng, minLat, maxLng, maxLat] = fit;
-      map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
-    }
+    fitToFrame(map, fit);
   }, [boundary, bbox, fitBbox, mapReady]);
 
   // Drawing layer (points + vertex markers).
