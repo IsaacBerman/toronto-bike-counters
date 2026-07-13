@@ -1,5 +1,6 @@
 import './globals.css';
 import { Archivo } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
 import SiteFooter from './components/site-footer';
 
 const archivo = Archivo({
@@ -29,6 +30,7 @@ export default function RootLayout({ children }) {
       <body className="antialiased">
         {children}
         <SiteFooter />
+        <Analytics />
       </body>
     </html>
   )
