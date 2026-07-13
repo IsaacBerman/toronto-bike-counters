@@ -40,6 +40,10 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
   // layer effects below re-run (a ref assignment alone wouldn't re-render).
   const [mapReady, setMapReady] = useState(false);
 
+  useEffect(()=>{
+    console.log(fitBbox)
+  },[fitBbox])
+
   useEffect(() => {
     onMapClickRef.current = onMapClick;
     onVertexMoveRef.current = onVertexMove;
