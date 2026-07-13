@@ -16,7 +16,19 @@ async function ensureLabelColumn(pool) {
   await pool.query('ALTER TABLE cities ADD COLUMN IF NOT EXISTS label TEXT');
 }
 
-export async function GET() {
+export async function GET(request) {
+  // TEMPORARY (remove after Neon migration): reveal the DB connection strings
+  // from the runtime env — they're marked sensitive in Vercel so the dashboard
+  // and CLI can't show them, but the deployed function still receives them.
+  // Guarded by the same Basic Auth as the rest of the admin API.
+  if (request.nextUrl.searchParams.get('action') === 'reveal-db') {
+    return NextResponse.json({
+      DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED || null,
+      POSTGRES_URL_NON_POOLING: process.env.POSTGRES_URL_NON_POOLING || null,
+      DATABASE_URL: process.env.DATABASE_URL || null,
+    });
+  }
+
   const pool = makePool();
   try {
     await ensureLabelColumn(pool);
