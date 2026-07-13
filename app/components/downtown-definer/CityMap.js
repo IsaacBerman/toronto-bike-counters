@@ -334,8 +334,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     // Each bucket fills the area between its contour and ALL higher bucket contours
     // ==========================================
     function createRingPolygon(outerRing, innerRings) {
-      // Outer ring should be clockwise, inner rings counter-clockwise
-      // Leaflet/GeoJSON handles this automatically if we provide both rings
       const outer = outerRing.map(p => [p[1], p[0]]); // [lat, lng] -> [lng, lat]
       const coordinates = [outer];
       
@@ -373,24 +371,20 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         const containedInnerPolys = [];
         
         if (allHigherPolys.length > 0) {
-          // Calculate centroid of outer polygon
+          // Simple containment check using centroid distance
           const outerCenterX = outer.reduce((sum, p) => sum + p[0], 0) / outer.length;
           const outerCenterY = outer.reduce((sum, p) => sum + p[1], 0) / outer.length;
           
           for (const innerPoly of allHigherPolys) {
-            // Calculate centroid of inner polygon
             const innerCenterX = innerPoly.reduce((sum, p) => sum + p[0], 0) / innerPoly.length;
             const innerCenterY = innerPoly.reduce((sum, p) => sum + p[1], 0) / innerPoly.length;
             
-            // Check if inner centroid is inside outer polygon
-            // Simple heuristic: distance from outer center to inner center
+            // Check if inner centroid is inside outer polygon using distance heuristic
             const dist = Math.sqrt(
               Math.pow(outerCenterX - innerCenterX, 2) + 
               Math.pow(outerCenterY - innerCenterY, 2)
             );
             
-            // If it's close enough, consider it contained
-            // This is a heuristic - in a real implementation you'd use a proper point-in-polygon test
             if (dist < 0.01) {
               containedInnerPolys.push(innerPoly);
             }
@@ -411,14 +405,14 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     }
 
     // ==========================================
-    // Create fill layer from ring polygons
+    // Create fill layer from ring polygons (NOT stacked!)
     // ==========================================
     const fillLayer = L.geoJSON(ringFeatures, {
       style: (f) => ({
         stroke: false,
         weight: 0,
         fillColor: f.properties.color,
-        fillOpacity: f.properties.opacity,
+        fillOpacity: f.properties.opacity, // Original opacity, no compounding!
         interactive: false,
       }),
     });
@@ -458,7 +452,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       }
       if (activeLevel !== b) {
         if (whiteLayer) map.removeLayer(whiteLayer);
-        // Show white outline for this bucket level
         const segs = levelSegs[b] || [];
         if (segs.length > 0) {
           whiteLayer = L.polyline(segs, { 
@@ -515,7 +508,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       },
     });
 
-    // Combine all layers
+    // Combine all layers - SINGLE fill layer, not stacked!
     const layer = L.layerGroup([
       fillLayer,
       ...baseContours,
