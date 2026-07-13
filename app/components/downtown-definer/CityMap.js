@@ -13,18 +13,9 @@ import { useEffect, useRef, useState } from 'react';
 // still 0-wide; fitBounds then locks in a bogus zoom (looks like "no zoom-in").
 // Retry on the next frame until the container is real, then fit deterministically.
 function fitToFrame(map, frame, attempt = 0) {
-  console.log("fitting to frame, pre return")
-  console.log(map)
-  if (!map || !frame || !map._container || !map._container.isConnected) return;
-  map.invalidateSize();
-  const size = map.getSize();
-  if ((size.x < 20 || size.y < 20) && attempt < 30) {
-    setTimeout(() => fitToFrame(map, frame, attempt + 1), 100);
-    return;
-  }
+  if (!map || !frame || !map._container || !map._container.isConnected) return;  
   const [minLng, minLat, maxLng, maxLat] = frame;
-  console.log("calling fit to founds: ", minLng)
-
+  console.log("calling fit to bounds: ", minLng)
   map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
 }
 
@@ -123,6 +114,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     if(fitBbox) {
       const fit = fitBbox;
       bboxRef.current = fit;
+      console.log('sending fit:', fit)
       fitToFrame(map, fit);
     }
   }, [boundary, bbox, fitBbox, mapReady]);
