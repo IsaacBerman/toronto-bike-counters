@@ -28,7 +28,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
   const staticLayerRef = useRef(null);
   const choroplethLayerRef = useRef(null);
   const resizeObserverRef = useRef(null);
-  const bboxRef = useRef(bbox);
+  const bboxRef = useRef(fitBbox);
   const onMapClickRef = useRef(onMapClick);
   const onVertexMoveRef = useRef(onVertexMove);
   // Leaflet loads asynchronously; flip this to true once the map exists so the
