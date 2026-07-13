@@ -240,7 +240,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     }
 
     // ==========================================
-    // Build FILL polygons from contours
+    // Build polygons from contours (returns closed rings)
     // ==========================================
     function buildPolygonsFromContours(segments) {
       if (segments.length === 0) return [];
@@ -321,77 +321,116 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       return polygons;
     }
 
-    // Build fill polygons for each bucket level
-    const fillPolygonsByBucket = {};
+    // Get polygons for each bucket level
+    const bucketPolygons = {};
     for (let k = 0; k <= maxBucket; k++) {
       const segs = levelSegs[k];
       if (segs.length === 0) continue;
-      
-      const polygons = buildPolygonsFromContours(segs);
-      fillPolygonsByBucket[k] = polygons;
+      bucketPolygons[k] = buildPolygonsFromContours(segs);
     }
 
     // ==========================================
-    // Calculate adjusted opacities for stacked layers
+    // Create RING polygons (donuts) for each bucket
+    // Each bucket fills the area between its contour and the next higher contour
     // ==========================================
-    // We want the final visual opacity to range from ~0.5 for lowest bucket to ~0.8 for highest
-    // With compounding, we need much smaller per-layer opacities
-    const targetOpacities = {};
-    const numBuckets = maxBucket + 1;
-    
-    // Calculate what opacity each layer needs to achieve the target cumulative opacity
-    // Using formula: finalOpacity = 1 - (1 - opacity1) * (1 - opacity2) * ...
-    // We want: lowest bucket (0) -> ~0.5, highest bucket (maxBucket) -> ~0.8
-    for (let k = 0; k <= maxBucket; k++) {
-      const t = k / maxBucket; // 0 to 1
-      // Target cumulative opacity: 0.5 at bottom, 0.8 at top
-      const targetCumulative = 0.5 + t * 0.3;
+    function createRingPolygon(outerRing, innerRing) {
+      // Outer ring should be clockwise, inner ring counter-clockwise
+      // Leaflet/GeoJSON handles this automatically if we provide both rings
+      const outer = outerRing.map(p => [p[1], p[0]]); // [lat, lng] -> [lng, lat]
+      let inner = null;
+      if (innerRing && innerRing.length >= 3) {
+        inner = innerRing.map(p => [p[1], p[0]]);
+      }
       
-      // Calculate the per-layer opacity needed to achieve this cumulative effect
-      // Since layers are additive, we need to distribute the opacity
-      // For simplicity, we'll use a small base opacity that compounds
-      // With 5 layers, to reach 0.5-0.8, each layer needs ~0.13-0.25
-      const baseOpacity = 0.08 + t * 0.12;
-      targetOpacities[k] = Math.min(baseOpacity, 0.3);
-    }
-
-    // ==========================================
-    // Create fill layers (one per bucket, stacked)
-    // ==========================================
-    const fillLayers = [];
-    for (let k = 0; k <= maxBucket; k++) {
-      const polygons = fillPolygonsByBucket[k] || [];
-      if (polygons.length === 0) continue;
-      
-      const features = polygons.map(polyCoords => ({
-        type: 'Feature',
-        properties: {
-          bucket: k,
-          color: bucketColor[k] || '#000000',
-          opacity: targetOpacities[k] || 0.1
-        },
-        geometry: {
+      if (inner) {
+        return {
           type: 'Polygon',
-          coordinates: [polyCoords.map(p => [p[1], p[0]])]
-        }
-      }));
+          coordinates: [outer, inner]
+        };
+      } else {
+        return {
+          type: 'Polygon',
+          coordinates: [outer]
+        };
+      }
+    }
+
+    // For each bucket, create rings between this bucket and the next higher bucket
+    const ringFeatures = [];
+    
+    for (let k = 0; k <= maxBucket; k++) {
+      const outerPolys = bucketPolygons[k] || [];
+      if (outerPolys.length === 0) continue;
       
-      const layer = L.geoJSON(features, {
-        style: (f) => ({
-          stroke: false,
-          weight: 0,
-          fillColor: f.properties.color,
-          fillOpacity: f.properties.opacity,
-          interactive: false,
-        }),
-      });
-      fillLayers.push(layer);
+      // Get the next higher bucket's polygons (to use as inner rings)
+      const innerPolys = bucketPolygons[k + 1] || [];
+      
+      // For each outer polygon, find if there's a corresponding inner polygon
+      // that's fully contained within it
+      for (const outer of outerPolys) {
+        // Find inner polygons that are contained within this outer polygon
+        // For simplicity, if there are inner polygons, we'll just use the first one
+        // In a more sophisticated version, you'd check containment
+        let inner = null;
+        
+        // Simple heuristic: if there's an inner polygon with roughly the same center,
+        // use it as the hole
+        if (innerPolys.length > 0) {
+          // Calculate centroids to match outer with inner
+          const outerCenterX = outer.reduce((sum, p) => sum + p[0], 0) / outer.length;
+          const outerCenterY = outer.reduce((sum, p) => sum + p[1], 0) / outer.length;
+          
+          let bestInner = null;
+          let bestDist = Infinity;
+          
+          for (const innerPoly of innerPolys) {
+            const innerCenterX = innerPoly.reduce((sum, p) => sum + p[0], 0) / innerPoly.length;
+            const innerCenterY = innerPoly.reduce((sum, p) => sum + p[1], 0) / innerPoly.length;
+            const dist = Math.sqrt(
+              Math.pow(outerCenterX - innerCenterX, 2) + 
+              Math.pow(outerCenterY - innerCenterY, 2)
+            );
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestInner = innerPoly;
+            }
+          }
+          
+          // Only use inner if it's actually contained within outer
+          if (bestInner && bestDist < 0.01) {
+            inner = bestInner;
+          }
+        }
+        
+        const ringGeo = createRingPolygon(outer, inner);
+        ringFeatures.push({
+          type: 'Feature',
+          properties: {
+            bucket: k,
+            color: bucketColor[k] || '#000000',
+            opacity: bucketOpacity[k] || 0.6
+          },
+          geometry: ringGeo
+        });
+      }
     }
 
     // ==========================================
-    // Contour outlines - colored, not white (only white on hover)
+    // Create fill layer from ring polygons
     // ==========================================
-    // These are the base contours - each bucket gets its colored outline
+    const fillLayer = L.geoJSON(ringFeatures, {
+      style: (f) => ({
+        stroke: false,
+        weight: 0,
+        fillColor: f.properties.color,
+        fillOpacity: f.properties.opacity,
+        interactive: false,
+      }),
+    });
+
+    // ==========================================
+    // Contour outlines - colored base, white on hover
+    // ==========================================
     const baseContours = levelSegs.map((segs, k) => {
       if (segs.length === 0) return null;
       return L.polyline(segs, {
@@ -401,9 +440,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         interactive: false,
       });
     }).filter(Boolean);
-
-    // White outlines for hover (shown when a bucket is active)
-    let hoverWhiteOutlines = null;
 
     let activeLevel = null;
     let whiteLayer = null;
@@ -486,7 +522,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
 
     // Combine all layers
     const layer = L.layerGroup([
-      ...fillLayers,
+      fillLayer,
       ...baseContours,
       cellLayer
     ]).addTo(map);
