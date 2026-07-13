@@ -27,7 +27,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
   const staticLayerRef = useRef(null);
   const choroplethLayerRef = useRef(null);
   const resizeObserverRef = useRef(null);
-  const bboxRef = useRef(fitBbox);
+  const bboxRef = useRef(bbox);
   const onMapClickRef = useRef(onMapClick);
   const onVertexMoveRef = useRef(onVertexMove);
   // Leaflet loads asynchronously; flip this to true once the map exists so the
@@ -69,7 +69,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         const ro = new ResizeObserver(() => {
           if (!leafletMapRef.current) return;
           leafletMapRef.current.invalidateSize();
-          fitToFrame(leafletMapRef.current, bboxRef.current);
         });
         ro.observe(mapRef.current);
         resizeObserverRef.current = ro;
@@ -106,11 +105,10 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
 
     // Frame to fitBbox when provided (e.g. results maps zoom to the consensus +
     // the user's shape), otherwise the full city bbox.
-    if(fitBbox) {
-      const fit = fitBbox;
-      bboxRef.current = fit;
-      fitToFrame(map, fit);
-    }
+    const fit = fitBbox || bbox;
+    bboxRef.current = fit;
+    fitToFrame(map, fit);
+    
   }, [boundary, bbox, fitBbox, mapReady]);
 
   // Drawing layer (points + vertex markers).
