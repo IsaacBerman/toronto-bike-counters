@@ -17,6 +17,7 @@ function fitToFrame(map, frame, attempt = 0) {
   map.invalidateSize();
   const size = map.getSize();
   if ((size.x < 20 || size.y < 20) && attempt < 30) {
+    console.log('fitting to frame:', frame)
     setTimeout(() => fitToFrame(map, frame, attempt + 1), 100);
     return;
   }
