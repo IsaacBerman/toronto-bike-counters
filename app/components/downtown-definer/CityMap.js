@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 // Retry on the next frame until the container is real, then fit deterministically.
 function fitToFrame(map, frame, attempt = 0) {
   console.log("fitting to frame, pre return")
+  console.log(map)
   if (!map || !frame || !map._container || !map._container.isConnected) return;
   map.invalidateSize();
   const size = map.getSize();
