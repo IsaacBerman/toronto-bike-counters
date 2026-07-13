@@ -242,8 +242,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     // ==========================================
     // Build FILL polygons from contours
     // ==========================================
-    // For each bucket level, we need to build closed polygons from the contour lines
-    // The contours are the boundaries - we need to trace them into closed shapes
     function buildPolygonsFromContours(segments) {
       if (segments.length === 0) return [];
       
@@ -265,14 +263,11 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       for (const [startKey, connections] of graph) {
         if (visited.has(startKey)) continue;
         
-        // Find a cycle starting from this node
         let currentKey = startKey;
         let currentPoint = null;
         const path = [];
         const pathKeys = new Set();
         let foundCycle = false;
-        
-        // Simple cycle detection - follow edges
         let prevKey = null;
         let attempts = 0;
         const maxAttempts = graph.size * 2;
@@ -281,7 +276,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
           attempts++;
           const neighbors = graph.get(currentKey) || [];
           
-          // Find a neighbor that's not the previous node and not visited
           let nextNeighbor = null;
           for (const neighbor of neighbors) {
             if (neighbor.key !== prevKey) {
@@ -296,7 +290,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
           currentKey = nextNeighbor.key;
           currentPoint = nextNeighbor.point;
           
-          // Check if we've returned to start
           if (currentKey === startKey && path.length > 2) {
             foundCycle = true;
             break;
@@ -308,7 +301,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         }
         
         if (foundCycle && path.length > 2) {
-          // Close the polygon
           const firstPoint = segments.find(s => 
             (s[0][0] === path[0][0] && s[0][1] === path[0][1]) ||
             (s[1][0] === path[0][0] && s[1][1] === path[0][1])
@@ -318,7 +310,6 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
             path.push(firstPt);
             polygons.push(path);
             
-            // Mark all nodes in this polygon as visited
             for (const p of path) {
               const key = `${p[0]},${p[1]}`;
               visited.add(key);
@@ -331,55 +322,88 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     }
 
     // Build fill polygons for each bucket level
-    const fillPolygons = [];
+    const fillPolygonsByBucket = {};
     for (let k = 0; k <= maxBucket; k++) {
       const segs = levelSegs[k];
       if (segs.length === 0) continue;
       
       const polygons = buildPolygonsFromContours(segs);
-      for (const polyCoords of polygons) {
-        if (polyCoords.length >= 3) {
-          fillPolygons.push({
-            type: 'Feature',
-            properties: {
-              bucket: k,
-              color: bucketColor[k] || '#000000',
-              opacity: bucketOpacity[k] || 0.6
-            },
-            geometry: {
-              type: 'Polygon',
-              coordinates: [polyCoords.map(p => [p[1], p[0]])] // Convert back to [lng, lat]
-            }
-          });
-        }
-      }
+      fillPolygonsByBucket[k] = polygons;
     }
 
-    // Create fill layer from the contour-derived polygons
-    const fillLayer = L.geoJSON(fillPolygons, {
-      style: (f) => ({
-        stroke: false,
-        weight: 0,
-        fillColor: f.properties.color,
-        fillOpacity: f.properties.opacity,
-        interactive: false,
-      }),
-    });
+    // ==========================================
+    // Calculate adjusted opacities for stacked layers
+    // ==========================================
+    // We want the final visual opacity to range from ~0.5 for lowest bucket to ~0.8 for highest
+    // With compounding, we need much smaller per-layer opacities
+    const targetOpacities = {};
+    const numBuckets = maxBucket + 1;
+    
+    // Calculate what opacity each layer needs to achieve the target cumulative opacity
+    // Using formula: finalOpacity = 1 - (1 - opacity1) * (1 - opacity2) * ...
+    // We want: lowest bucket (0) -> ~0.5, highest bucket (maxBucket) -> ~0.8
+    for (let k = 0; k <= maxBucket; k++) {
+      const t = k / maxBucket; // 0 to 1
+      // Target cumulative opacity: 0.5 at bottom, 0.8 at top
+      const targetCumulative = 0.5 + t * 0.3;
+      
+      // Calculate the per-layer opacity needed to achieve this cumulative effect
+      // Since layers are additive, we need to distribute the opacity
+      // For simplicity, we'll use a small base opacity that compounds
+      // With 5 layers, to reach 0.5-0.8, each layer needs ~0.13-0.25
+      const baseOpacity = 0.08 + t * 0.12;
+      targetOpacities[k] = Math.min(baseOpacity, 0.3);
+    }
 
-    // Contour outlines (white lines showing the boundaries)
-    const levelOutlines = levelSegs.map((segs) =>
-      L.polyline(segs, { color: '#ffffff', weight: 2, interactive: false })
-    );
+    // ==========================================
+    // Create fill layers (one per bucket, stacked)
+    // ==========================================
+    const fillLayers = [];
+    for (let k = 0; k <= maxBucket; k++) {
+      const polygons = fillPolygonsByBucket[k] || [];
+      if (polygons.length === 0) continue;
+      
+      const features = polygons.map(polyCoords => ({
+        type: 'Feature',
+        properties: {
+          bucket: k,
+          color: bucketColor[k] || '#000000',
+          opacity: targetOpacities[k] || 0.1
+        },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [polyCoords.map(p => [p[1], p[0]])]
+        }
+      }));
+      
+      const layer = L.geoJSON(features, {
+        style: (f) => ({
+          stroke: false,
+          weight: 0,
+          fillColor: f.properties.color,
+          fillOpacity: f.properties.opacity,
+          interactive: false,
+        }),
+      });
+      fillLayers.push(layer);
+    }
 
-    // Bucket boundary lines (colored lines on the seams)
-    const staticContours = levelSegs.map((segs, k) =>
-      L.polyline(segs, {
-        color: bucketColor[k] ?? '#000000',
+    // ==========================================
+    // Contour outlines - colored, not white (only white on hover)
+    // ==========================================
+    // These are the base contours - each bucket gets its colored outline
+    const baseContours = levelSegs.map((segs, k) => {
+      if (segs.length === 0) return null;
+      return L.polyline(segs, {
+        color: bucketColor[k] || '#000000',
         weight: 1.5,
-        opacity: bucketOpacity[k] ?? 0.6,
+        opacity: 0.4,
         interactive: false,
-      })
-    );
+      });
+    }).filter(Boolean);
+
+    // White outlines for hover (shown when a bucket is active)
+    let hoverWhiteOutlines = null;
 
     let activeLevel = null;
     let whiteLayer = null;
@@ -403,8 +427,15 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       }
       if (activeLevel !== b) {
         if (whiteLayer) map.removeLayer(whiteLayer);
-        whiteLayer = levelOutlines[b] || null;
-        if (whiteLayer) whiteLayer.addTo(map);
+        // Show white outline for this bucket level
+        const segs = levelSegs[b] || [];
+        if (segs.length > 0) {
+          whiteLayer = L.polyline(segs, { 
+            color: '#ffffff', 
+            weight: 2.5, 
+            interactive: false 
+          }).addTo(map);
+        }
         activeLevel = b;
       }
       if (blackLayer) map.removeLayer(blackLayer);
@@ -453,7 +484,12 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       },
     });
 
-    const layer = L.layerGroup([fillLayer, ...staticContours, ...levelOutlines, cellLayer]).addTo(map);
+    // Combine all layers
+    const layer = L.layerGroup([
+      ...fillLayers,
+      ...baseContours,
+      cellLayer
+    ]).addTo(map);
     choroplethLayerRef.current = layer;
 
     return () => {
