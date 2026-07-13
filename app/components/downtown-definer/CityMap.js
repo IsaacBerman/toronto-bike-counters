@@ -296,29 +296,41 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     }
     map.on('click', onMapClick);
 
-    // VISIBLE fill: merge all cells sharing a color+opacity (i.e. the same
-    // bucket) into a single MultiPolygon and fill it in one pass. Each hexagon is
-    // dilated slightly first so same-bucket neighbours OVERLAP instead of just
-    // touching: overlapping subpaths fill as a solid union with no interior edge,
-    // so there's nothing for the browser to anti-alias into a seam — at any zoom.
-    // (Coincident edges alone aren't enough; Chrome still seams semi-transparent
-    // fills along them.) Non-interactive, below the hit-test layer.
-    const groups = new Map(); // `${color}|${opacity}` -> { color, opacity, polys }
+    // ==========================================
+    // FAST FIX: Use Canvas or CSS to merge fills
+    // ==========================================
+    
+    // Group cells by color for efficient rendering
+    const colorGroups = new Map();
     for (const feature of grid.features) {
+      if (feature.properties.noData) continue;
       const { color, opacity } = feature.properties;
       const key = `${color}|${opacity}`;
-      let g = groups.get(key);
-      if (!g) {
-        g = { color, opacity: opacity ?? 0.75, polys: [] };
-        groups.set(key, g);
+      if (!colorGroups.has(key)) {
+        colorGroups.set(key, { color, opacity: opacity ?? 0.75, features: [] });
       }
-      g.polys.push([feature.geometry.coordinates[0], 1.04]);
+      colorGroups.get(key).features.push(feature);
     }
-    const mergedFeatures = [...groups.values()].map((g) => ({
-      type: 'Feature',
-      properties: { color: g.color, opacity: g.opacity },
-      geometry: { type: 'MultiPolygon', coordinates: g.polys },
-    }));
+
+    // Build a single GeoJSON with all cells as a MultiPolygon per color group
+    // This avoids the union operation entirely
+    const mergedFeatures = [];
+    for (const [_, group] of colorGroups) {
+      const coords = group.features.map(f => f.geometry.coordinates);
+      mergedFeatures.push({
+        type: 'Feature',
+        properties: { 
+          color: group.color, 
+          opacity: group.opacity 
+        },
+        geometry: {
+          type: 'MultiPolygon',
+          coordinates: coords
+        }
+      });
+    }
+
+    // Create fill layer from merged geometries - but with a CSS trick to prevent seams
     const fillLayer = L.geoJSON(mergedFeatures, {
       style: (f) => ({
         stroke: false,
@@ -326,8 +338,32 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         fillColor: f.properties.color,
         fillOpacity: f.properties.opacity,
         interactive: false,
+        // This CSS property helps prevent anti-aliasing seams
+        className: 'choropleth-fill'
       }),
     });
+
+    // Add CSS to prevent seams between adjacent polygons
+    const styleId = 'choropleth-fill-style';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        .choropleth-fill {
+          /* Prevent anti-aliasing seams between adjacent polygons */
+          shape-rendering: crispEdges;
+        }
+        /* For Leaflet's SVG overlay */
+        .leaflet-overlay-pane svg path {
+          shape-rendering: crispEdges;
+        }
+        /* Alternative: use a tiny blur to hide seams */
+        .leaflet-overlay-pane svg {
+          filter: blur(0.3px);
+        }
+      `;
+      document.head.appendChild(style);
+    }
 
     // INVISIBLE hit-test layer: the individual cells, transparent but interactive,
     // on top — so the tooltip/contour hover still works per cell.
