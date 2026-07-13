@@ -298,7 +298,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     map.on('click', onMapClick);
 
     // ==========================================
-    // FIX: PROPERLY MERGE GEOMETRIES USING TURF
+    // FIX: MERGE GEOMETRIES USING FEATURE COLLECTION
     // ==========================================
     // Group features by color + opacity
     const groups = new Map();
@@ -333,30 +333,36 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         continue;
       }
       
-      // For multiple polygons, merge them sequentially
       try {
-        // Start with a feature collection of all polygons
+        // Create a feature collection from all polygons in this group
         const collection = featureCollection(g.polygons);
         
-        // Merge all polygons together
+        // Merge all polygons in one go using union with the collection
+        // We need to union them sequentially but handle the geometry type properly
         let merged = g.polygons[0];
+        let hasValidMerge = false;
+        
         for (let i = 1; i < g.polygons.length; i++) {
           try {
+            // Ensure both geometries are valid
+            if (!merged || !merged.geometry || !g.polygons[i] || !g.polygons[i].geometry) {
+              continue;
+            }
+            
             const result = union(merged, g.polygons[i]);
-            if (result && result.geometry) {
+            if (result && result.geometry && result.geometry.type !== 'GeometryCollection') {
               merged = result;
-            } else {
-              // If union returns null or invalid, skip this polygon
-              console.warn('Skipping invalid union result for polygon', i);
+              hasValidMerge = true;
             }
           } catch (e) {
-            // If union fails, try to continue with the next one
-            console.warn('Union failed for polygon', i, e.message);
-            // Keep the current merged result
+            // If union fails, skip this polygon and continue with the next
+            console.warn('Skipping polygon in union:', e.message);
+            continue;
           }
         }
         
-        if (merged && merged.geometry) {
+        // If we have a valid merged result, use it
+        if (hasValidMerge && merged && merged.geometry) {
           mergedFeatures.push({
             type: 'Feature',
             properties: { 
@@ -366,29 +372,36 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
             geometry: merged.geometry
           });
         } else {
-          // Fallback: use the first polygon if merging failed completely
+          // Fallback: if merging produced invalid results, use all polygons individually
+          // but group them as a MultiPolygon
+          const coords = g.polygons.map(p => p.geometry.coordinates);
           mergedFeatures.push({
             type: 'Feature',
             properties: { 
               color: g.color, 
               opacity: g.opacity 
             },
-            geometry: g.polygons[0].geometry
+            geometry: {
+              type: 'MultiPolygon',
+              coordinates: coords
+            }
           });
         }
       } catch (e) {
         console.error('Error merging polygons for color', g.color, e);
-        // Fallback: add all polygons individually
-        for (const poly of g.polygons) {
-          mergedFeatures.push({
-            type: 'Feature',
-            properties: { 
-              color: g.color, 
-              opacity: g.opacity 
-            },
-            geometry: poly.geometry
-          });
-        }
+        // Fallback: use all polygons individually as MultiPolygon
+        const coords = g.polygons.map(p => p.geometry.coordinates);
+        mergedFeatures.push({
+          type: 'Feature',
+          properties: { 
+            color: g.color, 
+            opacity: g.opacity 
+          },
+          geometry: {
+            type: 'MultiPolygon',
+            coordinates: coords
+          }
+        });
       }
     }
 
