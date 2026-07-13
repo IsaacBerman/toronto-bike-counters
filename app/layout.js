@@ -1,5 +1,6 @@
 import './globals.css';
 import { Archivo } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
 import SiteFooter from './components/site-footer';
 
 const archivo = Archivo({
@@ -29,6 +30,9 @@ export default function RootLayout({ children }) {
       <body className="antialiased">
         {children}
         <SiteFooter />
+        {/* Billed per pageview on Pro ($0.03/1k) but only while Analytics is
+            enabled in the Vercel dashboard — that toggle is the on/off switch. */}
+        <Analytics />
       </body>
     </html>
   )
