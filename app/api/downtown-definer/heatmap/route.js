@@ -10,11 +10,13 @@ import { buildCompactGrid, HEATMAP_ALGO_VERSION } from '../../../lib/downtown-de
 
 // Let Vercel's edge cache the heatmap so repeat views of a popular city are
 // served from the CDN — no function invocation, no DB query. With large
-// samples one more vote barely changes the map, so an hour of staleness is
+// samples one more vote barely changes the map, so even a day of staleness is
 // invisible to viewers, and each edge region hits the function (and wakes the
-// DB) at most about once an hour per city. The submitter still sees their own
-// vote immediately (their post-submit fetch cache-busts).
-const EDGE_CACHE = { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' };
+// DB) at most about once a day per city — the measured ~4 heatmap cache
+// misses/min at 1h TTL were what kept the Neon compute from ever suspending.
+// The submitter still sees their own vote immediately (their post-submit
+// fetch cache-busts with a timestamp + no-store).
+const EDGE_CACHE = { 'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800' };
 
 // In-memory grid cache (per warm instance), keyed by city slug. Reused while the
 // submission count is unchanged so we skip both the DB read and the rebuild.
