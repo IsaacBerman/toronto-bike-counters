@@ -584,7 +584,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                   <button onClick={showResults} disabled={viewingResults} className="dd-btn dd-btn-ghost">
                     {viewingResults ? 'Loading…' : 'Show results'}
                   </button>
-                  <button onClick={resetToCityPicker} className="dd-link-accent text-sm">
+                  <button onClick={resetToCityPicker} className="dd-btn dd-btn-ghost">
                     Change city
                   </button>
                 </div>
@@ -603,25 +603,27 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                 }
                 className="h-96 lg:h-[34rem] w-full rounded-sm border border-gray-200"
               />
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => setPoints((p) => p.slice(0, -1))}
-                  disabled={points.length === 0}
-                  className="dd-btn dd-btn-ghost"
-                >
-                  ↶ Undo point
-                </button>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPoints((p) => p.slice(0, -1))}
+                    disabled={points.length === 0}
+                    className="dd-btn dd-btn-ghost"
+                  >
+                    ↶ Undo point
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={points.length < 3 || submitting}
+                    className="dd-btn dd-btn-primary ml-auto"
+                  >
+                    {submitting ? 'Submitting…' : 'Submit definition'}
+                  </button>
+                </div>
                 <span className="text-sm font-mono" style={{ color: 'var(--ink-3)' }}>
                   {points.length} point{points.length === 1 ? '' : 's'}
                   {points.length > 0 && ', click and drag to edit an already-placed point'}
                 </span>
-                <button
-                  onClick={handleSubmit}
-                  disabled={points.length < 3 || submitting}
-                  className="dd-btn dd-btn-primary ml-auto"
-                >
-                  {submitting ? 'Submitting…' : 'Submit definition'}
-                </button>
               </div>
               {submitError && <p className="text-sm" style={{ color: 'var(--accent)' }}>{submitError}</p>}
             </div>
