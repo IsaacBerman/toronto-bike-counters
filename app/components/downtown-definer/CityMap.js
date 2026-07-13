@@ -117,6 +117,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     // Frame to fitBbox when provided (e.g. results maps zoom to the consensus +
     // the user's shape), otherwise the full city bbox.
     const fit = fitBbox || bbox;
+    console.log("using fit:", fit)
     bboxRef.current = fit;
     fitToFrame(map, fit);
   }, [boundary, bbox, fitBbox, mapReady]);
