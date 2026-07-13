@@ -331,78 +331,73 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
 
     // ==========================================
     // Create RING polygons (donuts) for each bucket
-    // Each bucket fills the area between its contour and the next higher contour
+    // Each bucket fills the area between its contour and ALL higher bucket contours
     // ==========================================
-    function createRingPolygon(outerRing, innerRing) {
-      // Outer ring should be clockwise, inner ring counter-clockwise
+    function createRingPolygon(outerRing, innerRings) {
+      // Outer ring should be clockwise, inner rings counter-clockwise
       // Leaflet/GeoJSON handles this automatically if we provide both rings
       const outer = outerRing.map(p => [p[1], p[0]]); // [lat, lng] -> [lng, lat]
-      let inner = null;
-      if (innerRing && innerRing.length >= 3) {
-        inner = innerRing.map(p => [p[1], p[0]]);
+      const coordinates = [outer];
+      
+      // Add all inner rings (holes)
+      if (innerRings && innerRings.length > 0) {
+        for (const innerRing of innerRings) {
+          if (innerRing && innerRing.length >= 3) {
+            coordinates.push(innerRing.map(p => [p[1], p[0]]));
+          }
+        }
       }
       
-      if (inner) {
-        return {
-          type: 'Polygon',
-          coordinates: [outer, inner]
-        };
-      } else {
-        return {
-          type: 'Polygon',
-          coordinates: [outer]
-        };
-      }
+      return {
+        type: 'Polygon',
+        coordinates: coordinates
+      };
     }
 
-    // For each bucket, create rings between this bucket and the next higher bucket
+    // For each bucket, create rings between this bucket and ALL higher buckets
     const ringFeatures = [];
     
     for (let k = 0; k <= maxBucket; k++) {
       const outerPolys = bucketPolygons[k] || [];
       if (outerPolys.length === 0) continue;
       
-      // Get the next higher bucket's polygons (to use as inner rings)
-      const innerPolys = bucketPolygons[k + 1] || [];
+      // Get ALL higher bucket's polygons (to use as inner rings/holes)
+      const allHigherPolys = [];
+      for (let h = k + 1; h <= maxBucket; h++) {
+        const higherPolys = bucketPolygons[h] || [];
+        allHigherPolys.push(...higherPolys);
+      }
       
-      // For each outer polygon, find if there's a corresponding inner polygon
-      // that's fully contained within it
+      // For each outer polygon, find all inner polygons that are contained within it
       for (const outer of outerPolys) {
-        // Find inner polygons that are contained within this outer polygon
-        // For simplicity, if there are inner polygons, we'll just use the first one
-        // In a more sophisticated version, you'd check containment
-        let inner = null;
+        const containedInnerPolys = [];
         
-        // Simple heuristic: if there's an inner polygon with roughly the same center,
-        // use it as the hole
-        if (innerPolys.length > 0) {
-          // Calculate centroids to match outer with inner
+        if (allHigherPolys.length > 0) {
+          // Calculate centroid of outer polygon
           const outerCenterX = outer.reduce((sum, p) => sum + p[0], 0) / outer.length;
           const outerCenterY = outer.reduce((sum, p) => sum + p[1], 0) / outer.length;
           
-          let bestInner = null;
-          let bestDist = Infinity;
-          
-          for (const innerPoly of innerPolys) {
+          for (const innerPoly of allHigherPolys) {
+            // Calculate centroid of inner polygon
             const innerCenterX = innerPoly.reduce((sum, p) => sum + p[0], 0) / innerPoly.length;
             const innerCenterY = innerPoly.reduce((sum, p) => sum + p[1], 0) / innerPoly.length;
+            
+            // Check if inner centroid is inside outer polygon
+            // Simple heuristic: distance from outer center to inner center
             const dist = Math.sqrt(
               Math.pow(outerCenterX - innerCenterX, 2) + 
               Math.pow(outerCenterY - innerCenterY, 2)
             );
-            if (dist < bestDist) {
-              bestDist = dist;
-              bestInner = innerPoly;
+            
+            // If it's close enough, consider it contained
+            // This is a heuristic - in a real implementation you'd use a proper point-in-polygon test
+            if (dist < 0.01) {
+              containedInnerPolys.push(innerPoly);
             }
-          }
-          
-          // Only use inner if it's actually contained within outer
-          if (bestInner && bestDist < 0.01) {
-            inner = bestInner;
           }
         }
         
-        const ringGeo = createRingPolygon(outer, inner);
+        const ringGeo = createRingPolygon(outer, containedInnerPolys);
         ringFeatures.push({
           type: 'Feature',
           properties: {

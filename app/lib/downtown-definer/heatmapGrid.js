@@ -1,534 +1,140 @@
-'use client';
+// Shared, dependency-free (no turf) heatmap grid math. Safe to import on the
+// client. The server computes a COMPACT grid ({ params, counts }) and the client
+// expands it back into the exact same GeoJSON FeatureCollection it used to be
+// sent — so the payload is tiny but everything downstream is unchanged.
 
-import { useEffect, useRef, useState } from 'react';
+export const HEATMAP_RAMP = [
+  '#ffffcc', '#fff3af', '#ffe692', '#fed976', '#febf5a', '#fea647',
+  '#fd8d3c', '#fc6330', '#f43d25', '#e31a1c', '#ca0923', '#a90026', '#800026',
+];
+export const NO_DATA_COLOR = '#dcdcd6';
 
-// A single reusable Leaflet map for DowntownDefiner. It always shows the
-// city boundary, and layers one more thing on top depending on `mode`:
-//   - 'drawing': click-to-add-point polygon the user is drawing (`points`, `onMapClick`)
-//   - 'static': one fixed polygon to display (`polygon`)
-//   - 'choropleth': a pre-colored GeoJSON grid (`grid`, features carry properties.color)
-// Fit the map to a [minLng, minLat, maxLng, maxLat] frame, but only once the
-// container actually has a size. Two maps initialising together (the results
-// view) can call fitBounds while flex layout hasn't settled and the container is
-// still 0-wide; fitBounds then locks in a bogus zoom (looks like "no zoom-in").
-// Retry on the next frame until the container is real, then fit deterministically.
-function fitToFrame(map, frame, attempt = 0) {
-  if (!map || !frame || !map._container || !map._container.isConnected) return;  
-  const [minLng, minLat, maxLng, maxLat] = frame;
-  map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
+const CELL_LOWEST_OPACITY = 0.1;
+const CELL_MIN_OPACITY = 0.5;
+const CELL_MAX_OPACITY = 0.8;
+
+export const DEG = Math.PI / 180;
+export const METERS_PER_DEG_LAT = 111320;
+// Flat-top hexagonal cells. CELL_SIZE_METERS is the nearest-neighbour spacing
+// (center to center); the circumradius r = spacing / sqrt(3).
+export const CELL_SIZE_METERS = 280;
+export const MAX_CELLS = 45000;
+
+const SQRT3 = Math.sqrt(3);
+// Flat-top hex vertex angles (0°,60°,…,300°) — gives horizontal flat top/bottom.
+const HEX_ANGLES = [0, 1, 2, 3, 4, 5].map((k) => (k * Math.PI) / 3);
+
+// Column/row spacing for a flat-top hex grid of circumradius r.
+export function hexColSpacing(r) {
+  return 1.5 * r;
+}
+export function hexRowSpacing(r) {
+  return SQRT3 * r;
 }
 
-export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapClick, onVertexMove, staticPoints, grid, className }) {
-  const mapRef = useRef(null);
-  const leafletMapRef = useRef(null);
-  const leafletRef = useRef(null);
-  const boundaryLayerRef = useRef(null);
-  const drawLayerRef = useRef(null);
-  const staticLayerRef = useRef(null);
-  const choroplethLayerRef = useRef(null);
-  const resizeObserverRef = useRef(null);
-  const bboxRef = useRef(bbox);
-  const onMapClickRef = useRef(onMapClick);
-  const onVertexMoveRef = useRef(onVertexMove);
-  // Leaflet loads asynchronously; flip this to true once the map exists so the
-  // layer effects below re-run (a ref assignment alone wouldn't re-render).
-  const [mapReady, setMapReady] = useState(false);
+// Center of hex (ix, iy) in the rotated meter-frame. Odd columns are offset down
+// by half a row so the hexes interlock (standard flat-top offset layout).
+export function hexCenterXY(r, rMinX, rMinY, ix, iy) {
+  const x = rMinX + ix * hexColSpacing(r);
+  const y = rMinY + iy * hexRowSpacing(r) + (ix % 2 ? hexRowSpacing(r) / 2 : 0);
+  return [x, y];
+}
 
-  useEffect(() => {
-    onMapClickRef.current = onMapClick;
-    onVertexMoveRef.current = onVertexMove;
-  }, [onMapClick, onVertexMove]);
+export const round4 = (n) => Math.round(n * 1e4) / 1e4;
+// Higher precision for the client-rebuilt hex vertices. expandCompactGrid runs
+// only in the browser (no payload cost), so we keep ~0.1m precision: adjacent
+// hexagons then share EXACTLY equal shared-edge vertices, letting the merged
+// per-bucket fill dissolve internal edges instead of leaving hairline seams that
+// eat the fill when zoomed out.
+export const round6 = (n) => Math.round(n * 1e6) / 1e6;
+export const round2 = (n) => Math.round(n * 100) / 100;
 
-  // Init map once.
-  useEffect(() => {
-    let cancelled = false;
+export function colorForIntensity(intensity) {
+  const clamped = Math.max(0, Math.min(1, intensity));
+  return HEATMAP_RAMP[Math.round(clamped * (HEATMAP_RAMP.length - 1))];
+}
 
-    import('leaflet').then((L) => {
-      import('leaflet/dist/leaflet.css');
-      if (cancelled || !mapRef.current || leafletMapRef.current) return;
+export function opacityForIntensity(intensity) {
+  const clamped = Math.max(0, Math.min(1, intensity));
+  const lastBucket = HEATMAP_RAMP.length - 1;
+  const bucket = Math.round(clamped * lastBucket);
+  if (bucket === 0) return CELL_LOWEST_OPACITY;
+  const t = (bucket - 1) / (lastBucket - 1);
+  return CELL_MIN_OPACITY + (CELL_MAX_OPACITY - CELL_MIN_OPACITY) * t;
+}
 
-      // zoomSnap < 1 lets fitBounds settle on a fractional zoom that hugs the
-      // frame, instead of rounding down a whole level and leaving a big margin.
-      const map = L.map(mapRef.current, { center: [43.6532, -79.3832], zoom: 12, zoomSnap: 0.25 });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-      }).addTo(map);
+// Local equirectangular projection (meters) around an origin.
+export function makeLocalProjector(lng0, lat0) {
+  const kx = Math.cos(lat0 * DEG) * METERS_PER_DEG_LAT;
+  const ky = METERS_PER_DEG_LAT;
+  return {
+    toXY: (lng, lat) => [(lng - lng0) * kx, (lat - lat0) * ky],
+    toLngLat: (x, y) => [lng0 + x / kx, lat0 + y / ky],
+  };
+}
 
-      map.on('click', (e) => {
-        onMapClickRef.current?.([e.latlng.lat, e.latlng.lng]);
-      });
+export function rotate(x, y, cos, sin) {
+  return [x * cos - y * sin, x * sin + y * cos];
+}
 
-      leafletRef.current = L;
-      leafletMapRef.current = map;
-      setMapReady(true);
+// Properties for one cell given its vote count (matches the old finalizeGrid).
+export function cellProperties(count, maxCount, totalSubmissions) {
+  if (count === 0) {
+    return { noData: true, color: NO_DATA_COLOR, opacity: 0.12 };
+  }
+  const intensity = maxCount > 0 ? count / maxCount : 0;
+  const bucket = Math.round(Math.max(0, Math.min(1, intensity)) * (HEATMAP_RAMP.length - 1));
+  return {
+    color: HEATMAP_RAMP[bucket],
+    opacity: round2(opacityForIntensity(intensity)),
+    pct: totalSubmissions > 0 ? Math.max(1, Math.round((count / totalSubmissions) * 100)) : 0,
+    b: bucket,
+  };
+}
 
-      // Keep the map filling its container and re-fit to the city whenever the
-      // container is resized (breakpoint changes, late layout). Without this,
-      // two maps initialising together can lock in different sizes/zoom.
-      if (typeof ResizeObserver !== 'undefined' && mapRef.current) {
-        const ro = new ResizeObserver(() => {
-          if (!leafletMapRef.current) return;
-          leafletMapRef.current.invalidateSize();
-        });
-        ro.observe(mapRef.current);
-        resizeObserverRef.current = ro;
-      }
+// Center [lng, lat] of the hex at linear index `i` (iy*nx + ix), from params.
+export function cellCenterFromIndex(params, i, cosA, sinA, proj) {
+  const { r, rMinX, rMinY, nx } = params;
+  const ix = i % nx;
+  const iy = Math.floor(i / nx);
+  const [hx, hy] = hexCenterXY(r, rMinX, rMinY, ix, iy);
+  const [cx, cy] = rotate(hx, hy, cosA, sinA);
+  return proj.toLngLat(cx, cy);
+}
+
+// Expand a compact grid { params, counts } into a GeoJSON FeatureCollection,
+// identical to what the heatmap endpoint used to return. `counts` is length
+// nx*ny: -1 = outside the city (skipped), otherwise the vote count.
+export function expandCompactGrid(compact, submissionCount) {
+  const { params, counts } = compact;
+  const { r, rMinX, rMinY, nx, angle, lng0, lat0 } = params;
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+  const proj = makeLocalProjector(lng0, lat0);
+
+  let maxCount = 0;
+  for (const c of counts) if (c > maxCount) maxCount = c;
+
+  const features = [];
+  for (let i = 0; i < counts.length; i++) {
+    const count = counts[i];
+    if (count < 0) continue; // outside the boundary
+    const ix = i % nx;
+    const iy = Math.floor(i / nx);
+    const [hx, hy] = hexCenterXY(r, rMinX, rMinY, ix, iy);
+    const ring = HEX_ANGLES.map((a) => {
+      const px = hx + r * Math.cos(a);
+      const py = hy + r * Math.sin(a);
+      const [x, y] = rotate(px, py, cosA, sinA);
+      const [lng, lat] = proj.toLngLat(x, y);
+      return [round6(lng), round6(lat)];
     });
-
-    return () => {
-      cancelled = true;
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
-        resizeObserverRef.current = null;
-      }
-      if (leafletMapRef.current) {
-        leafletMapRef.current.remove();
-        leafletMapRef.current = null;
-      }
-      setMapReady(false);
-    };
-  }, []);
-
-  // Boundary layer + fit bounds.
-  useEffect(() => {
-    const L = leafletRef.current;
-    const map = leafletMapRef.current;
-    if (!L || !map || !boundary) return;
-
-    if (boundaryLayerRef.current) {
-      boundaryLayerRef.current.remove();
-    }
-
-    boundaryLayerRef.current = L.geoJSON(boundary, {
-      style: { color: '#334155', weight: 2, fillOpacity: 0.03, interactive: false },
-    }).addTo(map);
-
-    // Frame to fitBbox when provided (e.g. results maps zoom to the consensus +
-    // the user's shape), otherwise the full city bbox.
-    const fit = fitBbox || bbox;
-    bboxRef.current = fit;
-    fitToFrame(map, fit);
-    
-  }, [boundary, bbox, fitBbox, mapReady]);
-
-  // Drawing layer (points + vertex markers).
-  useEffect(() => {
-    const L = leafletRef.current;
-    const map = leafletMapRef.current;
-    if (!L || !map) return;
-
-    if (drawLayerRef.current) {
-      drawLayerRef.current.remove();
-      drawLayerRef.current = null;
-    }
-
-    if (mode !== 'drawing' || !points || points.length === 0) return;
-
-    const group = L.layerGroup();
-    const poly =
-      points.length >= 2
-        ? L.polygon(points, {
-            color: '#2563eb',
-            weight: 2,
-            fillOpacity: 0.15,
-            dashArray: points.length < 3 ? '6 4' : null,
-          }).addTo(group)
-        : null;
-
-    // Draggable vertices: markers (not circleMarkers) so they can be moved.
-    const markers = [];
-    points.forEach((point, index) => {
-      const isLast = index === points.length - 1;
-      const size = isLast ? 18 : 16;
-      const fill = isLast ? '#fbbf24' : '#3b82f6';
-      const icon = L.divIcon({
-        className: 'dd-vertex',
-        html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${fill};border:2px solid #fff;box-shadow:0 0 0 1px rgba(29,78,216,0.9);cursor:grab;"></div>`,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
-      });
-      const marker = L.marker(point, { icon, draggable: true, autoPan: true, keyboard: false });
-      // Live-update the polygon outline while dragging (no React state churn).
-      marker.on('drag', () => {
-        if (poly) poly.setLatLngs(markers.map((mk) => mk.getLatLng()));
-      });
-      // Commit the moved vertex to state on release.
-      marker.on('dragend', () => {
-        const ll = marker.getLatLng();
-        onVertexMoveRef.current?.(index, [ll.lat, ll.lng]);
-      });
-      marker.addTo(group);
-      markers.push(marker);
+    ring.push(ring[0]);
+    features.push({
+      type: 'Feature',
+      properties: cellProperties(count, maxCount, submissionCount),
+      geometry: { type: 'Polygon', coordinates: [ring] },
     });
-
-    group.addTo(map);
-    drawLayerRef.current = group;
-  }, [mode, points, mapReady]);
-
-  // Static polygon layer (e.g. "your submission").
-  useEffect(() => {
-    const L = leafletRef.current;
-    const map = leafletMapRef.current;
-    if (!L || !map) return;
-
-    if (staticLayerRef.current) {
-      staticLayerRef.current.remove();
-      staticLayerRef.current = null;
-    }
-
-    if (mode !== 'static' || !staticPoints || staticPoints.length < 3) return;
-
-    staticLayerRef.current = L.polygon(staticPoints, {
-      color: '#2563eb',
-      weight: 2,
-      fillColor: '#3b82f6',
-      fillOpacity: 0.25,
-      interactive: false,
-    }).addTo(map);
-  }, [mode, staticPoints, mapReady]);
-
-  // Choropleth grid layer.
-  useEffect(() => {
-    const L = leafletRef.current;
-    const map = leafletMapRef.current;
-    if (!L || !map) return;
-
-    if (choroplethLayerRef.current) {
-      choroplethLayerRef.current.remove();
-      choroplethLayerRef.current = null;
-    }
-
-    if (mode !== 'choropleth' || !grid) return;
-
-    // ==========================================
-    // Build contours from the grid
-    // ==========================================
-    const edges = new Map(); // edgeKey -> { seg, buckets: number[] }
-    const bucketColor = {}; // bucket -> fill color
-    const bucketOpacity = {}; // bucket -> fill opacity
-    let maxBucket = 0;
-    
-    for (const feature of grid.features) {
-      if (feature.properties.noData) continue;
-      const b = feature.properties.b ?? 0;
-      if (b > maxBucket) maxBucket = b;
-      if (bucketColor[b] === undefined) {
-        bucketColor[b] = feature.properties.color;
-        bucketOpacity[b] = feature.properties.opacity ?? 0.6;
-      }
-      const ring = feature.geometry.coordinates[0]; // closed ring (hexagon = 7 pts)
-      for (let i = 0; i < ring.length - 1; i++) {
-        const a = ring[i];
-        const c = ring[i + 1];
-        const ka = `${a[0]},${a[1]}`;
-        const kc = `${c[0]},${c[1]}`;
-        const key = ka < kc ? `${ka}|${kc}` : `${kc}|${ka}`;
-        const found = edges.get(key);
-        if (found) found.buckets.push(b);
-        else edges.set(key, { seg: [[a[1], a[0]], [c[1], c[0]]], buckets: [b] });
-      }
-    }
-
-    // Build contours for each bucket level
-    const levelSegs = Array.from({ length: maxBucket + 1 }, () => []);
-    for (const { seg, buckets } of edges.values()) {
-      for (let k = 0; k <= maxBucket; k++) {
-        let inSet = 0;
-        for (const b of buckets) if (b >= k) inSet += 1;
-        if (inSet === 1) levelSegs[k].push(seg);
-      }
-    }
-
-    // ==========================================
-    // Build polygons from contours (returns closed rings)
-    // ==========================================
-    function buildPolygonsFromContours(segments) {
-      if (segments.length === 0) return [];
-      
-      // Build a graph of connected segments
-      const graph = new Map();
-      for (const seg of segments) {
-        const key1 = `${seg[0][0]},${seg[0][1]}`;
-        const key2 = `${seg[1][0]},${seg[1][1]}`;
-        if (!graph.has(key1)) graph.set(key1, []);
-        if (!graph.has(key2)) graph.set(key2, []);
-        graph.get(key1).push({ point: seg[1], key: key2 });
-        graph.get(key2).push({ point: seg[0], key: key1 });
-      }
-      
-      // Find closed loops
-      const visited = new Set();
-      const polygons = [];
-      
-      for (const [startKey, connections] of graph) {
-        if (visited.has(startKey)) continue;
-        
-        let currentKey = startKey;
-        let currentPoint = null;
-        const path = [];
-        const pathKeys = new Set();
-        let foundCycle = false;
-        let prevKey = null;
-        let attempts = 0;
-        const maxAttempts = graph.size * 2;
-        
-        while (attempts < maxAttempts) {
-          attempts++;
-          const neighbors = graph.get(currentKey) || [];
-          
-          let nextNeighbor = null;
-          for (const neighbor of neighbors) {
-            if (neighbor.key !== prevKey) {
-              nextNeighbor = neighbor;
-              break;
-            }
-          }
-          
-          if (!nextNeighbor) break;
-          
-          prevKey = currentKey;
-          currentKey = nextNeighbor.key;
-          currentPoint = nextNeighbor.point;
-          
-          if (currentKey === startKey && path.length > 2) {
-            foundCycle = true;
-            break;
-          }
-          
-          if (pathKeys.has(currentKey)) break;
-          pathKeys.add(currentKey);
-          if (currentPoint) path.push(currentPoint);
-        }
-        
-        if (foundCycle && path.length > 2) {
-          const firstPoint = segments.find(s => 
-            (s[0][0] === path[0][0] && s[0][1] === path[0][1]) ||
-            (s[1][0] === path[0][0] && s[1][1] === path[0][1])
-          );
-          if (firstPoint) {
-            const firstPt = [firstPoint[0][0], firstPoint[0][1]];
-            path.push(firstPt);
-            polygons.push(path);
-            
-            for (const p of path) {
-              const key = `${p[0]},${p[1]}`;
-              visited.add(key);
-            }
-          }
-        }
-      }
-      
-      return polygons;
-    }
-
-    // Get polygons for each bucket level
-    const bucketPolygons = {};
-    for (let k = 0; k <= maxBucket; k++) {
-      const segs = levelSegs[k];
-      if (segs.length === 0) continue;
-      bucketPolygons[k] = buildPolygonsFromContours(segs);
-    }
-
-    // ==========================================
-    // Create RING polygons (donuts) for each bucket
-    // Each bucket fills the area between its contour and ALL higher bucket contours
-    // ==========================================
-    function createRingPolygon(outerRing, innerRings) {
-      // Outer ring should be clockwise, inner rings counter-clockwise
-      // Leaflet/GeoJSON handles this automatically if we provide both rings
-      const outer = outerRing.map(p => [p[1], p[0]]); // [lat, lng] -> [lng, lat]
-      const coordinates = [outer];
-      
-      // Add all inner rings (holes)
-      if (innerRings && innerRings.length > 0) {
-        for (const innerRing of innerRings) {
-          if (innerRing && innerRing.length >= 3) {
-            coordinates.push(innerRing.map(p => [p[1], p[0]]));
-          }
-        }
-      }
-      
-      return {
-        type: 'Polygon',
-        coordinates: coordinates
-      };
-    }
-
-    // For each bucket, create rings between this bucket and ALL higher buckets
-    const ringFeatures = [];
-    
-    for (let k = 0; k <= maxBucket; k++) {
-      const outerPolys = bucketPolygons[k] || [];
-      if (outerPolys.length === 0) continue;
-      
-      // Get ALL higher bucket's polygons (to use as inner rings/holes)
-      const allHigherPolys = [];
-      for (let h = k + 1; h <= maxBucket; h++) {
-        const higherPolys = bucketPolygons[h] || [];
-        allHigherPolys.push(...higherPolys);
-      }
-      
-      // For each outer polygon, find all inner polygons that are contained within it
-      for (const outer of outerPolys) {
-        const containedInnerPolys = [];
-        
-        if (allHigherPolys.length > 0) {
-          // Calculate centroid of outer polygon
-          const outerCenterX = outer.reduce((sum, p) => sum + p[0], 0) / outer.length;
-          const outerCenterY = outer.reduce((sum, p) => sum + p[1], 0) / outer.length;
-          
-          for (const innerPoly of allHigherPolys) {
-            // Calculate centroid of inner polygon
-            const innerCenterX = innerPoly.reduce((sum, p) => sum + p[0], 0) / innerPoly.length;
-            const innerCenterY = innerPoly.reduce((sum, p) => sum + p[1], 0) / innerPoly.length;
-            
-            // Check if inner centroid is inside outer polygon
-            // Simple heuristic: distance from outer center to inner center
-            const dist = Math.sqrt(
-              Math.pow(outerCenterX - innerCenterX, 2) + 
-              Math.pow(outerCenterY - innerCenterY, 2)
-            );
-            
-            // If it's close enough, consider it contained
-            // This is a heuristic - in a real implementation you'd use a proper point-in-polygon test
-            if (dist < 0.01) {
-              containedInnerPolys.push(innerPoly);
-            }
-          }
-        }
-        
-        const ringGeo = createRingPolygon(outer, containedInnerPolys);
-        ringFeatures.push({
-          type: 'Feature',
-          properties: {
-            bucket: k,
-            color: bucketColor[k] || '#000000',
-            opacity: bucketOpacity[k] || 0.6
-          },
-          geometry: ringGeo
-        });
-      }
-    }
-
-    // ==========================================
-    // Create fill layer from ring polygons
-    // ==========================================
-    const fillLayer = L.geoJSON(ringFeatures, {
-      style: (f) => ({
-        stroke: false,
-        weight: 0,
-        fillColor: f.properties.color,
-        fillOpacity: f.properties.opacity,
-        interactive: false,
-      }),
-    });
-
-    // ==========================================
-    // Contour outlines - colored base, white on hover
-    // ==========================================
-    const baseContours = levelSegs.map((segs, k) => {
-      if (segs.length === 0) return null;
-      return L.polyline(segs, {
-        color: bucketColor[k] || '#000000',
-        weight: 1.5,
-        opacity: 0.4,
-        interactive: false,
-      });
-    }).filter(Boolean);
-
-    let activeLevel = null;
-    let whiteLayer = null;
-    let blackLayer = null;
-    let clearTimer = null;
-    let sticky = false;
-    const tooltip = L.tooltip({ sticky: true, direction: 'top', offset: [0, -4], opacity: 1 });
-
-    function clearHover() {
-      if (whiteLayer) { map.removeLayer(whiteLayer); whiteLayer = null; }
-      if (blackLayer) { map.removeLayer(blackLayer); blackLayer = null; }
-      activeLevel = null;
-      sticky = false;
-      if (map.hasLayer(tooltip)) map.removeLayer(tooltip);
-    }
-
-    function showFor(b, pct, ring, latlng) {
-      if (clearTimer) {
-        clearTimeout(clearTimer);
-        clearTimer = null;
-      }
-      if (activeLevel !== b) {
-        if (whiteLayer) map.removeLayer(whiteLayer);
-        // Show white outline for this bucket level
-        const segs = levelSegs[b] || [];
-        if (segs.length > 0) {
-          whiteLayer = L.polyline(segs, { 
-            color: '#ffffff', 
-            weight: 2.5, 
-            interactive: false 
-          }).addTo(map);
-        }
-        activeLevel = b;
-      }
-      if (blackLayer) map.removeLayer(blackLayer);
-      blackLayer = L.polyline(ring, { color: '#000000', weight: 2.5, interactive: false }).addTo(map);
-
-      tooltip.setContent(`${pct}% of people agree this is in downtown`);
-      tooltip.setLatLng(latlng);
-      if (!map.hasLayer(tooltip)) tooltip.addTo(map);
-    }
-
-    function onMapClick() {
-      clearHover();
-    }
-    map.on('click', onMapClick);
-
-    // INVISIBLE hit-test layer
-    const cellLayer = L.geoJSON(grid, {
-      style: (feature) => ({
-        stroke: false,
-        weight: 0,
-        fillOpacity: 0,
-        interactive: !feature.properties.noData,
-      }),
-      onEachFeature: (feature, lyr) => {
-        if (feature.properties.noData) return;
-        const b = feature.properties.b ?? 0;
-        const pct = feature.properties.pct ?? 0;
-        const ring = feature.geometry.coordinates[0].map(([lng, lat]) => [lat, lng]);
-
-        lyr.on('mouseover', (e) => {
-          if (sticky) return;
-          showFor(b, pct, ring, e.latlng);
-        });
-        lyr.on('mousemove', (e) => {
-          if (!sticky) tooltip.setLatLng(e.latlng);
-        });
-        lyr.on('click', (e) => {
-          L.DomEvent.stopPropagation(e);
-          sticky = true;
-          showFor(b, pct, ring, e.latlng);
-        });
-        lyr.on('mouseout', () => {
-          if (sticky) return;
-          clearTimer = setTimeout(clearHover, 60);
-        });
-      },
-    });
-
-    // Combine all layers
-    const layer = L.layerGroup([
-      fillLayer,
-      ...baseContours,
-      cellLayer
-    ]).addTo(map);
-    choroplethLayerRef.current = layer;
-
-    return () => {
-      map.off('click', onMapClick);
-      if (clearTimer) clearTimeout(clearTimer);
-      clearHover();
-    };
-  }, [mode, grid, mapReady]);
-
-  return <div ref={mapRef} className={className || 'h-96 w-full rounded-lg border border-gray-200'} />;
+  }
+  return { type: 'FeatureCollection', features, maxCount };
 }
