@@ -358,6 +358,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     // For each bucket, create rings between this bucket and the next higher bucket
     const ringFeatures = [];
 
+    
     for (let k = 0; k <= maxBucket; k++) {
       const outerPolys = bucketPolygons[k] || [];
       if (outerPolys.length === 0) continue;
