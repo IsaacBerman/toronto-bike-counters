@@ -21,8 +21,9 @@ function fitToFrame(map, frame, attempt = 0) {
     setTimeout(() => fitToFrame(map, frame, attempt + 1), 100);
     return;
   }
-  console.log("calling fit to founds: ", minLng)
   const [minLng, minLat, maxLng, maxLat] = frame;
+  console.log("calling fit to founds: ", minLng)
+
   map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
 }
 
