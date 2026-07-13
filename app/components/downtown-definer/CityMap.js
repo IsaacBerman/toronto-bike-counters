@@ -357,7 +357,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
 
     // For each bucket, create rings between this bucket and the next higher bucket
     const ringFeatures = [];
-    
+
     for (let k = 0; k <= maxBucket; k++) {
       const outerPolys = bucketPolygons[k] || [];
       if (outerPolys.length === 0) continue;
@@ -365,44 +365,41 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       // Get the next higher bucket's polygons (to use as inner rings)
       const innerPolys = bucketPolygons[k + 1] || [];
       
-      // For each outer polygon, find if there's a corresponding inner polygon
-      // that's fully contained within it
+      // For each outer polygon, find ALL inner polygons contained within it
       for (const outer of outerPolys) {
-        // Find inner polygons that are contained within this outer polygon
-        // For simplicity, if there are inner polygons, we'll just use the first one
-        // In a more sophisticated version, you'd check containment
-        let inner = null;
+        // Find all inner polygons contained within this outer polygon
+        const containedInners = [];
         
-        // Simple heuristic: if there's an inner polygon with roughly the same center,
-        // use it as the hole
-        if (innerPolys.length > 0) {
-          // Calculate centroids to match outer with inner
-          const outerCenterX = outer.reduce((sum, p) => sum + p[0], 0) / outer.length;
-          const outerCenterY = outer.reduce((sum, p) => sum + p[1], 0) / outer.length;
+        // Calculate outer polygon centroid
+        const outerCenterX = outer.reduce((sum, p) => sum + p[0], 0) / outer.length;
+        const outerCenterY = outer.reduce((sum, p) => sum + p[1], 0) / outer.length;
+        
+        for (const innerPoly of innerPolys) {
+          // Check if inner polygon is inside outer polygon
+          // Simple check: is the inner polygon's centroid inside the outer polygon?
+          const innerCenterX = innerPoly.reduce((sum, p) => sum + p[0], 0) / innerPoly.length;
+          const innerCenterY = innerPoly.reduce((sum, p) => sum + p[1], 0) / innerPoly.length;
           
-          let bestInner = null;
-          let bestDist = Infinity;
+          // Ray casting algorithm to check if point is inside polygon
+          let inside = false;
+          const outerCoords = outer.map(p => [p[0], p[1]]);
+          const x = innerCenterX, y = innerCenterY;
           
-          for (const innerPoly of innerPolys) {
-            const innerCenterX = innerPoly.reduce((sum, p) => sum + p[0], 0) / innerPoly.length;
-            const innerCenterY = innerPoly.reduce((sum, p) => sum + p[1], 0) / innerPoly.length;
-            const dist = Math.sqrt(
-              Math.pow(outerCenterX - innerCenterX, 2) + 
-              Math.pow(outerCenterY - innerCenterY, 2)
-            );
-            if (dist < bestDist) {
-              bestDist = dist;
-              bestInner = innerPoly;
-            }
+          for (let i = 0, j = outerCoords.length - 1; i < outerCoords.length; j = i++) {
+            const xi = outerCoords[i][0], yi = outerCoords[i][1];
+            const xj = outerCoords[j][0], yj = outerCoords[j][1];
+            const intersect = ((yi > y) !== (yj > y)) &&
+              (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
           }
           
-          // Only use inner if it's actually contained within outer
-          if (bestInner && bestDist < 0.01) {
-            inner = bestInner;
+          if (inside) {
+            containedInners.push(innerPoly);
           }
         }
         
-        const ringGeo = createRingPolygon(outer, inner);
+        // If we have inner polygons, create ring with multiple holes
+        const ringGeo = createRingPolygonWithHoles(outer, containedInners);
         ringFeatures.push({
           type: 'Feature',
           properties: {
@@ -412,6 +409,28 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
           },
           geometry: ringGeo
         });
+      }
+    }
+
+    // Updated function to handle multiple holes
+    function createRingPolygonWithHoles(outerRing, innerRings) {
+      // Outer ring should be clockwise, inner rings counter-clockwise
+      const outer = outerRing.map(p => [p[1], p[0]]); // [lat, lng] -> [lng, lat]
+      
+      if (innerRings && innerRings.length > 0) {
+        const inners = innerRings
+          .filter(ring => ring && ring.length >= 3)
+          .map(ring => ring.map(p => [p[1], p[0]]));
+        
+        return {
+          type: 'Polygon',
+          coordinates: [outer, ...inners]
+        };
+      } else {
+        return {
+          type: 'Polygon',
+          coordinates: [outer]
+        };
       }
     }
 
