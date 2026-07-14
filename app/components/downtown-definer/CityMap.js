@@ -452,7 +452,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     // Contour outlines - colored base, white on hover
     // ==========================================
     const baseContours = levelSegs.map((segs, k) => {
-      if (segs.length === 0) return null;
+      if (k === 0 || segs.length === 0) return null;
       return L.polyline(segs, {
         color: bucketColor[k] || '#000000',
         weight: 1.5,

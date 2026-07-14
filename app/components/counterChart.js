@@ -2,22 +2,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Scatter, Brush, ReferenceArea } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Scatter } from 'recharts';
 
 export default function CounterChart({ data, title }) {
   const [visibleYears, setVisibleYears] = useState({});
   const [isChartReady, setIsChartReady] = useState(false);
   const [showCumulative, setShowCumulative] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
-  const [zoomRange, setZoomRange] = useState(null); // { startIndex, endIndex } into yearOverYearData; null = full range
-  const [refAreaLeft, setRefAreaLeft] = useState(null);
-  const [refAreaRight, setRefAreaRight] = useState(null);
 
   useEffect(() => {
     // Reset chart ready state when data changes
     setIsChartReady(false);
-    setZoomRange(null);
-
+    
     // Small delay to ensure data is processed before showing chart
     const timer = setTimeout(() => {
       setIsChartReady(true);
@@ -211,9 +207,6 @@ export default function CounterChart({ data, title }) {
 
   // Handle tooltip visibility for mobile
   const handleChartMouseMove = (state) => {
-    if (refAreaLeft && state && state.activeLabel) {
-      setRefAreaRight(state.activeLabel);
-    }
     if (state && state.isTooltipActive) {
       setActiveTooltip(true);
     } else if (activeTooltip) {
@@ -228,15 +221,6 @@ export default function CounterChart({ data, title }) {
 
   const handleChartMouseLeave = () => {
     setActiveTooltip(false);
-    setRefAreaLeft(null);
-    setRefAreaRight(null);
-  };
-
-  const handleZoomMouseDown = (state) => {
-    if (state && state.activeLabel) {
-      setRefAreaLeft(state.activeLabel);
-      setRefAreaRight(null);
-    }
   };
 
   // Custom tooltip formatter
@@ -320,29 +304,7 @@ export default function CounterChart({ data, title }) {
   };
 
   const yearOverYearData = getYearOverYearData();
-
-  // Zoom window (indices into yearOverYearData), clamped in case data shrank
-  const maxIndex = Math.max(0, yearOverYearData.length - 1);
-  const zoomStart = Math.min(zoomRange?.startIndex ?? 0, maxIndex);
-  const zoomEnd = Math.min(zoomRange?.endIndex ?? maxIndex, maxIndex);
-  const isZoomed = zoomStart > 0 || zoomEnd < maxIndex;
-  const visibleCount = zoomEnd - zoomStart + 1;
-
-  const handleZoomMouseUp = () => {
-    if (refAreaLeft && refAreaRight && refAreaLeft !== refAreaRight) {
-      let start = yearOverYearData.findIndex(d => d.displayDate === refAreaLeft);
-      let end = yearOverYearData.findIndex(d => d.displayDate === refAreaRight);
-      if (start > end) [start, end] = [end, start];
-      if (start !== -1 && end > start) {
-        setZoomRange({ startIndex: start, endIndex: end });
-      }
-    }
-    setRefAreaLeft(null);
-    setRefAreaRight(null);
-  };
-
-  const resetZoom = () => setZoomRange(null);
-
+  
   // Calculate if any years are visible
   const hasVisibleYears = Object.values(visibleYears).some(v => v === true);
   const allVisible = Object.values(visibleYears).length > 0 && Object.values(visibleYears).every(v => v === true);
@@ -394,24 +356,13 @@ export default function CounterChart({ data, title }) {
               <span className="text-sm font-medium text-gray-700">Show cumulative</span>
             </label>
             
-            <div className="flex items-center gap-2">
-              {isZoomed && (
-                <button
-                  onClick={resetZoom}
-                  className="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors duration-200 font-medium text-blue-700"
-                >
-                  Reset Zoom
-                </button>
-              )}
-
-              {/* Show/Hide All button */}
-              <button
-                onClick={toggleAllYears}
-                className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors duration-200 font-medium text-gray-700"
-              >
-                {allVisible ? 'Hide All' : 'Show All'}
-              </button>
-            </div>
+            {/* Show/Hide All button */}
+            <button
+              onClick={toggleAllYears}
+              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors duration-200 font-medium text-gray-700"
+            >
+              {allVisible ? 'Hide All' : 'Show All'}
+            </button>
           </div>
           
           {/* Row 2: Year checkboxes */}
@@ -437,23 +388,21 @@ export default function CounterChart({ data, title }) {
             <p>No years selected. Please toggle at least one year to view data.</p>
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={540}>
-            <LineChart
-              data={yearOverYearData}
+          <ResponsiveContainer width="100%" height={500}>
+            <LineChart 
+              data={yearOverYearData} 
               margin={{ top: 20, right: 30, left: 30, bottom: 50 }}
-              onMouseDown={handleZoomMouseDown}
               onMouseMove={handleChartMouseMove}
-              onMouseUp={handleZoomMouseUp}
               onMouseLeave={handleChartMouseLeave}
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
+              <XAxis 
                 dataKey="displayDate"
                 label={{ value: 'Date', position: 'insideBottom', offset: -5 }}
                 angle={-45}
                 textAnchor="end"
                 height={80}
-                interval={Math.max(0, Math.floor(visibleCount / 15))}
+                interval={Math.floor(yearOverYearData.length / 15)}
               />
               <YAxis 
                 label={getYAxisLabel()}
@@ -518,33 +467,6 @@ export default function CounterChart({ data, title }) {
                   ))}
                 </>
               )}
-
-              {/* Highlight while drag-selecting a zoom range */}
-              {refAreaLeft && refAreaRight && (
-                <ReferenceArea
-                  x1={refAreaLeft}
-                  x2={refAreaRight}
-                  stroke="#3b82f6"
-                  strokeOpacity={0.3}
-                  fill="#3b82f6"
-                  fillOpacity={0.1}
-                />
-              )}
-
-              <Brush
-                dataKey="displayDate"
-                height={28}
-                stroke="#9ca3af"
-                fill="#f9fafb"
-                travellerWidth={10}
-                startIndex={zoomStart}
-                endIndex={zoomEnd}
-                onChange={(range) => {
-                  if (range && range.startIndex !== undefined && range.endIndex !== undefined) {
-                    setZoomRange({ startIndex: range.startIndex, endIndex: range.endIndex });
-                  }
-                }}
-              />
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -555,7 +477,6 @@ export default function CounterChart({ data, title }) {
           ) : (
             <p>Showing year-over-year comparison by day of year. Dots represent daily counts (transparent), lines show 14-day rolling average.</p>
           )}
-          <p className="mt-1">Zoom in by dragging across the chart or using the slider below it. Use Reset Zoom to return to the full range.</p>
         </div>
       </div>
     </div>
