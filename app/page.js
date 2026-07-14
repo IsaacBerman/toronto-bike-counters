@@ -48,9 +48,6 @@ export default function Home() {
             <br />
             and how we see them.
           </h1>
-          <p className="text-lg max-w-xl leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            A small set of data and community tools about urban life. Pick one below.
-          </p>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-5">
