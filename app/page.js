@@ -38,7 +38,7 @@ export default function Home() {
             rel="noopener noreferrer"
             className="dd-btn dd-btn-accent"
           >
-            💡 Help Keep the Lights On
+            Help Keep the Lights On
           </a>
         </div>
         <div className="mb-14">

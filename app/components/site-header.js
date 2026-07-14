@@ -40,7 +40,7 @@ export default function SiteHeader({ current }) {
             rel="noopener noreferrer"
             className="dd-btn dd-btn-accent w-full sm:w-auto justify-center"
           >
-            💡 Help Keep the Lights On
+            Help Keep the Lights On
           </a>
         </nav>
       </div>
