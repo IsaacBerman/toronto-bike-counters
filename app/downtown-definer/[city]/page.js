@@ -1,5 +1,6 @@
 import SiteHeader from '../../components/site-header';
 import DowntownDefinerApp from '../../components/downtown-definer/DowntownDefinerApp';
+import TilePreconnect from '../../components/downtown-definer/TilePreconnect';
 
 function prettifyCity(slug) {
   return slug
@@ -36,6 +37,7 @@ export default async function DowntownDefinerCityPage({ params }) {
   const { city } = await params;
   return (
     <>
+      <TilePreconnect />
       <SiteHeader current="downtown-definer" />
       <DowntownDefinerApp initialCitySlug={city} />
     </>

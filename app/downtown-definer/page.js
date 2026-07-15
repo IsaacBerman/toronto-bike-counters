@@ -1,5 +1,6 @@
 import SiteHeader from '../components/site-header';
 import DowntownDefinerApp from '../components/downtown-definer/DowntownDefinerApp';
+import TilePreconnect from '../components/downtown-definer/TilePreconnect';
 
 export const metadata = {
   title: 'Where is Downtown?',
@@ -21,6 +22,7 @@ export const metadata = {
 export default function DowntownDefinerPage() {
   return (
     <>
+      <TilePreconnect />
       <SiteHeader current="downtown-definer" />
       <DowntownDefinerApp />
     </>
