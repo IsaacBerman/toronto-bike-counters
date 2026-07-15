@@ -11,12 +11,18 @@ CREATE TABLE IF NOT EXISTS cities (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- submitter_hash is the salted hash of the browser's identity cookie (rows
+-- from before the cookie-identity switch used a salted IP hash instead).
+-- ip_hash is a salted client-IP hash used only for the per-IP submission
+-- rate limit, never as identity; it is NULL on pre-switch rows (the app also
+-- adds this column lazily via ALTER TABLE ... IF NOT EXISTS).
 CREATE TABLE IF NOT EXISTS submissions (
   id SERIAL PRIMARY KEY,
   city_id INTEGER NOT NULL REFERENCES cities(id) ON DELETE CASCADE,
   submitter_hash TEXT NOT NULL,
   raw_polygon JSONB NOT NULL,
   clipped_polygon JSONB,
+  ip_hash TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE (city_id, submitter_hash)
 );

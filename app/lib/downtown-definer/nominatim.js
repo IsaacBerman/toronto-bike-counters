@@ -100,7 +100,29 @@ export async function searchCities(query) {
   return suggestions;
 }
 
-async function queryBoundary(q) {
+function normalizeMatch(s) {
+  return String(s || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+}
+
+// True when a result plausibly belongs to the qualifier the user supplied
+// (usually a country, sometimes a state/region): the qualifier must appear in
+// the result's display name or one of its address fields. Guards every query
+// against Nominatim fuzzy-matching a same-named city somewhere else — e.g.
+// "Dunedin, New Zealand" must never resolve to Dunedin, Florida.
+function matchesQualifier(result, qualifier) {
+  if (!qualifier) return true;
+  const needle = normalizeMatch(qualifier);
+  if (normalizeMatch(result.display_name).includes(needle)) return true;
+  const address = result.address || {};
+  return Object.values(address).some(
+    (value) => typeof value === 'string' && normalizeMatch(value).includes(needle)
+  );
+}
+
+async function queryBoundary(q, qualifier) {
   const params = new URLSearchParams({
     q,
     format: 'jsonv2',
@@ -116,7 +138,7 @@ async function queryBoundary(q) {
   if (!response.ok) throw new Error(`Nominatim request failed: ${response.status}`);
 
   const results = await response.json();
-  const best = pickBestResult(results);
+  const best = pickBestResult(results.filter((r) => matchesQualifier(r, qualifier)));
   if (!best) return null;
 
   return {
@@ -133,18 +155,25 @@ async function queryBoundary(q) {
 // Country" (which still finds the real municipality). We deliberately DON'T
 // broaden to the bare "City": that would cross countries and could return a
 // different same-named city with a boundary (e.g. "Brighton" -> Brighton,
-// Colorado). If no in-country boundary exists, we return null (not addable).
+// Colorado) — and every query is additionally guarded by matchesQualifier so
+// a broadened match can never leave the qualifier the user gave. Some cities
+// exist in OSM only as a point node with the boundary under an administrative
+// "<Name> City" area (Dunedin, Tauranga and other NZ territorial authorities),
+// so that's tried as a last resort — the qualifier guard keeps it in-country.
+// If no matching boundary exists, we return null (not addable).
 export async function fetchCityBoundary(name) {
   const parts = name.split(',').map((s) => s.trim()).filter(Boolean);
+  const qualifier = parts.length >= 2 ? parts[parts.length - 1] : null;
   const candidates = [name];
-  if (parts.length >= 3) candidates.push(`${parts[0]}, ${parts[parts.length - 1]}`);
+  if (parts.length >= 3) candidates.push(`${parts[0]}, ${qualifier}`);
+  if (qualifier && !/\bcity$/i.test(parts[0])) candidates.push(`${parts[0]} City, ${qualifier}`);
 
   const tried = new Set();
   try {
     for (const q of candidates) {
       if (tried.has(q)) continue;
       tried.add(q);
-      const result = await queryBoundary(q);
+      const result = await queryBoundary(q, qualifier);
       if (result) return result;
     }
     return null;
