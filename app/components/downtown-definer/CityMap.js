@@ -51,9 +51,9 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       // frame, instead of rounding down a whole level and leaving a big margin.
       const map = L.map(mapRef.current, { center: [43.6532, -79.3832], zoom: 12, zoomSnap: 0.25 });
       // Carto's CDN serves tiles far faster than OSM's donated servers, which
-      // left the container grey while tiles trickled in; the light style also
-      // keeps the basemap recessive under the heatmap colors.
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      // left the container grey while tiles trickled in. Voyager is Carto's
+      // OSM-like style: beige land, blue water, colored roads, green parks.
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '© OpenStreetMap contributors © CARTO',
         subdomains: 'abcd',
         maxZoom: 20,
@@ -560,13 +560,13 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     };
   }, [mode, grid, mapReady]);
 
-  // Background matches the Carto light land tone so the not-yet-tiled map
-  // reads as "map loading", not broken grey (overrides Leaflet's #ddd).
+  // Background matches Voyager's land tone so the not-yet-tiled map reads as
+  // "map loading", not broken grey (overrides Leaflet's #ddd).
   return (
     <div
       ref={mapRef}
       className={className || 'h-96 w-full rounded-lg border border-gray-200'}
-      style={{ background: '#fafaf8' }}
+      style={{ background: '#fbf6ee' }}
     />
   );
 }
