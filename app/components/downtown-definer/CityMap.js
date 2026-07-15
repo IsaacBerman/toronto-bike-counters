@@ -52,7 +52,11 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
 
       // zoomSnap < 1 lets fitBounds settle on a fractional zoom that hugs the
       // frame, instead of rounding down a whole level and leaving a big margin.
-      const map = L.map(mapRef.current, { zoomSnap: 0.25 });
+      // preferCanvas: the choropleth is thousands of hex polygons (plus an
+      // invisible per-cell hit layer); as SVG that many interactive DOM nodes
+      // makes desktop Safari's hover hit-testing crawl. The canvas renderer
+      // draws them in one element and hit-tests geometrically.
+      const map = L.map(mapRef.current, { zoomSnap: 0.25, preferCanvas: true });
       // Aim at the city BEFORE the tile layer exists, so the very first tile
       // requests are for the right place — a default center here briefly
       // showed that city's tiles on every map until fitBounds kicked in.
