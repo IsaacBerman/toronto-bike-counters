@@ -28,6 +28,9 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
   const choroplethLayerRef = useRef(null);
   const resizeObserverRef = useRef(null);
   const bboxRef = useRef(bbox);
+  // Frame known at mount (results maps pass fitBbox), so the map can start
+  // aimed at the right city instead of a default view.
+  const initialFrameRef = useRef(fitBbox || bbox);
   const onMapClickRef = useRef(onMapClick);
   const onVertexMoveRef = useRef(onVertexMove);
   // Leaflet loads asynchronously; flip this to true once the map exists so the
@@ -49,7 +52,17 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
 
       // zoomSnap < 1 lets fitBounds settle on a fractional zoom that hugs the
       // frame, instead of rounding down a whole level and leaving a big margin.
-      const map = L.map(mapRef.current, { center: [43.6532, -79.3832], zoom: 12, zoomSnap: 0.25 });
+      const map = L.map(mapRef.current, { zoomSnap: 0.25 });
+      // Aim at the city BEFORE the tile layer exists, so the very first tile
+      // requests are for the right place — a default center here briefly
+      // showed that city's tiles on every map until fitBounds kicked in.
+      const frame = initialFrameRef.current;
+      if (frame) {
+        const [minLng, minLat, maxLng, maxLat] = frame;
+        map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
+      } else {
+        map.setView([43.6532, -79.3832], 12);
+      }
       // Carto's CDN serves tiles far faster than OSM's donated servers, which
       // left the container grey while tiles trickled in. Voyager is Carto's
       // OSM-like style: beige land, blue water, colored roads, green parks.
