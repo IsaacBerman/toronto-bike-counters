@@ -5,9 +5,9 @@ import CityMap from './CityMap';
 import ShareButton from './ShareButton';
 import { expandCompactGrid } from '../../lib/downtown-definer/heatmapGrid';
 
-// Mirrors identity.js's DEV_IDENTITY_COOKIE — duplicated as a literal here so
+// Mirrors identity.js's IDENTITY_COOKIE — duplicated as a literal here so
 // this client component never imports the server-only identity module.
-const DEV_IDENTITY_COOKIE = 'dd_dev_identity';
+const IDENTITY_COOKIE = 'dd_identity';
 // Mirrors identity.js's SUBMITTED_CITIES_COOKIE (same reason). Set by the
 // submissions API; lists the city slugs this browser has submitted for.
 const SUBMITTED_CITIES_COOKIE = 'dd_submitted';
@@ -20,10 +20,43 @@ function readCookie(name) {
 
 // Whether this browser has submitted for the city, per the cookie. When false
 // we skip the status call entirely — no function invocation, no DB wake. The
-// rare false negative (cookie cleared / same IP, other device) is corrected at
-// submit time by the 409 flow.
+// rare false negative (cookie cleared) is corrected at submit time by the
+// 409 flow.
 function hasSubmittedCity(slug) {
   return (readCookie(SUBMITTED_CITIES_COOKIE) || '').split('|').includes(slug);
+}
+
+// The browser's own copy of the shape it submitted, keyed by city. "Your map"
+// on the results view renders from this first, so this browser only ever
+// shows a map it actually drew — and repeat visits skip the status call
+// entirely (no function invocation, no DB wake). The status endpoint stays as
+// the fallback for when localStorage was cleared but cookies survive.
+const STORED_POINTS_PREFIX = 'dd_points:';
+
+function readStoredPoints(slug) {
+  try {
+    const raw = localStorage.getItem(STORED_POINTS_PREFIX + slug);
+    const points = raw ? JSON.parse(raw) : null;
+    return Array.isArray(points) && points.length >= 3 ? points : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeSubmittedPoints(slug, points) {
+  try {
+    localStorage.setItem(STORED_POINTS_PREFIX + slug, JSON.stringify(points));
+  } catch {
+    // Best-effort: the status endpoint remains the fallback.
+  }
+}
+
+function clearAllStoredPoints() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(STORED_POINTS_PREFIX)) localStorage.removeItem(key);
+    }
+  } catch {}
 }
 
 // Accent-insensitive, lowercased text for matching: "Montréal" -> "montreal".
@@ -174,7 +207,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   const [devIdentity, setDevIdentity] = useState(null);
 
   useEffect(() => {
-    setDevIdentity(readCookie(DEV_IDENTITY_COOKIE));
+    setDevIdentity(readCookie(IDENTITY_COOKIE));
   }, [phase]);
 
   useEffect(() => {
@@ -254,17 +287,27 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     updateUrl(city.slug);
     setPickerOpen(false);
 
-    const status = hasSubmittedCity(city.slug)
-      ? await fetch(`/api/downtown-definer/status?city=${city.slug}`)
-          .then((r) => r.json())
-          .catch(() => ({ submitted: false }))
-      : { submitted: false };
-
-    if (status.submitted) {
-      await goToResults(city, polygonToPoints(status.yourPolygon));
+    // This browser's own copy of its submitted shape means no status call at
+    // all — straight to results with the map it drew. Deliberately not gated
+    // on the submitted-cities cookie: if cookies were cleared but localStorage
+    // survived, the visitor still sees the shape they drew (the server no
+    // longer recognizes them, but what they see is what they expect).
+    const storedPoints = readStoredPoints(city.slug);
+    if (storedPoints) {
+      await goToResults(city, storedPoints);
     } else {
-      setPoints([]);
-      setPhase('drawing');
+      const status = hasSubmittedCity(city.slug)
+        ? await fetch(`/api/downtown-definer/status?city=${city.slug}`)
+            .then((r) => r.json())
+            .catch(() => ({ submitted: false }))
+        : { submitted: false };
+
+      if (status.submitted) {
+        await goToResults(city, polygonToPoints(status.yourPolygon));
+      } else {
+        setPoints([]);
+        setPhase('drawing');
+      }
     }
 
     fetch('/api/downtown-definer/cities')
@@ -352,10 +395,12 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   async function goToResults(city, yourPoints, fresh, viewOnly) {
     const heatmap = await fetchHeatmap(city.slug, fresh);
     // View-only ("Show results"): the consensus heatmap only — no "my downtown",
-    // no score, no share. Otherwise resolve the visitor's own shape.
+    // no score, no share. Otherwise resolve the visitor's own shape: what was
+    // just drawn, else this browser's stored copy, else (localStorage cleared
+    // but cookies intact) the status endpoint.
     let mine = null;
     if (!viewOnly) {
-      mine = yourPoints ?? null;
+      mine = yourPoints ?? readStoredPoints(city.slug);
       if (!mine && hasSubmittedCity(city.slug)) {
         const status = await fetch(`/api/downtown-definer/status?city=${city.slug}`)
           .then((r) => r.json())
@@ -372,7 +417,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
       viewOnly: !!viewOnly,
     });
     setPhase('results');
-    setDevIdentity(readCookie(DEV_IDENTITY_COOKIE));
+    setDevIdentity(readCookie(IDENTITY_COOKIE));
   }
 
   // "Show results": view the consensus heatmap without drawing/submitting.
@@ -400,11 +445,14 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
       if (!res.ok) {
         setSubmitError(data.error || 'Something went wrong.');
         if (res.status === 409) {
+          // Already submitted from this browser: show its earlier map (stored
+          // copy or, failing that, the status endpoint's), not the new drawing.
           await goToResults(selectedCity);
         }
         return;
       }
 
+      storeSubmittedPoints(selectedCity.slug, points);
       await goToResults(selectedCity, points, true); // fresh: reflect the new vote
     } catch {
       setSubmitError('Something went wrong.');
@@ -424,10 +472,12 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   }
 
   function resetDevIdentity() {
-    document.cookie = `${DEV_IDENTITY_COOKIE}=; Max-Age=0; path=/`;
-    // Also forget which cities "this submitter" submitted for, so the fresh
-    // identity starts at the drawing phase instead of a stale results view.
+    document.cookie = `${IDENTITY_COOKIE}=; Max-Age=0; path=/`;
+    // Also forget which cities "this submitter" submitted for (and its stored
+    // shapes), so the fresh identity starts at the drawing phase instead of a
+    // stale results view.
     document.cookie = `${SUBMITTED_CITIES_COOKIE}=; Max-Age=0; path=/`;
+    clearAllStoredPoints();
     setDevIdentity(null);
   }
 

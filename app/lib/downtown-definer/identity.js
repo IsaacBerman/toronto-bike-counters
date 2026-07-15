@@ -1,13 +1,19 @@
 import { randomUUID, createHash } from 'node:crypto';
 
-export const DEV_IDENTITY_COOKIE = 'dd_dev_identity';
+// One anonymous identity per browser: a random id minted server-side on first
+// contact and stored in a long-lived cookie. This replaces the old IP-hash
+// identity — shared or rotating IPs (Apple Private Relay, CGNAT, VPNs) both
+// collided different people onto one "submitter" and split one person across
+// several, so a submitter behind Private Relay could be shown someone else's
+// map as their own. The IP no longer identifies anyone; it only feeds a
+// coarse per-IP rate limit in the submissions route.
+export const IDENTITY_COOKIE = 'dd_identity';
 
 // Tracks which cities this browser has submitted for, so the status endpoint
 // (and the client before it even calls it) can answer "not submitted" for the
 // common first-visit case without touching the database. The DB stays the
 // source of truth: the submissions route still enforces one-per-submitter and
-// re-sets this cookie on a 409, which covers cookie loss or a different
-// device behind the same IP.
+// re-sets this cookie on a 409, which covers cookie loss.
 export const SUBMITTED_CITIES_COOKIE = 'dd_submitted';
 const SUBMITTED_CITIES_MAX = 30;
 
@@ -31,26 +37,32 @@ export function withSubmittedCity(request, slug) {
   return slugs.slice(-SUBMITTED_CITIES_MAX).join('|');
 }
 
-// Determines the "submitter" for the one-submission-per-city rule.
-// In production, this is a salted hash of the real client IP. In local dev
-// (`next dev`), it's a random id stored in a cookie instead, so a developer
-// can simulate multiple different submitters from the same machine/IP by
-// clearing that cookie between submissions.
+function hashValue(value) {
+  const salt = process.env.IP_HASH_SALT || '';
+  return createHash('sha256').update(value + salt).digest('hex');
+}
+
+// Determines the "submitter" for the one-submission-per-city rule: the salted
+// hash of the browser's identity cookie. When the cookie is missing a fresh id
+// is minted and returned as `newCookieValue` for the route to set. Clearing
+// cookies therefore creates a new submitter — an accepted trade-off; the
+// per-IP rate limit is the abuse brake.
 export function getSubmitterIdentity(request) {
-  if (process.env.NODE_ENV === 'production') {
-    const forwardedFor = request.headers.get('x-forwarded-for');
-    const ip = forwardedFor ? forwardedFor.split(',')[0].trim() : request.headers.get('x-real-ip') || 'unknown';
-    const salt = process.env.IP_HASH_SALT || '';
-    const hash = createHash('sha256').update(ip + salt).digest('hex');
-    return { hash, newCookieValue: null };
-  }
-
   const cookieHeader = request.headers.get('cookie') || '';
-  const match = cookieHeader.match(new RegExp(`${DEV_IDENTITY_COOKIE}=([^;]+)`));
+  const match = cookieHeader.match(new RegExp(`${IDENTITY_COOKIE}=([^;]+)`));
   if (match) {
-    return { hash: `dev:${match[1]}`, newCookieValue: null };
+    return { hash: hashValue(match[1]), newCookieValue: null };
   }
-
   const id = randomUUID();
-  return { hash: `dev:${id}`, newCookieValue: id };
+  return { hash: hashValue(id), newCookieValue: id };
+}
+
+// Salted hash of the client IP. Not an identity — only the key for the very
+// generous per-IP submission rate limit.
+export function getClientIpHash(request) {
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  const ip = forwardedFor
+    ? forwardedFor.split(',')[0].trim()
+    : request.headers.get('x-real-ip') || 'unknown';
+  return hashValue(ip);
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   getCityBySlug,
   insertSubmission,
+  countRecentSubmissionsByIp,
   getHeatmapCache,
   saveHeatmapCache,
 } from '../../../lib/downtown-definer/db';
@@ -13,10 +14,17 @@ import {
 } from '../../../lib/downtown-definer/geo';
 import {
   getSubmitterIdentity,
+  getClientIpHash,
   withSubmittedCity,
-  DEV_IDENTITY_COOKIE,
+  IDENTITY_COOKIE,
   SUBMITTED_CITIES_COOKIE,
 } from '../../../lib/downtown-definer/identity';
+
+// Deliberately very high: identity is per-browser-cookie, so the IP cap only
+// exists to brake bulk abuse (scripted cookie-clearing). One enthusiast
+// submitting across every city in a day stays well under it, and a shared
+// egress IP (Apple Private Relay, campus NAT) won't hit it in normal use.
+const SUBMISSIONS_PER_IP_PER_DAY = 500;
 
 // Readable by client JS (httpOnly: false) so the app can skip the status
 // call entirely for cities this browser never submitted for.
@@ -84,11 +92,21 @@ export async function POST(request) {
 
   const { hash, newCookieValue } = getSubmitterIdentity(request);
 
+  const ipHash = getClientIpHash(request);
+  const recentFromIp = await countRecentSubmissionsByIp(ipHash);
+  if (recentFromIp >= SUBMISSIONS_PER_IP_PER_DAY) {
+    return NextResponse.json(
+      { error: 'Too many submissions from your network today. Please try again tomorrow.' },
+      { status: 429 }
+    );
+  }
+
   const inserted = await insertSubmission({
     cityId: city.id,
     submitterHash: hash,
     rawPolygon: pointsToPolygonGeometry(points),
     clippedPolygon,
+    ipHash,
   });
 
   if (!inserted) {
@@ -96,9 +114,9 @@ export async function POST(request) {
       { error: "You've already submitted a definition for this city." },
       { status: 409 }
     );
-    // Same submitter from a browser without the cookie (cleared, or another
-    // device on the same IP): restore it so the follow-up status fetch — and
-    // future visits — work as if they'd submitted here.
+    // Identity is the browser cookie, so a conflict means this browser already
+    // submitted (its submitted-cities cookie was lost or evicted): restore it
+    // so the follow-up status fetch — and future visits — work again.
     markCitySubmitted(conflict, request, city.slug);
     return conflict;
   }
@@ -108,10 +126,11 @@ export async function POST(request) {
   const response = NextResponse.json({ success: true });
   markCitySubmitted(response, request, city.slug);
   if (newCookieValue) {
-    response.cookies.set(DEV_IDENTITY_COOKIE, newCookieValue, {
+    response.cookies.set(IDENTITY_COOKIE, newCookieValue, {
       httpOnly: false,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 365,
+      path: '/',
     });
   }
   return response;

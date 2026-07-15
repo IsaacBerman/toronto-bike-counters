@@ -3,12 +3,12 @@ import { getCityBySlug, getSubmissionByHash } from '../../../lib/downtown-define
 import {
   getSubmitterIdentity,
   readSubmittedCities,
-  DEV_IDENTITY_COOKIE,
+  IDENTITY_COOKIE,
 } from '../../../lib/downtown-definer/identity';
 
-// Reports whether the current visitor (by IP hash in prod, dev cookie in dev)
-// has already submitted a definition for this city, and returns their stored
-// raw polygon so the client can jump straight to the results view.
+// Reports whether the current visitor (by identity cookie) has already
+// submitted a definition for this city, and returns their stored raw polygon
+// so the client can jump straight to the results view.
 export async function GET(request) {
   const citySlug = request.nextUrl.searchParams.get('city');
   if (!citySlug) {
@@ -17,9 +17,9 @@ export async function GET(request) {
 
   // No submitted-cities cookie for this city means this browser never
   // submitted here — answer without any DB work (the overwhelmingly common
-  // case; the client normally doesn't even call us then). A same-IP
-  // submission from another device is still caught: submitting returns a 409
-  // that sets the cookie, and the follow-up status call takes the DB path.
+  // case; the client normally doesn't even call us then). A lost
+  // submitted-cities cookie is still caught: submitting returns a 409 that
+  // restores it, and the follow-up status call takes the DB path.
   if (!readSubmittedCities(request).includes(citySlug)) {
     return NextResponse.json({ submitted: false, yourPolygon: null });
   }
@@ -37,10 +37,11 @@ export async function GET(request) {
     yourPolygon: existing?.raw_polygon || null,
   });
   if (newCookieValue) {
-    response.cookies.set(DEV_IDENTITY_COOKIE, newCookieValue, {
+    response.cookies.set(IDENTITY_COOKIE, newCookieValue, {
       httpOnly: false,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 365,
+      path: '/',
     });
   }
   return response;

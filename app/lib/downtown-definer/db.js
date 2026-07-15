@@ -96,15 +96,49 @@ export async function insertCity({ slug, name, displayName, boundary, bbox, osmT
   return getCityBySlug(slug);
 }
 
-export async function insertSubmission({ cityId, submitterHash, rawPolygon, clippedPolygon }) {
+// Lazily adds the ip_hash column (rate-limit signal, not identity) so deploys
+// don't need a manual migration — same pattern as ensureHeatmapTable.
+let ipHashColumnReady = null;
+function ensureIpHashColumn() {
+  if (!ipHashColumnReady) {
+    ipHashColumnReady = getPool()
+      .query('ALTER TABLE submissions ADD COLUMN IF NOT EXISTS ip_hash TEXT')
+      .catch((error) => {
+        ipHashColumnReady = null;
+        throw error;
+      });
+  }
+  return ipHashColumnReady;
+}
+
+export async function insertSubmission({ cityId, submitterHash, rawPolygon, clippedPolygon, ipHash }) {
+  await ensureIpHashColumn();
   const rows = await query(
-    `INSERT INTO submissions (city_id, submitter_hash, raw_polygon, clipped_polygon)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO submissions (city_id, submitter_hash, raw_polygon, clipped_polygon, ip_hash)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (city_id, submitter_hash) DO NOTHING
      RETURNING id`,
-    [cityId, submitterHash, JSON.stringify(rawPolygon), clippedPolygon ? JSON.stringify(clippedPolygon) : null]
+    [cityId, submitterHash, JSON.stringify(rawPolygon), clippedPolygon ? JSON.stringify(clippedPolygon) : null, ipHash || null]
   );
   return rows.length > 0;
+}
+
+// Submissions from this IP in the last 24h, for the per-IP rate limit. Fails
+// open (0): the limit is an abuse brake, not a gate worth breaking submits for.
+export async function countRecentSubmissionsByIp(ipHash) {
+  if (!ipHash) return 0;
+  try {
+    await ensureIpHashColumn();
+    const rows = await query(
+      `SELECT COUNT(*)::int AS n FROM submissions
+       WHERE ip_hash = $1 AND created_at > now() - interval '24 hours'`,
+      [ipHash]
+    );
+    return rows[0]?.n ?? 0;
+  } catch (error) {
+    console.error('Error counting recent submissions by IP:', error);
+    return 0;
+  }
 }
 
 export async function getSubmissionByHash(cityId, submitterHash) {
