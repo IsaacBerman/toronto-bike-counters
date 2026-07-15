@@ -18,7 +18,7 @@ export const METERS_PER_DEG_LAT = 111320;
 // Flat-top hexagonal cells. CELL_SIZE_METERS is the nearest-neighbour spacing
 // (center to center); the circumradius r = spacing / sqrt(3).
 export const CELL_SIZE_METERS = 200;
-export const MAX_CELLS = 75000;
+export const MAX_CELLS = 100000;
 
 // Run-length encoding for the counts array, as flat [value, runLength, ...]
 // pairs. Grids are dominated by long runs of -1 (outside the city) and 0 (no
