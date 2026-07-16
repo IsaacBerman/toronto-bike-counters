@@ -139,15 +139,49 @@ export default function BicycleCountersContent() {
             100% { transform: translateX(calc(100vw + 100px)); }
           }
           .bike-rider-anim { animation: bike-ride 4s linear infinite; }
+          @keyframes wheel-spin {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+          }
+          .wheel-spokes {
+            animation: wheel-spin 0.5s linear infinite;
+            transform-box: fill-box;
+            transform-origin: center;
+          }
+          @keyframes pedal-front {
+            0%, 100% { transform: rotate(14deg); }
+            50%      { transform: rotate(-14deg); }
+          }
+          @keyframes pedal-back {
+            0%, 100% { transform: rotate(-14deg); }
+            50%      { transform: rotate(14deg); }
+          }
+          .leg-front, .leg-back { transform-origin: 46px 24px; }
+          .leg-front { animation: pedal-front 0.5s ease-in-out infinite; }
+          .leg-back  { animation: pedal-back 0.5s ease-in-out infinite; }
         `}</style>
         <div style={{ position: 'relative', width: '100%', height: '80px', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', bottom: '10px', left: 0, right: 0, height: '2px', backgroundColor: '#d1d5db' }} />
           <div className="bike-rider-anim" style={{ position: 'absolute', bottom: '12px' }}>
-            <svg width="70" height="55" viewBox="0 0 70 55" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="70" height="55" viewBox="0 0 70 55" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ overflow: 'visible' }}>
               {/* Rear wheel */}
               <circle cx="12" cy="42" r="12" stroke="#374151" strokeWidth="2.5" fill="none"/>
+              <g className="wheel-spokes">
+                <line x1="12" y1="31" x2="12" y2="53" stroke="#9ca3af" strokeWidth="1.5"/>
+                <line x1="1" y1="42" x2="23" y2="42" stroke="#9ca3af" strokeWidth="1.5"/>
+                <line x1="4.2" y1="34.2" x2="19.8" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
+                <line x1="19.8" y1="34.2" x2="4.2" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
+              </g>
+              <circle cx="12" cy="42" r="2" fill="#374151"/>
               {/* Front wheel */}
               <circle cx="58" cy="42" r="12" stroke="#374151" strokeWidth="2.5" fill="none"/>
+              <g className="wheel-spokes">
+                <line x1="58" y1="31" x2="58" y2="53" stroke="#9ca3af" strokeWidth="1.5"/>
+                <line x1="47" y1="42" x2="69" y2="42" stroke="#9ca3af" strokeWidth="1.5"/>
+                <line x1="50.2" y1="34.2" x2="65.8" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
+                <line x1="65.8" y1="34.2" x2="50.2" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
+              </g>
+              <circle cx="58" cy="42" r="2" fill="#374151"/>
               {/* Frame: BB to seat tube top */}
               <line x1="30" y1="42" x2="24" y2="22" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
               {/* Frame: top tube */}
@@ -172,8 +206,8 @@ export default function BicycleCountersContent() {
               {/* Rider arm */}
               <line x1="48" y1="18" x2="56" y2="16" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round"/>
               {/* Rider legs */}
-              <line x1="46" y1="24" x2="36" y2="36" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round"/>
-              <line x1="46" y1="24" x2="30" y2="34" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
+              <line className="leg-front" x1="46" y1="24" x2="36" y2="36" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round"/>
+              <line className="leg-back" x1="46" y1="24" x2="30" y2="34" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round" opacity="0.5"/>
             </svg>
           </div>
         </div>
