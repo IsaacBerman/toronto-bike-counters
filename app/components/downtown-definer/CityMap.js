@@ -77,15 +77,16 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       }).addTo(map);
 
       // Rail overlay (OpenRailwayMap): transparent tiles showing rail/subway/tram
-      // lines — useful orientation when drawing or reading the heatmap. Tile
-      // layers all live in Leaflet's tilePane, which sits below the vector
-      // overlayPane, so this lands above the basemap but under the heatmap and
-      // drawn polygons in every mode.
+      // lines — useful orientation when drawing or reading the heatmap. Kept very
+      // light so it reads as faint reference lines (labels fade with it — they're
+      // baked into the raster tiles). Tile layers all live in Leaflet's tilePane,
+      // below the vector overlayPane, so this sits above the basemap but under
+      // the heatmap and drawn polygons in every mode.
       L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
         attribution: 'Rail overlay © <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> (CC-BY-SA)',
         subdomains: 'abc',
         maxZoom: 19,
-        opacity: 0.7,
+        opacity: 0.25,
       }).addTo(map);
 
       map.on('click', (e) => {
@@ -142,7 +143,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     const fit = fitBbox || bbox;
     bboxRef.current = fit;
     fitToFrame(map, fit);
-    
+
   }, [boundary, bbox, fitBbox, mapReady]);
 
   // Drawing layer (points + vertex markers).
