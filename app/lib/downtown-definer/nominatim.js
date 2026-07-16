@@ -47,7 +47,7 @@ function isCityResult(r) {
   return bboxSpanDeg(r.boundingbox) <= CITY_ADMIN_MAX_SPAN_DEG;
 }
 
-function pickBestResult(results) {
+function pickBestResult(results, cityLikeOnly = false) {
   const withPolygon = results.filter(
     (r) => r.geojson && (r.geojson.type === 'Polygon' || r.geojson.type === 'MultiPolygon')
   );
@@ -55,6 +55,10 @@ function pickBestResult(results) {
 
   const cityLike = withPolygon.find(isCityResult);
   if (cityLike) return cityLike;
+  // Strict mode (enclosing-region fallback): a result that is merely
+  // administrative-with-a-polygon is NOT acceptable — that's how a whole state
+  // would slip in. Only a city-sized area qualifies.
+  if (cityLikeOnly) return null;
 
   const administrative = withPolygon.find((r) => r.type === 'administrative');
   return administrative || withPolygon[0];
@@ -206,7 +210,7 @@ function trimRemoteParts(geometry, anchor) {
   return { type: 'MultiPolygon', coordinates: kept };
 }
 
-async function queryBoundary(q, qualifier) {
+async function queryBoundary(q, qualifier, cityLikeOnly = false) {
   const params = new URLSearchParams({
     q,
     format: 'jsonv2',
@@ -223,7 +227,7 @@ async function queryBoundary(q, qualifier) {
   if (!response.ok) throw new Error(`Nominatim request failed: ${response.status}`);
 
   const results = await response.json();
-  const best = pickBestResult(results.filter((r) => matchesQualifier(r, qualifier)));
+  const best = pickBestResult(results.filter((r) => matchesQualifier(r, qualifier)), cityLikeOnly);
   if (!best) return null;
 
   const anchor =
@@ -236,6 +240,46 @@ async function queryBoundary(q, qualifier) {
     osmType: best.osm_type || null,
     osmId: best.osm_id != null ? String(best.osm_id) : null,
   };
+}
+
+// Some capital cities exist in OSM only as a point node, with the real boundary
+// on a compact enclosing admin area (Canberra -> Australian Capital Territory).
+// When every direct query fails, look up the city node's address and try its
+// enclosing regions — accepted ONLY via the strict city-sized test in
+// pickBestResult, so a city node in Texas can never fall back to the state.
+async function enclosingRegionBoundary(name, qualifier) {
+  const params = new URLSearchParams({
+    q: name,
+    format: 'jsonv2',
+    addressdetails: '1',
+    extratags: '1',
+    'accept-language': 'en',
+    limit: '5',
+  });
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+    headers: { 'User-Agent': getUserAgent() },
+  });
+  if (!response.ok) return null;
+
+  const results = await response.json();
+  const cityNode = results.find((r) => isCityResult(r) && matchesQualifier(r, qualifier));
+  const addr = cityNode?.address;
+  if (!addr) return null;
+
+  const cityName = normalizeMatch(cityNode.name || '');
+  const regions = [
+    ...new Set(
+      ['territory', 'state', 'province', 'region', 'county']
+        .map((key) => addr[key])
+        .filter((v) => v && normalizeMatch(v) !== cityName)
+    ),
+  ];
+  for (const region of regions) {
+    const q = addr.country ? `${region}, ${addr.country}` : region;
+    const result = await queryBoundary(q, qualifier || addr.country, true);
+    if (result) return result;
+  }
+  return null;
 }
 
 // A very specific query (e.g. "Shanghai, Shanghai, China") can resolve to a
@@ -264,7 +308,9 @@ export async function fetchCityBoundary(name) {
       const result = await queryBoundary(q, qualifier);
       if (result) return result;
     }
-    return null;
+    // Last resort: the boundary may live on a compact admin area ENCLOSING a
+    // point-node city (Canberra -> Australian Capital Territory).
+    return await enclosingRegionBoundary(name, qualifier);
   } catch (error) {
     console.error('Error fetching city boundary:', error);
     return null;
