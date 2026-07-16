@@ -704,10 +704,9 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                           <span className="dd-tip" style={{ color: 'var(--accent)' }}>
                             Score: {results.score}
                             <span className="dd-tip-bubble">
-                              Similarity of your drawing to the consensus downtown (the highest-agreement
-                              areas), from 0 to 100. It&apos;s the overlapping area ÷ the combined area
-                              (intersection over union) of the two shapes. 100 = same shape in the same
-                              place; 0 = no overlap.
+                              {"Similarity of your drawing to the consensus downtown (>50%) regions, from 0 to 100. It&apos;s the overlapping area ÷ the combined area\
+                              (intersection over union) of the two shapes. 100 = same shape in the same\
+                              place; 0 = no overlap."}
                             </span>
                           </span>
                         </>
