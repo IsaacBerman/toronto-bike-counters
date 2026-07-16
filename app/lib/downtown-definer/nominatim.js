@@ -37,8 +37,14 @@ function bboxSpanDeg(boundingbox) {
 
 function isCityResult(r) {
   if (CITY_TYPES.includes(r.addresstype) || CITY_TYPES.includes(r.type)) return true;
+  if (r.type !== 'administrative') return false;
+  // An admin area OSM itself marks as representing a city (linked_place=city on
+  // the relation) or as a national capital. Tokyo Metropolis is both — its bbox
+  // fails the span test below only because it includes islands ~1000km offshore.
+  const extra = r.extratags || {};
+  if (CITY_TYPES.includes(extra.linked_place) || extra['capital_ISO3166-1'] === 'yes') return true;
   // A compact administrative area (city-county, unitary authority, city-state).
-  return r.type === 'administrative' && bboxSpanDeg(r.boundingbox) <= CITY_ADMIN_MAX_SPAN_DEG;
+  return bboxSpanDeg(r.boundingbox) <= CITY_ADMIN_MAX_SPAN_DEG;
 }
 
 function pickBestResult(results) {
@@ -65,6 +71,7 @@ export async function searchCities(query) {
     q: query,
     format: 'jsonv2',
     addressdetails: '1',
+    extratags: '1', // linked_place/capital tags let isCityResult accept Tokyo-like metropolises
     'accept-language': 'en', // English names so non-Latin cities (Kyiv, ...) slug correctly
     limit: '10',
   });
@@ -122,6 +129,83 @@ function matchesQualifier(result, qualifier) {
   );
 }
 
+// Some metropolises' admin boundary includes islands far offshore (Tokyo's
+// covers the Izu/Ogasawara chains ~1000km south), which balloons the bbox: the
+// map fits to open ocean and the heatmap grid coarsens to km-scale cells. Keep
+// the main landmass plus parts near it; drop remote outliers. Runs once, at
+// city-add time.
+const MAX_PART_GAP_DEG = 0.2; // ~22km — keeps adjacent islands, drops offshore chains
+
+function ringAreaDeg2(ring) {
+  // Shoelace in degree-space; only used to rank parts, units don't matter.
+  let sum = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    sum += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+  }
+  return Math.abs(sum / 2);
+}
+
+function ringContains(ring, lng, lat) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function outerRingBbox(poly) {
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+  for (const [lng, lat] of poly[0]) {
+    if (lng < minLng) minLng = lng;
+    if (lng > maxLng) maxLng = lng;
+    if (lat < minLat) minLat = lat;
+    if (lat > maxLat) maxLat = lat;
+  }
+  return [minLng, minLat, maxLng, maxLat];
+}
+
+function bboxGapDeg(a, b) {
+  const gapLng = Math.max(0, Math.max(a[0], b[0]) - Math.min(a[2], b[2]));
+  const gapLat = Math.max(0, Math.max(a[1], b[1]) - Math.min(a[3], b[3]));
+  return Math.max(gapLng, gapLat);
+}
+
+// `anchor` is Nominatim's label point for the place ([lng, lat]) — e.g. Tokyo's
+// sits at the metropolitan government in Shinjuku. The part containing it is
+// the main landmass; area is only a fallback. (Ranking by area alone misfired
+// on Tokyo: polygon simplification fused the Izu islands into one sprawling
+// ring whose degree-space area beat the mainland's.)
+function trimRemoteParts(geometry, anchor) {
+  if (!geometry || geometry.type !== 'MultiPolygon' || geometry.coordinates.length <= 1) {
+    return geometry;
+  }
+  const polys = geometry.coordinates;
+  let mainIdx = -1;
+  if (anchor) {
+    mainIdx = polys.findIndex((poly) => ringContains(poly[0], anchor[0], anchor[1]));
+  }
+  if (mainIdx < 0) {
+    let mainArea = -1;
+    polys.forEach((poly, i) => {
+      const area = ringAreaDeg2(poly[0]);
+      if (area > mainArea) {
+        mainArea = area;
+        mainIdx = i;
+      }
+    });
+  }
+  const mainBbox = outerRingBbox(polys[mainIdx]);
+  const kept = polys.filter(
+    (poly, i) => i === mainIdx || bboxGapDeg(outerRingBbox(poly), mainBbox) <= MAX_PART_GAP_DEG
+  );
+  if (kept.length === polys.length) return geometry;
+  return { type: 'MultiPolygon', coordinates: kept };
+}
+
 async function queryBoundary(q, qualifier) {
   const params = new URLSearchParams({
     q,
@@ -129,6 +213,7 @@ async function queryBoundary(q, qualifier) {
     polygon_geojson: '1',
     polygon_threshold: '0.005',
     addressdetails: '1',
+    extratags: '1', // linked_place/capital tags let isCityResult accept Tokyo-like metropolises
     'accept-language': 'en',
     limit: '5',
   });
@@ -141,10 +226,13 @@ async function queryBoundary(q, qualifier) {
   const best = pickBestResult(results.filter((r) => matchesQualifier(r, qualifier)));
   if (!best) return null;
 
+  const anchor =
+    best.lon != null && best.lat != null ? [Number(best.lon), Number(best.lat)] : null;
+  const boundary = trimRemoteParts(best.geojson, anchor);
   return {
     displayName: best.display_name,
-    boundary: best.geojson,
-    bbox: turfBbox(best.geojson),
+    boundary,
+    bbox: turfBbox(boundary), // bbox of the TRIMMED boundary, not the raw bbox
     osmType: best.osm_type || null,
     osmId: best.osm_id != null ? String(best.osm_id) : null,
   };

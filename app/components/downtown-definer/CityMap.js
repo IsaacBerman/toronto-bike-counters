@@ -76,6 +76,18 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         maxZoom: 20,
       }).addTo(map);
 
+      // Rail overlay (OpenRailwayMap): transparent tiles showing rail/subway/tram
+      // lines — useful orientation when drawing or reading the heatmap. Tile
+      // layers all live in Leaflet's tilePane, which sits below the vector
+      // overlayPane, so this lands above the basemap but under the heatmap and
+      // drawn polygons in every mode.
+      L.tileLayer('https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png', {
+        attribution: 'Rail overlay © <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> (CC-BY-SA)',
+        subdomains: 'abc',
+        maxZoom: 19,
+        opacity: 0.7,
+      }).addTo(map);
+
       map.on('click', (e) => {
         onMapClickRef.current?.([e.latlng.lat, e.latlng.lng]);
       });
@@ -352,109 +364,33 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
     }
 
     // ==========================================
-    // Create RING polygons (donuts) for each bucket
-    // Each bucket fills the area between its contour and the next higher contour
+    // Fill each bucket k as {b >= k} minus {b >= k+1} via the EVEN-ODD fill
+    // rule: one polygon holding ALL closed loops of contour level k plus ALL
+    // loops of level k+1. A point is filled iff it crosses an odd number of
+    // loops — i.e. inside {b>=k} but outside {b>=k+1} — which is exactly the
+    // b == k area. Parity handles every nesting case (a lower bucket sitting
+    // as an island inside a higher one, or higher-in-lower-in-higher) with no
+    // containment tests: an island's boundary is itself a level-k loop, so it
+    // flips parity and becomes a hole automatically instead of a false shell.
     // ==========================================
-    function createRingPolygon(outerRing, innerRing) {
-      // Outer ring should be clockwise, inner ring counter-clockwise
-      // Leaflet/GeoJSON handles this automatically if we provide both rings
-      const outer = outerRing.map(p => [p[1], p[0]]); // [lat, lng] -> [lng, lat]
-      let inner = null;
-      if (innerRing && innerRing.length >= 3) {
-        inner = innerRing.map(p => [p[1], p[0]]);
-      }
-      
-      if (inner) {
-        return {
-          type: 'Polygon',
-          coordinates: [outer, inner]
-        };
-      } else {
-        return {
-          type: 'Polygon',
-          coordinates: [outer]
-        };
-      }
-    }
-
-    // For each bucket, create rings between this bucket and the next higher bucket
     const ringFeatures = [];
-
-    
     for (let k = 0; k <= maxBucket; k++) {
-      const outerPolys = bucketPolygons[k] || [];
-      if (outerPolys.length === 0) continue;
-      
-      // Get the next higher bucket's polygons (to use as inner rings)
-      const innerPolys = bucketPolygons[k + 1] || [];
-      
-      // For each outer polygon, find ALL inner polygons contained within it
-      for (const outer of outerPolys) {
-        // Find all inner polygons contained within this outer polygon
-        const containedInners = [];
-        
-        // Calculate outer polygon centroid
-        const outerCenterX = outer.reduce((sum, p) => sum + p[0], 0) / outer.length;
-        const outerCenterY = outer.reduce((sum, p) => sum + p[1], 0) / outer.length;
-        
-        for (const innerPoly of innerPolys) {
-          // Check if inner polygon is inside outer polygon
-          // Simple check: is the inner polygon's centroid inside the outer polygon?
-          const innerCenterX = innerPoly.reduce((sum, p) => sum + p[0], 0) / innerPoly.length;
-          const innerCenterY = innerPoly.reduce((sum, p) => sum + p[1], 0) / innerPoly.length;
-          
-          // Ray casting algorithm to check if point is inside polygon
-          let inside = false;
-          const outerCoords = outer.map(p => [p[0], p[1]]);
-          const x = innerCenterX, y = innerCenterY;
-          
-          for (let i = 0, j = outerCoords.length - 1; i < outerCoords.length; j = i++) {
-            const xi = outerCoords[i][0], yi = outerCoords[i][1];
-            const xj = outerCoords[j][0], yj = outerCoords[j][1];
-            const intersect = ((yi > y) !== (yj > y)) &&
-              (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-            if (intersect) inside = !inside;
-          }
-          
-          if (inside) {
-            containedInners.push(innerPoly);
-          }
-        }
-        
-        // If we have inner polygons, create ring with multiple holes
-        const ringGeo = createRingPolygonWithHoles(outer, containedInners);
-        ringFeatures.push({
-          type: 'Feature',
-          properties: {
-            bucket: k,
-            color: bucketColor[k] || '#000000',
-            opacity: bucketOpacity[k] || 0.6
-          },
-          geometry: ringGeo
-        });
-      }
-    }
-
-    // Updated function to handle multiple holes
-    function createRingPolygonWithHoles(outerRing, innerRings) {
-      // Outer ring should be clockwise, inner rings counter-clockwise
-      const outer = outerRing.map(p => [p[1], p[0]]); // [lat, lng] -> [lng, lat]
-      
-      if (innerRings && innerRings.length > 0) {
-        const inners = innerRings
-          .filter(ring => ring && ring.length >= 3)
-          .map(ring => ring.map(p => [p[1], p[0]]));
-        
-        return {
-          type: 'Polygon',
-          coordinates: [outer, ...inners]
-        };
-      } else {
-        return {
-          type: 'Polygon',
-          coordinates: [outer]
-        };
-      }
+      const own = bucketPolygons[k] || [];
+      if (own.length === 0) continue;
+      const above = bucketPolygons[k + 1] || [];
+      const rings = [...own, ...above]
+        .filter((loop) => loop && loop.length >= 3)
+        .map((loop) => loop.map((p) => [p[1], p[0]])); // [lat, lng] -> [lng, lat]
+      if (rings.length === 0) continue;
+      ringFeatures.push({
+        type: 'Feature',
+        properties: {
+          bucket: k,
+          color: bucketColor[k] || '#000000',
+          opacity: bucketOpacity[k] || 0.6
+        },
+        geometry: { type: 'Polygon', coordinates: rings }
+      });
     }
 
     // ==========================================
@@ -466,6 +402,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
         weight: 0,
         fillColor: f.properties.color,
         fillOpacity: f.properties.opacity,
+        fillRule: 'evenodd', // the bucket-fill parity trick above depends on this
         interactive: false,
       }),
     });
