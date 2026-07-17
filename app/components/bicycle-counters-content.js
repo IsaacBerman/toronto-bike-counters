@@ -147,8 +147,8 @@ export default function BicycleCountersContent() {
               {/* Rear wheel */}
               <circle cx="12" cy="42" r="12" stroke="#374151" strokeWidth="2.5" fill="none"/>
               <g>
-                <animateTransform attributeName="transform" type="rotate" from="0 12 42" to="360 12 42" dur="0.5s" repeatCount="indefinite"/>
-                <line x1="12" y1="31" x2="12" y2="53" stroke="#9ca3af" strokeWidth="1.5"/>
+                <animateTransform attributeName="transform" type="rotate" from="0 12 42" to="360 12 42" dur="1.4s" repeatCount="indefinite"/>
+                <line x1="12" y1="31" x2="12" y2="53" stroke="#4b5563" strokeWidth="2.5"/>
                 <line x1="1" y1="42" x2="23" y2="42" stroke="#9ca3af" strokeWidth="1.5"/>
                 <line x1="4.2" y1="34.2" x2="19.8" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
                 <line x1="19.8" y1="34.2" x2="4.2" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
@@ -157,8 +157,8 @@ export default function BicycleCountersContent() {
               {/* Front wheel */}
               <circle cx="58" cy="42" r="12" stroke="#374151" strokeWidth="2.5" fill="none"/>
               <g>
-                <animateTransform attributeName="transform" type="rotate" from="0 58 42" to="360 58 42" dur="0.5s" repeatCount="indefinite"/>
-                <line x1="58" y1="31" x2="58" y2="53" stroke="#9ca3af" strokeWidth="1.5"/>
+                <animateTransform attributeName="transform" type="rotate" from="0 58 42" to="360 58 42" dur="1.4s" repeatCount="indefinite"/>
+                <line x1="58" y1="31" x2="58" y2="53" stroke="#4b5563" strokeWidth="2.5"/>
                 <line x1="47" y1="42" x2="69" y2="42" stroke="#9ca3af" strokeWidth="1.5"/>
                 <line x1="50.2" y1="34.2" x2="65.8" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
                 <line x1="65.8" y1="34.2" x2="50.2" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
@@ -189,10 +189,10 @@ export default function BicycleCountersContent() {
               <line x1="48" y1="18" x2="56" y2="16" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round"/>
               {/* Rider legs */}
               <line x1="46" y1="24" x2="36" y2="36" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round">
-                <animateTransform attributeName="transform" type="rotate" values="14 46 24; -14 46 24; 14 46 24" dur="0.5s" repeatCount="indefinite"/>
+                <animateTransform attributeName="transform" type="rotate" values="14 46 24; -14 46 24; 14 46 24" dur="1.4s" repeatCount="indefinite"/>
               </line>
               <line x1="46" y1="24" x2="30" y2="34" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round" opacity="0.5">
-                <animateTransform attributeName="transform" type="rotate" values="-14 46 24; 14 46 24; -14 46 24" dur="0.5s" repeatCount="indefinite"/>
+                <animateTransform attributeName="transform" type="rotate" values="-14 46 24; 14 46 24; -14 46 24" dur="1.4s" repeatCount="indefinite"/>
               </line>
             </svg>
           </div>
