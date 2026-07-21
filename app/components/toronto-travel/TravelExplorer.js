@@ -552,7 +552,7 @@ function StackedShareChart({ data, goal, angledTicks, highlight = [], highlightC
           stroke={ACCENT}
           strokeDasharray="5 4"
           strokeWidth={1.5}
-          label={{ value: '75% goal', position: 'right', fill: ACCENT, fontSize: 10, fontWeight: 700 }}
+          label={{ value: 'Goal', position: 'right', fill: ACCENT, fontSize: 10, fontWeight: 700 }}
         />
       )}
       {STACK_ORDER.map((gid) => {
