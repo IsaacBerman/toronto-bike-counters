@@ -11,6 +11,8 @@ import {
   ResponsiveContainer,
   LabelList,
   ReferenceLine,
+  usePlotArea,
+  useYAxisScale,
 } from 'recharts';
 import {
   MODE_GROUPS,
@@ -333,6 +335,7 @@ export default function TravelExplorer() {
                 data={overTime}
                 goal={isCommute && bucketIsShort}
                 highlight={highlightGroups}
+                highlightColor={colorBy === 'sustainable' ? NEON : INK}
               />
             </ChartBlock>
 
@@ -511,7 +514,7 @@ function ChartBlock({ title, subtitle, children }) {
   );
 }
 
-function StackedShareChart({ data, goal, angledTicks, highlight = [] }) {
+function StackedShareChart({ data, goal, angledTicks, highlight = [], highlightColor = INK }) {
   return (
     <BarChart data={data} margin={{ top: 4, right: goal ? 48 : 8, bottom: angledTicks ? 18 : 4, left: 0 }}>
       <XAxis
@@ -543,18 +546,8 @@ function StackedShareChart({ data, goal, angledTicks, highlight = [] }) {
       )}
       {STACK_ORDER.map((gid) => {
         const g = GROUP_BY_ID[gid];
-        const on = highlight.includes(gid);
         return (
-          <Bar
-            key={gid}
-            dataKey={gid}
-            stackId="s"
-            fill={g.color}
-            stroke={on ? INK : undefined}
-            strokeWidth={on ? 2 : 0}
-            maxBarSize={54}
-            isAnimationActive={false}
-          >
+          <Bar key={gid} dataKey={gid} stackId="s" fill={g.color} isAnimationActive={false}>
             <LabelList
               dataKey={gid}
               position="center"
@@ -564,7 +557,50 @@ function StackedShareChart({ data, goal, angledTicks, highlight = [] }) {
           </Bar>
         );
       })}
+      {/* Outline around the highlighted (colour-map-by) band, drawn last so it
+          sits on top of every bar and its edges are never clipped. */}
+      <HighlightBand data={data} groups={highlight} color={highlightColor} />
     </BarChart>
+  );
+}
+
+// One stroke-only rectangle per category spanning the highlighted, contiguous
+// stack band (e.g. transit+walk+cycle for "sustainable") — no internal lines.
+function HighlightBand({ data, groups, color }) {
+  const plot = usePlotArea();
+  const yScale = useYAxisScale();
+  if (!plot || !yScale || !groups?.length || !data?.length) return null;
+  const firstIdx = STACK_ORDER.findIndex((g) => groups.includes(g));
+  if (firstIdx < 0) return null;
+  const belowGroups = STACK_ORDER.slice(0, firstIdx);
+  const n = data.length;
+  const band = plot.width / n;
+  const barW = band * 0.9; // matches Recharts' default 10% category gap
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      {data.map((row, i) => {
+        const below = belowGroups.reduce((s, g) => s + (row[g] || 0), 0);
+        const val = groups.reduce((s, g) => s + (row[g] || 0), 0);
+        if (val <= 0.01) return null;
+        const yTop = yScale(below + val);
+        const yBot = yScale(below);
+        if (yTop == null || yBot == null) return null;
+        const x = plot.x + i * band + (band - barW) / 2;
+        return (
+          <rect
+            key={i}
+            x={x}
+            y={yTop}
+            width={barW}
+            height={yBot - yTop}
+            fill="none"
+            stroke={color}
+            strokeWidth={2.5}
+            rx={2}
+          />
+        );
+      })}
+    </g>
   );
 }
 
