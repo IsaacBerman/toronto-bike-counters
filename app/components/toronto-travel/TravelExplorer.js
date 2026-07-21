@@ -57,6 +57,13 @@ export default function TravelExplorer() {
   const [year, setYear] = useState(2022);
   const [bucket, setBucket] = useState('under5'); // default to the goal's distance band
   const [ward, setWard] = useState('city'); // 'city' = whole city, or a ward number
+  const [lastWard, setLastWard] = useState(13); // most recent ward focus (Toronto Centre default)
+
+  // Selecting a ward remembers it, so un-checking "Entire City" can return to it.
+  const selectWard = (w) => {
+    setWard(w);
+    if (w !== 'city') setLastWard(w);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -271,18 +278,18 @@ export default function TravelExplorer() {
         <div className="grid lg:grid-cols-2 gap-5 mt-6">
           <div className="dd-panel p-3">
             <div className="flex items-center justify-between gap-2 mb-2 px-1">
-              <button
-                onClick={() => setWard('city')}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-bold transition-all"
-                style={{
-                  background: isCity ? 'var(--panel)' : '#e9e7de',
-                  color: isCity ? INK : INK2,
-                  border: `1.5px solid ${isCity ? INK : 'transparent'}`,
-                }}
-              >
-                <span className="inline-block h-3 w-3 rounded-sm" style={{ border: `2px solid ${INK}` }} />
-                Entire City
-              </button>
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isCity}
+                  onChange={(e) => selectWard(e.target.checked ? 'city' : lastWard)}
+                  className="h-4 w-4"
+                  style={{ accentColor: INK }}
+                />
+                <span className="text-xs font-bold" style={{ color: isCity ? INK : INK2 }}>
+                  Entire City
+                </span>
+              </label>
               <p className="text-xs" style={{ color: INK3 }}>
                 {isCity ? 'Click a ward to focus it' : 'Click the map or a ward to change focus'}
               </p>
@@ -293,7 +300,7 @@ export default function TravelExplorer() {
               citySelected={isCity}
               wardStyles={wardStyles}
               selectedWard={ward}
-              onSelectWard={setWard}
+              onSelectWard={selectWard}
               className="h-[440px] sm:h-[520px] w-full rounded"
             />
             <div className="flex items-center justify-between flex-wrap gap-2 mt-3 px-1">
