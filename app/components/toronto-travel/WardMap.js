@@ -7,11 +7,20 @@ import { useEffect, useRef, useState } from 'react';
 // distance selection). Clicking a ward calls onSelectWard; the selected ward
 // gets a heavy outline. The layer is built once, then re-styled in place when
 // the selection changes — rebuilding on every control change flickered.
-export default function WardMap({ geo, wardStyles, selectedWard, onSelectWard, className }) {
+export default function WardMap({
+  geo,
+  cityBoundary,
+  citySelected,
+  wardStyles,
+  selectedWard,
+  onSelectWard,
+  className,
+}) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
   const LRef = useRef(null);
   const layersRef = useRef(new Map()); // ward -> leaflet layer
+  const cityLayerRef = useRef(null);
   const onSelectRef = useRef(onSelectWard);
   const [ready, setReady] = useState(false);
 
@@ -101,6 +110,23 @@ export default function WardMap({ geo, wardStyles, selectedWard, onSelectWard, c
     }
     if (selectedLayer?.bringToFront) selectedLayer.bringToFront();
   }, [wardStyles, selectedWard, ready]);
+
+  // City-boundary highlight: shown only when "Entire City" is selected. A heavy
+  // ink outline around the whole city, kept on top of every ward border.
+  useEffect(() => {
+    const L = LRef.current;
+    const map = mapRef.current;
+    if (!L || !map || !cityBoundary) return;
+    if (cityLayerRef.current) {
+      cityLayerRef.current.remove();
+      cityLayerRef.current = null;
+    }
+    if (!citySelected) return;
+    cityLayerRef.current = L.geoJSON(cityBoundary, {
+      style: { color: '#16150f', weight: 4, fill: false, interactive: false },
+    }).addTo(map);
+    cityLayerRef.current.bringToFront();
+  }, [cityBoundary, citySelected, ready]);
 
   return (
     <div

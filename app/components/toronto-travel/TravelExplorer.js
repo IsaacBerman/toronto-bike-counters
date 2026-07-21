@@ -11,16 +11,13 @@ import {
   ResponsiveContainer,
   LabelList,
   ReferenceLine,
-  LineChart,
-  Line,
-  CartesianGrid,
-  ReferenceDot,
 } from 'recharts';
 import {
   MODE_GROUPS,
   GROUP_BY_ID,
   GROUP_CONTENTS,
   STACK_ORDER,
+  SUSTAINABLE_GROUPS,
   TRANSFORMTO,
   SHORT_BUCKETS,
   wardGroupTotals,
@@ -52,24 +49,27 @@ const COLOR_OPTIONS = [
 export default function TravelExplorer() {
   const [json, setJson] = useState(null);
   const [geo, setGeo] = useState(null);
+  const [cityBoundary, setCityBoundary] = useState(null);
   const [err, setErr] = useState(null);
 
   const [tripSet, setTripSet] = useState('commute'); // 'all' | 'commute'
   const [colorBy, setColorBy] = useState('sustainable');
   const [year, setYear] = useState(2022);
   const [bucket, setBucket] = useState('under5'); // default to the goal's distance band
-  const [ward, setWard] = useState(13); // Toronto Centre — a downtown ward
+  const [ward, setWard] = useState('city'); // 'city' = whole city, or a ward number
 
   useEffect(() => {
     let alive = true;
     Promise.all([
       fetch('/tts/mode-share.json').then((r) => r.json()),
       fetch('/tts/wards25.geojson').then((r) => r.json()),
+      fetch('/tts/city-boundary.geojson').then((r) => r.json()),
     ])
-      .then(([d, g]) => {
+      .then(([d, g, cb]) => {
         if (!alive) return;
         setJson(d);
         setGeo(g);
+        setCityBoundary(cb);
       })
       .catch((e) => alive && setErr(String(e)));
     return () => {
@@ -90,8 +90,16 @@ export default function TravelExplorer() {
         ? 'under 5 km'
         : buckets.find((b) => b.id === bucket)?.label ?? bucket;
   const isCommute = tripSet === 'commute';
+  const isCity = ward === 'city';
   // The goal line is only meaningful for the < 5 km bands it's defined on.
   const bucketIsShort = bucket === 'under5' || SHORT_BUCKETS.includes(bucket);
+  // The "colour map by" selection is echoed as an outline on the matching
+  // segment(s) of the over-time chart.
+  const highlightGroups = colorBy === 'sustainable' ? SUSTAINABLE_GROUPS : [colorBy];
+
+  // Group totals for the current subject (a ward, or the whole city).
+  const totalsFor = (d, y, w, b) =>
+    w === 'city' ? cityGroupTotals(d, y, b) : wardGroupTotals(d, y, w, b);
 
   // ---- Map fill styling ----
   const wardStyles = useMemo(() => {
@@ -156,38 +164,29 @@ export default function TravelExplorer() {
     return { share, prevYear, prevShare, atGoal };
   }, [commute, year, years]);
 
-  // ---- City-wide under-5 km sustainable commute share over time (headline) ----
-  const cityTrend = useMemo(() => {
-    if (!commute) return [];
-    return years.map((y) => ({
-      year: y,
-      sustainable: +(sustainableShareOf(cityGroupTotals(commute, y, 'under5')) * 100).toFixed(1),
-    }));
-  }, [commute, years]);
-
-  // ---- Detail panel data (respects tripSet) ----
+  // ---- Detail panel data (respects tripSet; subject = ward or whole city) ----
   const overTime = useMemo(() => {
     if (!dataset) return [];
     return years.map((y) => {
-      const p = groupPercents(wardGroupTotals(dataset, y, ward, bucket));
+      const p = groupPercents(totalsFor(dataset, y, ward, bucket));
       return { name: String(y), ...p };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset, years, ward, bucket]);
 
   const byDistance = useMemo(() => {
     if (!dataset) return [];
     return buckets.map((b) => {
-      const p = groupPercents(wardGroupTotals(dataset, year, ward, b.id));
+      const p = groupPercents(totalsFor(dataset, year, ward, b.id));
       return { name: b.label, ...p };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset, buckets, year, ward]);
 
-  const wardTotals = dataset ? wardGroupTotals(dataset, year, ward, bucket) : null;
-  const wardTripCount = wardTotals ? groupSum(wardTotals) : 0;
-  // The ward's standing against the 2030 goal (under-5 km commute trips).
-  const wardGoalShare = commute
-    ? sustainableShareOf(wardGroupTotals(commute, year, ward, 'under5'))
-    : 0;
+  const subjectTotals = dataset ? totalsFor(dataset, year, ward, bucket) : null;
+  const subjectTripCount = subjectTotals ? groupSum(subjectTotals) : 0;
+  // The subject's standing against the 2030 goal (under-5 km commute trips).
+  const goalShare = commute ? sustainableShareOf(totalsFor(commute, year, ward, 'under5')) : 0;
 
   if (err)
     return (
@@ -271,8 +270,27 @@ export default function TravelExplorer() {
         {/* Map + detail */}
         <div className="grid lg:grid-cols-2 gap-5 mt-6">
           <div className="dd-panel p-3">
+            <div className="flex items-center justify-between gap-2 mb-2 px-1">
+              <button
+                onClick={() => setWard('city')}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-bold transition-all"
+                style={{
+                  background: isCity ? 'var(--panel)' : '#e9e7de',
+                  color: isCity ? INK : INK2,
+                  border: `1.5px solid ${isCity ? INK : 'transparent'}`,
+                }}
+              >
+                <span className="inline-block h-3 w-3 rounded-sm" style={{ border: `2px solid ${INK}` }} />
+                Entire City
+              </button>
+              <p className="text-xs" style={{ color: INK3 }}>
+                {isCity ? 'Click a ward to focus it' : 'Click the map or a ward to change focus'}
+              </p>
+            </div>
             <WardMap
               geo={geo}
+              cityBoundary={cityBoundary}
+              citySelected={isCity}
               wardStyles={wardStyles}
               selectedWard={ward}
               onSelectWard={setWard}
@@ -290,28 +308,32 @@ export default function TravelExplorer() {
             </div>
           </div>
 
-          {/* Ward detail */}
+          {/* Ward / city detail */}
           <div className="dd-panel-ruled p-5">
             <div className="flex items-baseline justify-between gap-3 flex-wrap">
               <h2 className="dd-title text-2xl" style={{ color: INK }}>
-                {wardNames[ward]}
+                {isCity ? 'Entire City' : wardNames[ward]}
               </h2>
               <span className="text-xs font-bold" style={{ color: INK3 }}>
-                WARD {ward}
+                {isCity ? 'CITY OF TORONTO' : `WARD ${ward}`}
               </span>
             </div>
             <p className="text-xs mt-1 mb-4" style={{ color: INK3 }}>
-              {fmt.format(Math.round(wardTripCount))} {isCommute ? 'work/school' : ''} trips ·{' '}
+              {fmt.format(Math.round(subjectTripCount))} {isCommute ? 'work/school' : ''} trips ·{' '}
               {year} · {bucketLabel}
             </p>
 
-            {isCommute && <WardGoalBadge share={wardGoalShare} />}
+            {isCommute && <WardGoalBadge share={goalShare} city={isCity} />}
 
             <ChartBlock
               title={`Mode share over time`}
               subtitle={`${isCommute ? 'Work & school trips' : 'All trips'} · ${bucketLabel}`}
             >
-              <StackedShareChart data={overTime} goal={isCommute && bucketIsShort} />
+              <StackedShareChart
+                data={overTime}
+                goal={isCommute && bucketIsShort}
+                highlight={highlightGroups}
+              />
             </ChartBlock>
 
             <ChartBlock
@@ -322,73 +344,6 @@ export default function TravelExplorer() {
             </ChartBlock>
 
             <Legend />
-          </div>
-        </div>
-
-        {/* City-wide TransformTO chart */}
-        <div className="dd-panel-ruled p-5 mt-6">
-          <h2 className="dd-title text-2xl mb-1" style={{ color: INK }}>
-            City-wide progress to the 2030 goal
-          </h2>
-          <p className="text-sm mb-5" style={{ color: INK2 }}>
-            Share of Toronto&rsquo;s <b style={{ color: INK }}>under-5 km</b> work and school trips
-            made by walking, cycling or transit, across every ward. The dashed line is the
-            TransformTO target.
-          </p>
-          <div style={{ width: '100%', height: 300 }}>
-            <ResponsiveContainer>
-              <LineChart data={cityTrend} margin={{ top: 8, right: 24, bottom: 4, left: -8 }}>
-                <CartesianGrid stroke="#e2e0d6" vertical={false} />
-                <XAxis
-                  dataKey="year"
-                  type="number"
-                  domain={[2001, 2030]}
-                  ticks={[...years, 2030]}
-                  tick={{ fill: INK3, fontSize: 12 }}
-                  stroke="#c3c2b7"
-                />
-                <YAxis
-                  domain={[0, 100]}
-                  ticks={[0, 25, 50, 75, 100]}
-                  tickFormatter={(v) => `${v}%`}
-                  tick={{ fill: INK3, fontSize: 12 }}
-                  stroke="#c3c2b7"
-                />
-                <Tooltip
-                  formatter={(v) => [`${v}%`, 'Sustainable']}
-                  contentStyle={{
-                    border: '1px solid #e2e0d6',
-                    borderRadius: 6,
-                    fontSize: 13,
-                  }}
-                />
-                <ReferenceLine
-                  y={75}
-                  stroke={ACCENT}
-                  strokeDasharray="6 4"
-                  strokeWidth={1.5}
-                  label={{ value: '2030 goal · 75%', position: 'insideTopRight', fill: ACCENT, fontSize: 12, fontWeight: 700 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="sustainable"
-                  stroke={SUSTAIN_COLOR}
-                  strokeWidth={2.5}
-                  dot={{ r: 4, fill: SUSTAIN_COLOR, strokeWidth: 0 }}
-                  activeDot={{ r: 6 }}
-                  isAnimationActive={false}
-                />
-                <ReferenceDot
-                  x={2030}
-                  y={75}
-                  r={6}
-                  fill={ACCENT}
-                  stroke="#fff"
-                  strokeWidth={2}
-                  isFront
-                />
-              </LineChart>
-            </ResponsiveContainer>
           </div>
         </div>
 
@@ -465,7 +420,7 @@ function TransformTracker({ tracker, year }) {
   );
 }
 
-function WardGoalBadge({ share }) {
+function WardGoalBadge({ share, city }) {
   const hit = share >= TRANSFORMTO.share;
   const pct = (share * 100).toFixed(0);
   return (
@@ -480,7 +435,8 @@ function WardGoalBadge({ share }) {
         {hit ? '✓' : '→'}
       </span>
       <span className="text-sm" style={{ color: INK2 }}>
-        <b style={{ color: INK }}>{pct}%</b> of under-5 km commutes sustainable —{' '}
+        <b style={{ color: INK }}>{pct}%</b> of {city ? "the city's " : ''}under-5 km commutes
+        sustainable —{' '}
         {hit ? 'meets the 2030 goal' : `${(75 - share * 100).toFixed(0)} pts below the 75% goal`}
       </span>
     </div>
@@ -555,7 +511,7 @@ function ChartBlock({ title, subtitle, children }) {
   );
 }
 
-function StackedShareChart({ data, goal, angledTicks }) {
+function StackedShareChart({ data, goal, angledTicks, highlight = [] }) {
   return (
     <BarChart data={data} margin={{ top: 4, right: goal ? 48 : 8, bottom: angledTicks ? 18 : 4, left: 0 }}>
       <XAxis
@@ -587,8 +543,18 @@ function StackedShareChart({ data, goal, angledTicks }) {
       )}
       {STACK_ORDER.map((gid) => {
         const g = GROUP_BY_ID[gid];
+        const on = highlight.includes(gid);
         return (
-          <Bar key={gid} dataKey={gid} stackId="s" fill={g.color} maxBarSize={54} isAnimationActive={false}>
+          <Bar
+            key={gid}
+            dataKey={gid}
+            stackId="s"
+            fill={g.color}
+            stroke={on ? INK : undefined}
+            strokeWidth={on ? 2 : 0}
+            maxBarSize={54}
+            isAnimationActive={false}
+          >
             <LabelList
               dataKey={gid}
               position="center"
