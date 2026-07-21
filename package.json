@@ -7,6 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "build:data": "node scripts/build-tts.mjs",
+    "build:cycling": "node scripts/build-cycling.mjs",
     "lint": "eslint"
   },
   "dependencies": {

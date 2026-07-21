@@ -36,9 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
-# TTS raw exports (large; inputs to scripts/build-tts.mjs — the generated
-# public/tts/mode-share.json is committed instead). See scripts/build-tts.mjs.
+# Raw data exports (large; inputs to the scripts/build-*.mjs generators — the
+# small generated files in public/ are committed instead).
 /data/*.txt
+/data/*.csv
 /scratch_tts
 
 # typescript

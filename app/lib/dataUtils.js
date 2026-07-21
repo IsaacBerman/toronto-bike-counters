@@ -1,6 +1,4 @@
 
-import Papa from 'papaparse';
-
 // Add this helper function at the top of dataUtils.js
 export function getCurrentESTTime() {
   const now = new Date();
@@ -48,10 +46,8 @@ export async function loadBikeshareHourlyData() {
     lastYearEndDate.setFullYear(lastYearEndDate.getFullYear() - 1);
     
     const lastYearData = await loadBikeshareHourlyDataForDateRange(lastYearStartDate, lastYearEndDate);
-    console.log(estTime, currentYearData)
     // Process both datasets
     const processedCurrentYear = processBikeshareHourlyData(currentYearData, 'current', estTime);
-    console.log(processedCurrentYear)
     const processedLastYear = processBikeshareHourlyData(lastYearData, 'lastYear', estTime);
     
     return {
@@ -117,22 +113,22 @@ export function processBikeshareHourlyData(rawData, yearType = 'current', estTim
 
 export async function loadCSVData() {
   try {
-    const response = await fetch('/cycling_counts_june_26.csv');
-    const csvText = await response.text();
-    
-    return new Promise((resolve, reject) => {
-      Papa.parse(csvText, {
-        header: true,
-        complete: (results) => {
-          resolve(results.data);
-        },
-        error: (error) => {
-          reject(error);
-        }
-      });
-    });
+    // Pre-extracted, direction-summed daily counts (see scripts/build-cycling.mjs).
+    // Expanded back into the per-location-per-day row shape processCounterData
+    // expects, so that function is unchanged.
+    const response = await fetch('/cycling-counts.json');
+    const { counters } = await response.json();
+
+    const rows = [];
+    for (const counter of counters) {
+      const { location, dates, volumes } = counter;
+      for (let i = 0; i < dates.length; i++) {
+        rows.push({ location_name: location, dt: dates[i], daily_volume: volumes[i] });
+      }
+    }
+    return rows;
   } catch (error) {
-    console.error('Error loading CSV data:', error);
+    console.error('Error loading cycling counts:', error);
     return [];
   }
 }
