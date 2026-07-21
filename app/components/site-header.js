@@ -32,6 +32,7 @@ export default function SiteHeader({ current }) {
         <nav className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-5">
           <div className="flex gap-4 sm:gap-5 items-center">
             {navItem('/bike-counters', 'Bicycle Counters', 'bike-counters')}
+            {navItem('/transform-toronto', 'Transform Toronto', 'transform-toronto')}
             {navItem('/downtown-definer', 'Where is Downtown?', 'downtown-definer')}
           </div>
           <a

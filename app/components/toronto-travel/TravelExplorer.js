@@ -1,0 +1,627 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  LabelList,
+  ReferenceLine,
+  LineChart,
+  Line,
+  CartesianGrid,
+  ReferenceDot,
+} from 'recharts';
+import {
+  MODE_GROUPS,
+  GROUP_BY_ID,
+  GROUP_CONTENTS,
+  STACK_ORDER,
+  TRANSFORMTO,
+  wardGroupTotals,
+  cityGroupTotals,
+  groupSum,
+  groupShare,
+  groupPercents,
+  sustainableShareOf,
+  mixHex,
+} from '../../lib/tts';
+
+const WardMap = dynamic(() => import('./WardMap'), { ssr: false });
+
+const RAMP_BASE = '#f1efe6'; // near-paper tint the choropleth fades toward at ~0
+const SUSTAIN_COLOR = '#0f9d63'; // green for the sustainable / TransformTO ramp
+const ACCENT = '#e8590c';
+const INK = '#16150f';
+const INK2 = '#57554b';
+const INK3 = '#8a887c';
+const fmt = new Intl.NumberFormat('en-CA');
+
+// "Colour map by" options: the five mode groups plus sustainable (TransformTO).
+const COLOR_OPTIONS = [
+  { id: 'sustainable', label: 'Sustainable', color: SUSTAIN_COLOR },
+  ...MODE_GROUPS.map((g) => ({ id: g.id, label: g.label, color: g.color })),
+];
+
+export default function TravelExplorer() {
+  const [json, setJson] = useState(null);
+  const [geo, setGeo] = useState(null);
+  const [err, setErr] = useState(null);
+
+  const [tripSet, setTripSet] = useState('commute'); // 'all' | 'commute'
+  const [colorBy, setColorBy] = useState('sustainable');
+  const [year, setYear] = useState(2022);
+  const [bucket, setBucket] = useState('all');
+  const [ward, setWard] = useState(13); // Toronto Centre — a downtown ward
+
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      fetch('/tts/mode-share.json').then((r) => r.json()),
+      fetch('/tts/wards25.geojson').then((r) => r.json()),
+    ])
+      .then(([d, g]) => {
+        if (!alive) return;
+        setJson(d);
+        setGeo(g);
+      })
+      .catch((e) => alive && setErr(String(e)));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const meta = json?.meta;
+  const dataset = json?.datasets?.[tripSet];
+  const commute = json?.datasets?.commute;
+  const years = meta?.years ?? [];
+  const buckets = meta?.buckets ?? [];
+  const wardNames = meta?.wardNames ?? {};
+  const bucketLabel =
+    bucket === 'all' ? 'all distances' : buckets.find((b) => b.id === bucket)?.label ?? bucket;
+  const isCommute = tripSet === 'commute';
+
+  // ---- Map fill styling ----
+  const wardStyles = useMemo(() => {
+    if (!dataset || !geo) return {};
+    const wardIds = geo.features.map((f) => f.properties.ward);
+    const styles = {};
+    if (colorBy === 'sustainable') {
+      for (const w of wardIds) {
+        const totals = wardGroupTotals(dataset, year, w, bucket);
+        const share = sustainableShareOf(totals);
+        const t = Math.min(share / 0.8, 1); // absolute scale so colour ~ tracks 75%
+        const atGoal = isCommute && share >= TRANSFORMTO.share && groupSum(totals) > 0;
+        styles[w] = {
+          fillColor: groupSum(totals) > 0 ? mixHex(RAMP_BASE, SUSTAIN_COLOR, t) : '#e9e7de',
+          strokeColor: atGoal ? ACCENT : undefined,
+          strokeWeight: atGoal ? 3 : undefined,
+          label: `<b>${wardNames[w]}</b><br>${(share * 100).toFixed(0)}% sustainable${
+            isCommute ? (share >= TRANSFORMTO.share ? ' ✓ meets 2030 goal' : '') : ''
+          }`,
+        };
+      }
+    } else {
+      const g = GROUP_BY_ID[colorBy];
+      const shares = {};
+      let max = 0;
+      for (const w of wardIds) {
+        const s = groupShare(dataset, year, w, bucket, colorBy);
+        shares[w] = s;
+        if (s > max) max = s;
+      }
+      for (const w of wardIds) {
+        const t = max > 0 ? shares[w] / max : 0;
+        styles[w] = {
+          fillColor: mixHex(RAMP_BASE, g.color, t),
+          label: `<b>${wardNames[w]}</b><br>${(shares[w] * 100).toFixed(0)}% ${g.label.toLowerCase()}`,
+        };
+      }
+    }
+    return styles;
+  }, [dataset, geo, colorBy, year, bucket, isCommute, wardNames]);
+
+  // ---- TransformTO tracker (always commute, all distances, selected year) ----
+  const tracker = useMemo(() => {
+    if (!commute) return null;
+    const city = cityGroupTotals(commute, year, 'all');
+    const share = sustainableShareOf(city);
+    const idx = years.indexOf(year);
+    const prevYear = idx > 0 ? years[idx - 1] : null;
+    const prevShare = prevYear
+      ? sustainableShareOf(cityGroupTotals(commute, prevYear, 'all'))
+      : null;
+    let atGoal = 0;
+    for (const w of Object.keys(commute[year] ?? {})) {
+      if (sustainableShareOf(wardGroupTotals(commute, year, w, 'all')) >= TRANSFORMTO.share)
+        atGoal += 1;
+    }
+    return { share, prevYear, prevShare, atGoal };
+  }, [commute, year, years]);
+
+  // ---- City-wide sustainable commute share over time (headline chart) ----
+  const cityTrend = useMemo(() => {
+    if (!commute) return [];
+    return years.map((y) => ({
+      year: y,
+      sustainable: +(sustainableShareOf(cityGroupTotals(commute, y, 'all')) * 100).toFixed(1),
+    }));
+  }, [commute, years]);
+
+  // ---- Detail panel data (respects tripSet) ----
+  const overTime = useMemo(() => {
+    if (!dataset) return [];
+    return years.map((y) => {
+      const p = groupPercents(wardGroupTotals(dataset, y, ward, bucket));
+      return { name: String(y), ...p };
+    });
+  }, [dataset, years, ward, bucket]);
+
+  const byDistance = useMemo(() => {
+    if (!dataset) return [];
+    return buckets.map((b) => {
+      const p = groupPercents(wardGroupTotals(dataset, year, ward, b.id));
+      return { name: b.label, ...p };
+    });
+  }, [dataset, buckets, year, ward]);
+
+  const wardTotals = dataset ? wardGroupTotals(dataset, year, ward, bucket) : null;
+  const wardSustain = wardTotals ? sustainableShareOf(wardTotals) : 0;
+  const wardTripCount = wardTotals ? groupSum(wardTotals) : 0;
+
+  if (err)
+    return (
+      <div className="container mx-auto px-4 max-w-6xl py-16">
+        <p style={{ color: INK2 }}>Could not load the data ({err}).</p>
+      </div>
+    );
+  if (!json || !geo)
+    return (
+      <div className="container mx-auto px-4 max-w-6xl py-24 text-center">
+        <p className="dd-title text-xl" style={{ color: INK2 }}>
+          Loading Toronto travel data…
+        </p>
+      </div>
+    );
+
+  return (
+    <div style={{ background: 'var(--paper)' }}>
+      <div className="container mx-auto px-4 max-w-6xl py-8 sm:py-12">
+        {/* Intro */}
+        <p className="dd-kicker mb-3">Toronto · Transportation Tomorrow Survey</p>
+        <h1 className="dd-title text-4xl sm:text-5xl mb-4" style={{ color: INK }}>
+          Transform Toronto Tracking
+        </h1>
+        <p className="max-w-2xl text-sm leading-relaxed mb-8" style={{ color: INK2 }}>
+          Mode share by ward, trip distance and survey year, from the Transportation Tomorrow
+          Survey. Click any ward to explore how it travels — and track progress toward{' '}
+          <b style={{ color: INK }}>TransformTO</b>, the City&rsquo;s goal of{' '}
+          <b style={{ color: INK }}>75% of work and school trips by walking, cycling or transit by
+          2030</b>.
+        </p>
+
+        {/* TransformTO tracker */}
+        {tracker && <TransformTracker tracker={tracker} year={year} />}
+
+        {/* Controls */}
+        <div className="dd-panel-ruled p-4 sm:p-5 mt-6 grid gap-5 md:grid-cols-2">
+          <Control label="Trips">
+            <Segmented
+              options={[
+                { id: 'all', label: 'All trips' },
+                { id: 'commute', label: 'Commute (work / school)' },
+              ]}
+              value={tripSet}
+              onChange={setTripSet}
+            />
+          </Control>
+          <Control label="Survey year">
+            <Segmented
+              options={years.map((y) => ({ id: y, label: String(y) }))}
+              value={year}
+              onChange={setYear}
+            />
+          </Control>
+          <Control label="Colour map by">
+            <div className="flex flex-wrap gap-1.5">
+              {COLOR_OPTIONS.map((o) => (
+                <Swatch
+                  key={o.id}
+                  active={colorBy === o.id}
+                  color={o.color}
+                  label={o.label}
+                  onClick={() => setColorBy(o.id)}
+                />
+              ))}
+            </div>
+          </Control>
+          <Control label="Trip distance">
+            <Segmented
+              options={[{ id: 'all', label: 'All' }, ...buckets.map((b) => ({ id: b.id, label: b.label }))]}
+              value={bucket}
+              onChange={setBucket}
+            />
+          </Control>
+        </div>
+
+        {/* Map + detail */}
+        <div className="grid lg:grid-cols-2 gap-5 mt-6">
+          <div className="dd-panel p-3">
+            <WardMap
+              geo={geo}
+              wardStyles={wardStyles}
+              selectedWard={ward}
+              onSelectWard={setWard}
+              className="h-[440px] sm:h-[520px] w-full rounded"
+            />
+            <div className="flex items-center justify-between flex-wrap gap-2 mt-3 px-1">
+              <p className="text-xs" style={{ color: INK3 }}>
+                {colorBy === 'sustainable'
+                  ? `Shaded by walk + cycle + transit share${
+                      isCommute ? ' · gold outline = meets 2030 goal' : ''
+                    }`
+                  : `Shaded by ${GROUP_BY_ID[colorBy].label.toLowerCase()} share (darkest = highest)`}
+              </p>
+              <p className="text-xs font-semibold" style={{ color: INK3 }}>
+                {year} · {bucketLabel}
+              </p>
+            </div>
+          </div>
+
+          {/* Ward detail */}
+          <div className="dd-panel-ruled p-5">
+            <div className="flex items-baseline justify-between gap-3 flex-wrap">
+              <h2 className="dd-title text-2xl" style={{ color: INK }}>
+                {wardNames[ward]}
+              </h2>
+              <span className="text-xs font-bold" style={{ color: INK3 }}>
+                WARD {ward}
+              </span>
+            </div>
+            <p className="text-xs mt-1 mb-4" style={{ color: INK3 }}>
+              {fmt.format(Math.round(wardTripCount))} {isCommute ? 'work/school' : ''} trips ·{' '}
+              {year} · {bucketLabel}
+            </p>
+
+            {isCommute && (
+              <WardGoalBadge share={wardSustain} />
+            )}
+
+            <ChartBlock
+              title={`Mode share over time`}
+              subtitle={`${isCommute ? 'Work & school trips' : 'All trips'} · ${bucketLabel}`}
+            >
+              <StackedShareChart data={overTime} goal={isCommute} />
+            </ChartBlock>
+
+            <ChartBlock
+              title="Mode share by trip distance"
+              subtitle={`${isCommute ? 'Work & school trips' : 'All trips'} · ${year}`}
+            >
+              <StackedShareChart data={byDistance} goal={false} angledTicks />
+            </ChartBlock>
+
+            <Legend />
+          </div>
+        </div>
+
+        {/* City-wide TransformTO chart */}
+        <div className="dd-panel-ruled p-5 mt-6">
+          <h2 className="dd-title text-2xl mb-1" style={{ color: INK }}>
+            City-wide progress to the 2030 goal
+          </h2>
+          <p className="text-sm mb-5" style={{ color: INK2 }}>
+            Share of Toronto&rsquo;s work and school trips made by walking, cycling or transit,
+            across every ward. The dashed line is the TransformTO target.
+          </p>
+          <div style={{ width: '100%', height: 300 }}>
+            <ResponsiveContainer>
+              <LineChart data={cityTrend} margin={{ top: 8, right: 24, bottom: 4, left: -8 }}>
+                <CartesianGrid stroke="#e2e0d6" vertical={false} />
+                <XAxis
+                  dataKey="year"
+                  type="number"
+                  domain={[2001, 2030]}
+                  ticks={[...years, 2030]}
+                  tick={{ fill: INK3, fontSize: 12 }}
+                  stroke="#c3c2b7"
+                />
+                <YAxis
+                  domain={[0, 100]}
+                  ticks={[0, 25, 50, 75, 100]}
+                  tickFormatter={(v) => `${v}%`}
+                  tick={{ fill: INK3, fontSize: 12 }}
+                  stroke="#c3c2b7"
+                />
+                <Tooltip
+                  formatter={(v) => [`${v}%`, 'Sustainable']}
+                  contentStyle={{
+                    border: '1px solid #e2e0d6',
+                    borderRadius: 6,
+                    fontSize: 13,
+                  }}
+                />
+                <ReferenceLine
+                  y={75}
+                  stroke={ACCENT}
+                  strokeDasharray="6 4"
+                  strokeWidth={1.5}
+                  label={{ value: '2030 goal · 75%', position: 'insideTopRight', fill: ACCENT, fontSize: 12, fontWeight: 700 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="sustainable"
+                  stroke={SUSTAIN_COLOR}
+                  strokeWidth={2.5}
+                  dot={{ r: 4, fill: SUSTAIN_COLOR, strokeWidth: 0 }}
+                  activeDot={{ r: 6 }}
+                  isAnimationActive={false}
+                />
+                <ReferenceDot
+                  x={2030}
+                  y={75}
+                  r={6}
+                  fill={ACCENT}
+                  stroke="#fff"
+                  strokeWidth={2}
+                  isFront
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Source */}
+        <p className="text-xs mt-6 leading-relaxed" style={{ color: INK3 }}>
+          Source: Transportation Tomorrow Survey (Data Management Group, University of Toronto),
+          2001–2022. Wards use the current 25-ward model; 2001–2016 counts are apportioned from the
+          former 44-ward model by area-weighted crosswalk, so pre-2022 ward figures are estimates.
+          &ldquo;Sustainable&rdquo; = walking, cycling (incl. e-mobility) and transit.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Sub-components ---------------- */
+
+function TransformTracker({ tracker, year }) {
+  const { share, prevYear, prevShare, atGoal } = tracker;
+  const pct = share * 100;
+  const goalPct = TRANSFORMTO.share * 100;
+  const progress = Math.min(share / TRANSFORMTO.share, 1) * 100;
+  const delta = prevShare != null ? (share - prevShare) * 100 : null;
+  const hit = share >= TRANSFORMTO.share;
+  return (
+    <div className="dd-panel-ruled p-5 sm:p-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p className="dd-kicker mb-1">TransformTO Tracker · {year}</p>
+          <div className="flex items-baseline gap-3">
+            <span className="dd-title text-5xl" style={{ color: hit ? SUSTAIN_COLOR : INK }}>
+              {pct.toFixed(1)}%
+            </span>
+            {delta != null && (
+              <span
+                className="text-sm font-bold"
+                style={{ color: delta >= 0 ? '#006300' : '#b4342f' }}
+              >
+                {delta >= 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)} pts vs {prevYear}
+              </span>
+            )}
+          </div>
+          <p className="text-sm mt-1" style={{ color: INK2 }}>
+            of work &amp; school trips by walking, cycling or transit — goal is{' '}
+            <b style={{ color: INK }}>75% by 2030</b>
+          </p>
+        </div>
+        <div className="text-right">
+          <span className="dd-title text-4xl" style={{ color: INK }}>
+            {atGoal}
+            <span className="text-xl" style={{ color: INK3 }}>
+              /25
+            </span>
+          </span>
+          <p className="text-xs mt-1" style={{ color: INK2 }}>
+            wards already at the goal
+          </p>
+        </div>
+      </div>
+      {/* Progress bar */}
+      <div className="mt-4">
+        <div className="relative h-3 rounded-full overflow-hidden" style={{ background: '#e2e0d6' }}>
+          <div
+            className="absolute inset-y-0 left-0 rounded-full"
+            style={{ width: `${progress}%`, background: SUSTAIN_COLOR }}
+          />
+        </div>
+        <div className="flex justify-between mt-1 text-xs" style={{ color: INK3 }}>
+          <span>0%</span>
+          <span style={{ color: ACCENT, fontWeight: 700 }}>2030 target · {goalPct}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WardGoalBadge({ share }) {
+  const hit = share >= TRANSFORMTO.share;
+  const pct = (share * 100).toFixed(0);
+  return (
+    <div
+      className="flex items-center gap-2 mb-4 px-3 py-2 rounded"
+      style={{
+        background: hit ? 'rgba(15,157,99,0.10)' : 'rgba(232,89,12,0.08)',
+        border: `1px solid ${hit ? 'rgba(15,157,99,0.35)' : 'rgba(232,89,12,0.25)'}`,
+      }}
+    >
+      <span className="text-sm font-bold" style={{ color: hit ? SUSTAIN_COLOR : ACCENT }}>
+        {hit ? '✓' : '→'}
+      </span>
+      <span className="text-sm" style={{ color: INK2 }}>
+        <b style={{ color: INK }}>{pct}%</b> sustainable —{' '}
+        {hit ? 'meets the 2030 goal' : `${(75 - share * 100).toFixed(0)} pts below the 75% goal`}
+      </span>
+    </div>
+  );
+}
+
+function Control({ label, children }) {
+  return (
+    <div>
+      <p className="dd-kicker mb-2" style={{ color: INK3 }}>
+        {label}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+function Segmented({ options, value, onChange }) {
+  return (
+    <div className="inline-flex flex-wrap gap-1 p-1 rounded" style={{ background: '#e9e7de' }}>
+      {options.map((o) => {
+        const active = value === o.id;
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className="px-2.5 py-1.5 rounded text-xs font-bold transition-colors"
+            style={{
+              background: active ? 'var(--panel)' : 'transparent',
+              color: active ? INK : INK2,
+              boxShadow: active ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Swatch({ active, color, label, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-bold transition-all"
+      style={{
+        background: active ? 'var(--panel)' : '#e9e7de',
+        color: active ? INK : INK2,
+        border: `1.5px solid ${active ? color : 'transparent'}`,
+      }}
+    >
+      <span className="inline-block h-3 w-3 rounded-sm" style={{ background: color }} />
+      {label}
+    </button>
+  );
+}
+
+function ChartBlock({ title, subtitle, children }) {
+  return (
+    <div className="mb-5">
+      <h3 className="text-sm font-bold" style={{ color: INK }}>
+        {title}
+      </h3>
+      <p className="text-xs mb-2" style={{ color: INK3 }}>
+        {subtitle}
+      </p>
+      <div style={{ width: '100%', height: 210 }}>
+        <ResponsiveContainer>{children}</ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function StackedShareChart({ data, goal, angledTicks }) {
+  return (
+    <BarChart data={data} margin={{ top: 4, right: goal ? 48 : 8, bottom: angledTicks ? 18 : 4, left: 0 }}>
+      <XAxis
+        dataKey="name"
+        tick={{ fill: INK3, fontSize: 11 }}
+        stroke="#c3c2b7"
+        interval={0}
+        angle={angledTicks ? -30 : 0}
+        textAnchor={angledTicks ? 'end' : 'middle'}
+        height={angledTicks ? 40 : 20}
+      />
+      <YAxis
+        domain={[0, 100]}
+        ticks={[0, 25, 50, 75, 100]}
+        tickFormatter={(v) => `${v}%`}
+        tick={{ fill: INK3, fontSize: 11 }}
+        stroke="#c3c2b7"
+        width={36}
+      />
+      <Tooltip content={<ShareTooltip />} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+      {goal && (
+        <ReferenceLine
+          y={75}
+          stroke={ACCENT}
+          strokeDasharray="5 4"
+          strokeWidth={1.5}
+          label={{ value: '75% goal', position: 'right', fill: ACCENT, fontSize: 10, fontWeight: 700 }}
+        />
+      )}
+      {STACK_ORDER.map((gid) => {
+        const g = GROUP_BY_ID[gid];
+        return (
+          <Bar key={gid} dataKey={gid} stackId="s" fill={g.color} maxBarSize={54} isAnimationActive={false}>
+            <LabelList
+              dataKey={gid}
+              position="center"
+              formatter={(v) => (v >= 9 ? `${Math.round(v)}` : '')}
+              style={{ fill: '#fff', fontSize: 10, fontWeight: 700 }}
+            />
+          </Bar>
+        );
+      })}
+    </BarChart>
+  );
+}
+
+function ShareTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const rows = STACK_ORDER.map((gid) => {
+    const g = GROUP_BY_ID[gid];
+    const entry = payload.find((p) => p.dataKey === gid);
+    return { g, val: entry?.value ?? 0 };
+  }).filter((r) => r.val >= 0.5);
+  return (
+    <div
+      className="rounded p-2.5 text-xs"
+      style={{ background: 'var(--panel)', border: '1px solid #e2e0d6', boxShadow: '0 4px 14px rgba(0,0,0,0.1)' }}
+    >
+      <p className="font-bold mb-1" style={{ color: INK }}>
+        {label}
+      </p>
+      {rows.map(({ g, val }) => (
+        <div key={g.id} className="flex items-center gap-2">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: g.color }} />
+          <span style={{ color: INK2 }}>{g.label}</span>
+          <span className="ml-auto font-bold tabular-nums" style={{ color: INK }}>
+            {val.toFixed(0)}%
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Legend() {
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1">
+      {MODE_GROUPS.map((g) => (
+        <span key={g.id} className="inline-flex items-center gap-1.5 text-xs" title={GROUP_CONTENTS[g.id]} style={{ color: INK2 }}>
+          <span className="inline-block h-3 w-3 rounded-sm" style={{ background: g.color }} />
+          {g.label}
+        </span>
+      ))}
+    </div>
+  );
+}

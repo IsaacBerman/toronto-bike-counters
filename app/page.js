@@ -57,6 +57,11 @@ export default function Home() {
             blurb="Bicycle traffic from permanent counting stations across Toronto, updated from the city's live feed."
           />
           <ProjectCard
+            href="/transform-toronto"
+            title="Transform Toronto Tracking"
+            blurb="Mode share by ward, distance and year from the Transportation Tomorrow Survey — tracking the TransformTO 2030 goal."
+          />
+          <ProjectCard
             href="/downtown-definer"
             title="Where is Downtown?"
             blurb="Draw the boundary of what you call &ldquo;downtown&rdquo; and watch it merge into a crowd heatmap."
