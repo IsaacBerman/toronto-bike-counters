@@ -58,7 +58,7 @@ export default function Home() {
           />
           <ProjectCard
             href="/transform-toronto"
-            title="Transform Toronto Tracking"
+            title="TransformTO Tracking"
             blurb="Mode share by ward, distance and year from the Transportation Tomorrow Survey — tracking the TransformTO 2030 goal."
           />
           <ProjectCard

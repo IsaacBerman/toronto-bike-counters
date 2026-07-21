@@ -13,9 +13,12 @@ export const MODE_GROUPS = [
 
 export const GROUP_BY_ID = Object.fromEntries(MODE_GROUPS.map((g) => [g.id, g]));
 
-// TransformTO: 75% of trips to work or school by walking, cycling or transit
-// by 2030. These three groups are the "sustainable" numerator.
+// TransformTO: 75% of trips to work or school that are UNDER 5 KM taken by
+// walking, cycling or transit by 2030. These three groups are the
+// "sustainable" numerator; SHORT_BUCKETS are the < 5 km distance bands the
+// goal applies to.
 export const SUSTAINABLE_GROUPS = ['transit', 'walk', 'cycle'];
+export const SHORT_BUCKETS = ['lt1', '1to2', '2to5']; // < 5 km
 export const TRANSFORMTO = { share: 0.75, year: 2030 };
 
 // Stack order for the composition charts: sustainable groups on the bottom so
@@ -48,13 +51,21 @@ function emptyGroups() {
   return { auto: 0, transit: 0, walk: 0, cycle: 0, other: 0 };
 }
 
-// Group totals for one ward + year, restricted to `bucket` ('all' = every bucket).
+// Group totals for one ward + year, restricted to `bucket`:
+//   'all'     — every distance bucket
+//   'under5'  — the < 5 km bands (the TransformTO goal distance)
+//   string[]  — an explicit set of bucket ids
+//   string    — a single bucket id
 export function wardGroupTotals(data, year, ward, bucket) {
   const wardData = data?.[year]?.[ward];
   const acc = emptyGroups();
   if (!wardData) return acc;
   if (bucket === 'all') {
     for (const cell of Object.values(wardData)) addCell(acc, cell);
+  } else if (bucket === 'under5') {
+    for (const b of SHORT_BUCKETS) addCell(acc, wardData[b]);
+  } else if (Array.isArray(bucket)) {
+    for (const b of bucket) addCell(acc, wardData[b]);
   } else {
     addCell(acc, wardData[bucket]);
   }

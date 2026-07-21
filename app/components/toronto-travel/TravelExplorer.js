@@ -22,6 +22,7 @@ import {
   GROUP_CONTENTS,
   STACK_ORDER,
   TRANSFORMTO,
+  SHORT_BUCKETS,
   wardGroupTotals,
   cityGroupTotals,
   groupSum,
@@ -35,6 +36,7 @@ const WardMap = dynamic(() => import('./WardMap'), { ssr: false });
 
 const RAMP_BASE = '#f1efe6'; // near-paper tint the choropleth fades toward at ~0
 const SUSTAIN_COLOR = '#0f9d63'; // green for the sustainable / TransformTO ramp
+const NEON = '#12e000'; // neon-green outline for wards that hit the 2030 goal
 const ACCENT = '#e8590c';
 const INK = '#16150f';
 const INK2 = '#57554b';
@@ -55,7 +57,7 @@ export default function TravelExplorer() {
   const [tripSet, setTripSet] = useState('commute'); // 'all' | 'commute'
   const [colorBy, setColorBy] = useState('sustainable');
   const [year, setYear] = useState(2022);
-  const [bucket, setBucket] = useState('all');
+  const [bucket, setBucket] = useState('under5'); // default to the goal's distance band
   const [ward, setWard] = useState(13); // Toronto Centre — a downtown ward
 
   useEffect(() => {
@@ -82,8 +84,14 @@ export default function TravelExplorer() {
   const buckets = meta?.buckets ?? [];
   const wardNames = meta?.wardNames ?? {};
   const bucketLabel =
-    bucket === 'all' ? 'all distances' : buckets.find((b) => b.id === bucket)?.label ?? bucket;
+    bucket === 'all'
+      ? 'all distances'
+      : bucket === 'under5'
+        ? 'under 5 km'
+        : buckets.find((b) => b.id === bucket)?.label ?? bucket;
   const isCommute = tripSet === 'commute';
+  // The goal line is only meaningful for the < 5 km bands it's defined on.
+  const bucketIsShort = bucket === 'under5' || SHORT_BUCKETS.includes(bucket);
 
   // ---- Map fill styling ----
   const wardStyles = useMemo(() => {
@@ -95,13 +103,18 @@ export default function TravelExplorer() {
         const totals = wardGroupTotals(dataset, year, w, bucket);
         const share = sustainableShareOf(totals);
         const t = Math.min(share / 0.8, 1); // absolute scale so colour ~ tracks 75%
-        const atGoal = isCommute && share >= TRANSFORMTO.share && groupSum(totals) > 0;
+        // The 2030 goal is a fixed property of the ward: sustainable share of
+        // its under-5 km commute trips — independent of the view's filters.
+        const goalShare = commute
+          ? sustainableShareOf(wardGroupTotals(commute, year, w, 'under5'))
+          : 0;
+        const atGoal = goalShare >= TRANSFORMTO.share;
         styles[w] = {
           fillColor: groupSum(totals) > 0 ? mixHex(RAMP_BASE, SUSTAIN_COLOR, t) : '#e9e7de',
-          strokeColor: atGoal ? ACCENT : undefined,
-          strokeWeight: atGoal ? 3 : undefined,
-          label: `<b>${wardNames[w]}</b><br>${(share * 100).toFixed(0)}% sustainable${
-            isCommute ? (share >= TRANSFORMTO.share ? ' ✓ meets 2030 goal' : '') : ''
+          strokeColor: atGoal ? NEON : undefined,
+          strokeWeight: atGoal ? 3.5 : undefined,
+          label: `<b>${wardNames[w]}</b><br>${(share * 100).toFixed(0)}% sustainable (${bucketLabel})${
+            atGoal ? '<br>✓ meets 2030 goal' : ''
           }`,
         };
       }
@@ -123,32 +136,32 @@ export default function TravelExplorer() {
       }
     }
     return styles;
-  }, [dataset, geo, colorBy, year, bucket, isCommute, wardNames]);
+  }, [dataset, commute, geo, colorBy, year, bucket, bucketLabel, wardNames]);
 
-  // ---- TransformTO tracker (always commute, all distances, selected year) ----
+  // ---- TransformTO tracker (commute, under 5 km, selected year) ----
   const tracker = useMemo(() => {
     if (!commute) return null;
-    const city = cityGroupTotals(commute, year, 'all');
+    const city = cityGroupTotals(commute, year, 'under5');
     const share = sustainableShareOf(city);
     const idx = years.indexOf(year);
     const prevYear = idx > 0 ? years[idx - 1] : null;
     const prevShare = prevYear
-      ? sustainableShareOf(cityGroupTotals(commute, prevYear, 'all'))
+      ? sustainableShareOf(cityGroupTotals(commute, prevYear, 'under5'))
       : null;
     let atGoal = 0;
     for (const w of Object.keys(commute[year] ?? {})) {
-      if (sustainableShareOf(wardGroupTotals(commute, year, w, 'all')) >= TRANSFORMTO.share)
+      if (sustainableShareOf(wardGroupTotals(commute, year, w, 'under5')) >= TRANSFORMTO.share)
         atGoal += 1;
     }
     return { share, prevYear, prevShare, atGoal };
   }, [commute, year, years]);
 
-  // ---- City-wide sustainable commute share over time (headline chart) ----
+  // ---- City-wide under-5 km sustainable commute share over time (headline) ----
   const cityTrend = useMemo(() => {
     if (!commute) return [];
     return years.map((y) => ({
       year: y,
-      sustainable: +(sustainableShareOf(cityGroupTotals(commute, y, 'all')) * 100).toFixed(1),
+      sustainable: +(sustainableShareOf(cityGroupTotals(commute, y, 'under5')) * 100).toFixed(1),
     }));
   }, [commute, years]);
 
@@ -170,8 +183,11 @@ export default function TravelExplorer() {
   }, [dataset, buckets, year, ward]);
 
   const wardTotals = dataset ? wardGroupTotals(dataset, year, ward, bucket) : null;
-  const wardSustain = wardTotals ? sustainableShareOf(wardTotals) : 0;
   const wardTripCount = wardTotals ? groupSum(wardTotals) : 0;
+  // The ward's standing against the 2030 goal (under-5 km commute trips).
+  const wardGoalShare = commute
+    ? sustainableShareOf(wardGroupTotals(commute, year, ward, 'under5'))
+    : 0;
 
   if (err)
     return (
@@ -192,16 +208,16 @@ export default function TravelExplorer() {
     <div style={{ background: 'var(--paper)' }}>
       <div className="container mx-auto px-4 max-w-6xl py-8 sm:py-12">
         {/* Intro */}
-        <p className="dd-kicker mb-3">Toronto · Transportation Tomorrow Survey</p>
         <h1 className="dd-title text-4xl sm:text-5xl mb-4" style={{ color: INK }}>
-          Transform Toronto Tracking
+          TransformTO Tracking
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed mb-8" style={{ color: INK2 }}>
-          Mode share by ward, trip distance and survey year, from the Transportation Tomorrow
-          Survey. Click any ward to explore how it travels — and track progress toward{' '}
+          Data from the Transportation Tomorrow Survey. Track progress toward{' '}
           <b style={{ color: INK }}>TransformTO</b>, the City&rsquo;s goal of{' '}
-          <b style={{ color: INK }}>75% of work and school trips by walking, cycling or transit by
-          2030</b>.
+          <b style={{ color: INK }}>
+            75% of work and school trips under 5 km by walking, cycling or transit by 2030
+          </b>
+          .
         </p>
 
         {/* TransformTO tracker */}
@@ -241,7 +257,11 @@ export default function TravelExplorer() {
           </Control>
           <Control label="Trip distance">
             <Segmented
-              options={[{ id: 'all', label: 'All' }, ...buckets.map((b) => ({ id: b.id, label: b.label }))]}
+              options={[
+                { id: 'all', label: 'All' },
+                { id: 'under5', label: 'Under 5 km ★' },
+                ...buckets.map((b) => ({ id: b.id, label: b.label })),
+              ]}
               value={bucket}
               onChange={setBucket}
             />
@@ -261,9 +281,7 @@ export default function TravelExplorer() {
             <div className="flex items-center justify-between flex-wrap gap-2 mt-3 px-1">
               <p className="text-xs" style={{ color: INK3 }}>
                 {colorBy === 'sustainable'
-                  ? `Shaded by walk + cycle + transit share${
-                      isCommute ? ' · gold outline = meets 2030 goal' : ''
-                    }`
+                  ? `Shaded by walk + cycle + transit share · neon-green outline = meets 2030 goal`
                   : `Shaded by ${GROUP_BY_ID[colorBy].label.toLowerCase()} share (darkest = highest)`}
               </p>
               <p className="text-xs font-semibold" style={{ color: INK3 }}>
@@ -287,15 +305,13 @@ export default function TravelExplorer() {
               {year} · {bucketLabel}
             </p>
 
-            {isCommute && (
-              <WardGoalBadge share={wardSustain} />
-            )}
+            {isCommute && <WardGoalBadge share={wardGoalShare} />}
 
             <ChartBlock
               title={`Mode share over time`}
               subtitle={`${isCommute ? 'Work & school trips' : 'All trips'} · ${bucketLabel}`}
             >
-              <StackedShareChart data={overTime} goal={isCommute} />
+              <StackedShareChart data={overTime} goal={isCommute && bucketIsShort} />
             </ChartBlock>
 
             <ChartBlock
@@ -315,8 +331,9 @@ export default function TravelExplorer() {
             City-wide progress to the 2030 goal
           </h2>
           <p className="text-sm mb-5" style={{ color: INK2 }}>
-            Share of Toronto&rsquo;s work and school trips made by walking, cycling or transit,
-            across every ward. The dashed line is the TransformTO target.
+            Share of Toronto&rsquo;s <b style={{ color: INK }}>under-5 km</b> work and school trips
+            made by walking, cycling or transit, across every ward. The dashed line is the
+            TransformTO target.
           </p>
           <div style={{ width: '100%', height: 300 }}>
             <ResponsiveContainer>
@@ -415,8 +432,8 @@ function TransformTracker({ tracker, year }) {
             )}
           </div>
           <p className="text-sm mt-1" style={{ color: INK2 }}>
-            of work &amp; school trips by walking, cycling or transit — goal is{' '}
-            <b style={{ color: INK }}>75% by 2030</b>
+            of work &amp; school trips <b style={{ color: INK }}>under 5 km</b> by walking, cycling
+            or transit — goal is <b style={{ color: INK }}>75% by 2030</b>
           </p>
         </div>
         <div className="text-right">
@@ -463,7 +480,7 @@ function WardGoalBadge({ share }) {
         {hit ? '✓' : '→'}
       </span>
       <span className="text-sm" style={{ color: INK2 }}>
-        <b style={{ color: INK }}>{pct}%</b> sustainable —{' '}
+        <b style={{ color: INK }}>{pct}%</b> of under-5 km commutes sustainable —{' '}
         {hit ? 'meets the 2030 goal' : `${(75 - share * 100).toFixed(0)} pts below the 75% goal`}
       </span>
     </div>
