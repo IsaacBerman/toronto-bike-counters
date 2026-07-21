@@ -348,7 +348,13 @@ export default function TravelExplorer() {
               title="Mode share by trip distance"
               subtitle={`${isCommute ? 'Work & school trips' : 'All trips'} · ${year}`}
             >
-              <StackedShareChart data={byDistance} goal={false} angledTicks />
+              <StackedShareChart
+                data={byDistance}
+                goal={false}
+                angledTicks
+                highlight={highlightGroups}
+                highlightColor={colorBy === 'sustainable' ? NEON : INK}
+              />
             </ChartBlock>
 
             <Legend />
