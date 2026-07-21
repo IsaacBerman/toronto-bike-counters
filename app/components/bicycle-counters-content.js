@@ -240,21 +240,21 @@ export default function BicycleCountersContent() {
                 onChange={(e) => handleCounterChange(e.target.value)}
                 className="dd-select w-full"
               >
-                <optgroup label="🚴 Bike Share" className="font-semibold text-gray-700">
+                <optgroup label="Bike Share" className="font-semibold text-gray-700">
                   {counters.filter(counter => counter.location === "Bike Share Toronto").map(counter => (
                     <option key={counter.location} value={counter.location} className="py-2 text-gray-900">
                       {counter.location}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="🚲 Current Counters" className="font-semibold text-gray-700">
+                <optgroup label="Current Counters" className="font-semibold text-gray-700">
                   {counters.filter(counter => counter.isOperational && counter.location !== "Bike Share Toronto").map(counter => (
                     <option key={counter.location} value={counter.location} className="py-2 text-gray-900">
                       {counter.location}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="📊 Historic Counters" className="font-semibold text-gray-700">
+                <optgroup label="Historic Counters" className="font-semibold text-gray-700">
                   {counters.filter(counter => !counter.isOperational).map(counter => (
                     <option key={counter.location} value={counter.location} className="py-2 text-gray-900">
                       {counter.location}
