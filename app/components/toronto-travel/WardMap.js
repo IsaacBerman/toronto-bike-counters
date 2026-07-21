@@ -82,6 +82,7 @@ export default function WardMap({ geo, wardStyles, selectedWard, onSelectWard, c
   // Re-style when selection / values change.
   useEffect(() => {
     if (!wardStyles) return;
+    let selectedLayer = null;
     for (const [ward, layer] of layersRef.current) {
       const s = wardStyles[ward];
       const isSel = ward === selectedWard;
@@ -91,9 +92,14 @@ export default function WardMap({ geo, wardStyles, selectedWard, onSelectWard, c
         color: isSel ? '#16150f' : s?.strokeColor ?? '#ffffff',
         weight: isSel ? 3 : s?.strokeWeight ?? 1,
       });
-      if (isSel && layer.bringToFront) layer.bringToFront();
+      // Bring emphasised wards (goal outline) to the front so their coloured
+      // border paints over neighbours' white borders instead of being hidden
+      // by them. The selected ward is raised last so it stays topmost.
+      if (s?.strokeColor && layer.bringToFront) layer.bringToFront();
+      if (isSel) selectedLayer = layer;
       if (s?.label) layer.setTooltipContent(s.label);
     }
+    if (selectedLayer?.bringToFront) selectedLayer.bringToFront();
   }, [wardStyles, selectedWard, ready]);
 
   return (
