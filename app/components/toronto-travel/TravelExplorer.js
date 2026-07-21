@@ -265,7 +265,7 @@ export default function TravelExplorer() {
             <Segmented
               options={[
                 { id: 'all', label: 'All' },
-                { id: 'under5', label: 'Under 5 km ★' },
+                { id: 'under5', label: '< 5 km ★' },
                 ...buckets.map((b) => ({ id: b.id, label: b.label })),
               ]}
               value={bucket}
