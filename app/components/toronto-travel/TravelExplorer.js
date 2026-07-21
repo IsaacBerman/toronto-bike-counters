@@ -11,8 +11,6 @@ import {
   ResponsiveContainer,
   LabelList,
   ReferenceLine,
-  usePlotArea,
-  useYAxisScale,
 } from 'recharts';
 import {
   MODE_GROUPS,
@@ -546,8 +544,20 @@ function StackedShareChart({ data, goal, angledTicks, highlight = [], highlightC
       )}
       {STACK_ORDER.map((gid) => {
         const g = GROUP_BY_ID[gid];
+        const on = highlight.includes(gid);
+        // Outer edges of the highlighted band: bottom edge on its lowest group,
+        // top edge on its highest — never the internal boundaries between them.
+        const drawBottom = on && gid === highlight[0];
+        const drawTop = on && gid === highlight[highlight.length - 1];
         return (
-          <Bar key={gid} dataKey={gid} stackId="s" fill={g.color} isAnimationActive={false}>
+          <Bar
+            key={gid}
+            dataKey={gid}
+            stackId="s"
+            fill={g.color}
+            isAnimationActive={false}
+            shape={on ? <HighlightSeg color={highlightColor} top={drawTop} bottom={drawBottom} /> : undefined}
+          >
             <LabelList
               dataKey={gid}
               position="center"
@@ -557,49 +567,26 @@ function StackedShareChart({ data, goal, angledTicks, highlight = [], highlightC
           </Bar>
         );
       })}
-      {/* Outline around the highlighted (colour-map-by) band, drawn last so it
-          sits on top of every bar and its edges are never clipped. */}
-      <HighlightBand data={data} groups={highlight} color={highlightColor} />
     </BarChart>
   );
 }
 
-// One stroke-only rectangle per category spanning the highlighted, contiguous
-// stack band (e.g. transit+walk+cycle for "sustainable") — no internal lines.
-function HighlightBand({ data, groups, color }) {
-  const plot = usePlotArea();
-  const yScale = useYAxisScale();
-  if (!plot || !yScale || !groups?.length || !data?.length) return null;
-  const firstIdx = STACK_ORDER.findIndex((g) => groups.includes(g));
-  if (firstIdx < 0) return null;
-  const belowGroups = STACK_ORDER.slice(0, firstIdx);
-  const n = data.length;
-  const band = plot.width / n;
-  const barW = band * 0.9; // matches Recharts' default 10% category gap
+// Custom bar shape for a highlighted segment: the normal fill plus a coloured
+// border on its left/right sides, and the top/bottom edge only when this
+// segment is the top/bottom of the highlighted band. Edges are inset by half
+// the stroke width so the next stacked segment can't paint over them.
+function HighlightSeg({ x, y, width, height, fill, color, top, bottom }) {
+  const w = 2.5;
+  const i = w / 2;
   return (
-    <g style={{ pointerEvents: 'none' }}>
-      {data.map((row, i) => {
-        const below = belowGroups.reduce((s, g) => s + (row[g] || 0), 0);
-        const val = groups.reduce((s, g) => s + (row[g] || 0), 0);
-        if (val <= 0.01) return null;
-        const yTop = yScale(below + val);
-        const yBot = yScale(below);
-        if (yTop == null || yBot == null) return null;
-        const x = plot.x + i * band + (band - barW) / 2;
-        return (
-          <rect
-            key={i}
-            x={x}
-            y={yTop}
-            width={barW}
-            height={yBot - yTop}
-            fill="none"
-            stroke={color}
-            strokeWidth={2.5}
-            rx={2}
-          />
-        );
-      })}
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill={fill} />
+      <line x1={x + i} y1={y} x2={x + i} y2={y + height} stroke={color} strokeWidth={w} />
+      <line x1={x + width - i} y1={y} x2={x + width - i} y2={y + height} stroke={color} strokeWidth={w} />
+      {top && <line x1={x} y1={y + i} x2={x + width} y2={y + i} stroke={color} strokeWidth={w} />}
+      {bottom && (
+        <line x1={x} y1={y + height - i} x2={x + width} y2={y + height - i} stroke={color} strokeWidth={w} />
+      )}
     </g>
   );
 }
