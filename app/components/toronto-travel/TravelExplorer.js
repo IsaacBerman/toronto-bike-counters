@@ -634,13 +634,23 @@ function ShareTooltip({ active, payload, label }) {
 
 function Legend() {
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1">
-      {MODE_GROUPS.map((g) => (
-        <span key={g.id} className="inline-flex items-center gap-1.5 text-xs" title={GROUP_CONTENTS[g.id]} style={{ color: INK2 }}>
-          <span className="inline-block h-3 w-3 rounded-sm" style={{ background: g.color }} />
-          {g.label}
-        </span>
-      ))}
+    <div className="pt-3 mt-1" style={{ borderTop: '1px solid var(--line)' }}>
+      <p className="dd-kicker mb-2" style={{ color: INK3 }}>
+        Trip mode
+      </p>
+      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+        {MODE_GROUPS.map((g) => (
+          <span
+            key={g.id}
+            className="inline-flex items-center gap-1.5 text-xs"
+            title={GROUP_CONTENTS[g.id]}
+            style={{ color: INK2 }}
+          >
+            <span className="inline-block h-3 w-3 rounded-sm" style={{ background: g.color }} />
+            {g.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
