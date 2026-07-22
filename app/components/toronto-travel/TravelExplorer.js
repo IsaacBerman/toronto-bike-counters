@@ -332,6 +332,8 @@ export default function TravelExplorer() {
 
             {isCommute && <WardGoalBadge share={goalShare} city={isCity} />}
 
+            <Legend />
+
             <ChartBlock
               title={`Mode share over time`}
               subtitle={`${isCommute ? 'Work & school trips' : 'All trips'} · ${bucketLabel}`}
@@ -356,8 +358,6 @@ export default function TravelExplorer() {
                 highlightColor={colorBy === 'sustainable' ? NEON : INK}
               />
             </ChartBlock>
-
-            <Legend />
           </div>
         </div>
 
@@ -449,9 +449,8 @@ function WardGoalBadge({ share, city }) {
         {hit ? '✓' : '→'}
       </span>
       <span className="text-sm" style={{ color: INK2 }}>
-        <b style={{ color: INK }}>{pct}%</b> of {city ? "the city's " : ''}under-5 km commutes
-        sustainable —{' '}
-        {hit ? 'meets the 2030 goal' : `${(75 - share * 100).toFixed(0)} pts below the 75% goal`}
+        <b style={{ color: INK }}>{pct}%</b> of {city ? "the city's" : "this ward's"} &lt; 5 km
+        commutes sustainable
       </span>
     </div>
   );
@@ -634,7 +633,7 @@ function ShareTooltip({ active, payload, label }) {
 
 function Legend() {
   return (
-    <div className="pt-3 mt-1" style={{ borderTop: '1px solid var(--line)' }}>
+    <div className="mb-4">
       <p className="dd-kicker mb-2" style={{ color: INK3 }}>
         Trip mode
       </p>
