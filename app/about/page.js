@@ -30,12 +30,30 @@ export default function AboutPage() {
               </h2>
               <ul className="space-y-2 text-sm leading-relaxed">
                 <li>
-                  <b style={{ color: 'var(--ink)' }}>City of Toronto Open Data:</b> cycling counter
-                  volumes and ward boundaries.
+                  <b style={{ color: 'var(--ink)' }}>City of Toronto Open Data:</b>{' '}
+                  <a
+                    href="https://open.toronto.ca/dataset/permanent-bicycle-counters/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="dd-link-accent"
+                  >
+                    cycling counter volumes
+                  </a>{' '}
+                  and ward boundaries.
                 </li>
                 <li>
-                  <b style={{ color: 'var(--ink)' }}>Transportation Tomorrow Survey:</b> The
-                  regional travel survey run by the Data Management Group at the University of
+                  <b style={{ color: 'var(--ink)' }}>
+                    <a
+                      href="http://www.transportationtomorrow.on.ca/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="dd-link-accent"
+                    >
+                      Transportation Tomorrow Survey
+                    </a>
+                    :
+                  </b>{' '}
+                  The regional travel survey run by the Data Management Group at the University of
                   Toronto, used for mode-share figures.
                 </li>
                 <li>
