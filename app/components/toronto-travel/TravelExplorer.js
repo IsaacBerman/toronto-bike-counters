@@ -634,9 +634,6 @@ function ShareTooltip({ active, payload, label }) {
 function Legend() {
   return (
     <div className="mb-4">
-      <p className="dd-kicker mb-2" style={{ color: INK3 }}>
-        Trip mode
-      </p>
       <div className="flex flex-wrap gap-x-4 gap-y-1.5">
         {MODE_GROUPS.map((g) => (
           <span
