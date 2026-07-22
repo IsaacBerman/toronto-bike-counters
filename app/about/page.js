@@ -19,35 +19,10 @@ export default function AboutPage() {
 
           <div className="dd-panel-ruled p-6 sm:p-8 space-y-5" style={{ color: 'var(--ink-2)' }}>
             <p className="text-base leading-relaxed">
-              <b style={{ color: 'var(--ink)' }}>Observing the City</b> is an independent project that builds free, interactive tools from open urban data — mostly
-              about Toronto. The goal is simple: take public datasets that usually sit in
+              <b style={{ color: 'var(--ink)' }}>Observing the City</b> is an independent project that builds free, interactive tools from open urban data. The goal is simple: take public datasets that usually sit in
               spreadsheets and portals, and turn them into something anyone can explore in a browser
               to understand how a city actually moves, and how the people who live in it see it.
             </p>
-
-            <div>
-              <h2 className="dd-title text-xl mb-2" style={{ color: 'var(--ink)' }}>
-                The projects
-              </h2>
-              <ul className="space-y-3 text-sm leading-relaxed">
-                <li>
-                  <b style={{ color: 'var(--ink)' }}>Toronto Bicycle Counters</b> — daily and hourly
-                  cycling volumes from the City&rsquo;s permanent counting stations and Bike Share
-                  Toronto, cleaned and charted over time.
-                </li>
-                <li>
-                  <b style={{ color: 'var(--ink)' }}>Where is Downtown?</b> — a community tool where
-                  people draw the boundary of what they consider &ldquo;downtown,&rdquo; which merges
-                  into a crowd-sourced heatmap of the fuzzy edges of the city core.
-                </li>
-                <li>
-                  <b style={{ color: 'var(--ink)' }}>TransformTO Tracking</b> — transportation mode
-                  share by ward, trip distance and survey year, tracking Toronto&rsquo;s progress
-                  toward the TransformTO climate goal of 75% of short work and school trips by
-                  walking, cycling or transit by 2030.
-                </li>
-              </ul>
-            </div>
 
             <div>
               <h2 className="dd-title text-xl mb-2" style={{ color: 'var(--ink)' }}>
@@ -55,17 +30,26 @@ export default function AboutPage() {
               </h2>
               <ul className="space-y-2 text-sm leading-relaxed">
                 <li>
-                  <b style={{ color: 'var(--ink)' }}>City of Toronto Open Data</b> — cycling counter
+                  <b style={{ color: 'var(--ink)' }}>City of Toronto Open Data:</b> cycling counter
                   volumes and ward boundaries.
                 </li>
                 <li>
-                  <b style={{ color: 'var(--ink)' }}>Transportation Tomorrow Survey</b> — the
+                  <b style={{ color: 'var(--ink)' }}>Transportation Tomorrow Survey:</b> The
                   regional travel survey run by the Data Management Group at the University of
                   Toronto, used for mode-share figures.
                 </li>
                 <li>
-                  <b style={{ color: 'var(--ink)' }}>Bike Share Toronto</b> — trip activity via a
-                  public data feed.
+                  <b style={{ color: 'var(--ink)' }}>Bike Share Toronto:</b> Trip activity via a
+                  public data feed based on the{' '}
+                  <a
+                    href="https://gbfs.org/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="dd-link-accent"
+                  >
+                    General Bikeshare Feed Specification (GBFS)
+                  </a>
+                  .
                 </li>
               </ul>
               <p className="text-sm leading-relaxed mt-3">
