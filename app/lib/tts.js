@@ -5,7 +5,7 @@
 
 export const MODE_GROUPS = [
   { id: 'auto', label: 'Auto', codes: ['D', 'P'], color: '#2a78d6' },
-  { id: 'transit', label: 'Transit', codes: ['B', 'G', 'J'], color: '#1baf7a' },
+  { id: 'transit', label: 'Transit', codes: ['B', 'G', 'J'], color: '#db2777' },
   { id: 'walk', label: 'Walk', codes: ['W'], color: '#eda100' },
   { id: 'cycle', label: 'Cycle', codes: ['C', 'E'], color: '#008300' },
   { id: 'other', label: 'Other', codes: ['M', 'S', 'T', 'U', 'O'], color: '#4a3aa7' },
