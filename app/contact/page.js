@@ -1,8 +1,8 @@
 import SiteHeader from '../components/site-header';
 
 export const metadata = {
-  title: 'Contact — Observing the City',
-  description: 'Get in touch with Observing the City — feedback, data corrections and ideas welcome.',
+  title: 'Contact | Observing the City',
+  description: 'Get in touch with Observing the City. Feedback, data corrections and ideas welcome.',
 };
 
 export default function ContactPage() {
@@ -18,15 +18,10 @@ export default function ContactPage() {
 
           <div className="dd-panel-ruled p-6 sm:p-8 space-y-5" style={{ color: 'var(--ink-2)' }}>
             <p className="text-base leading-relaxed">
-              Observing the City is an independent project, and feedback genuinely helps. Get in
-              touch about any of the following:
+              This is a one-person project, so email really is the best way to reach me, and I do
+              read all of it. Questions about the data, something that looks off in a chart, an idea
+              for a dataset that deserves a better home than a spreadsheet: all welcome.
             </p>
-            <ul className="list-disc pl-5 space-y-1.5 text-sm leading-relaxed">
-              <li>Questions about a tool or the underlying data</li>
-              <li>Corrections or issues with the data or a chart</li>
-              <li>Ideas for new datasets, features or city tools</li>
-              <li>Anything else about the site</li>
-            </ul>
 
             <div className="pt-2">
               <p className="dd-kicker mb-1" style={{ color: 'var(--ink-3)' }}>
@@ -51,7 +46,8 @@ export default function ContactPage() {
                 Support the project
               </a>
               <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
-                The site is free and ad-supported; contributions help cover data and hosting costs.
+                The site is free and I pay for the hosting myself, so if you find it useful and
+                want to chip in, it genuinely helps keep things running.
               </p>
             </div>
           </div>

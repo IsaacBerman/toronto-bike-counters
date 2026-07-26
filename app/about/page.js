@@ -1,7 +1,7 @@
 import SiteHeader from '../components/site-header';
 
 export const metadata = {
-  title: 'About — Observing the City',
+  title: 'About | Observing the City',
   description:
     'Observing the City is an independent project building open-data tools about how Toronto moves and how people see their city. The goal is to bring transparency to data that is usually obfuscated.',
 };
@@ -19,79 +19,58 @@ export default function AboutPage() {
 
           <div className="dd-panel-ruled p-6 sm:p-8 space-y-5" style={{ color: 'var(--ink-2)' }}>
             <p className="text-base leading-relaxed">
-              <b style={{ color: 'var(--ink)' }}>Observing the City</b> is an independent project that builds free, interactive tools from open urban data. The goal is simple: take public datasets that usually sit in
-              spreadsheets and portals, and turn them into something anyone can explore in a browser
-              to understand how a city actually moves, and how the people who live in it see it.
+              I started Observing the City because so much of the interesting data about Toronto
+              sits in spreadsheets and open data portals where almost nobody looks at it. The city
+              publishes bike counter readings, the university runs a huge travel survey every five
+              years, and most of it never turns into anything you can actually explore. This site
+              is my attempt to change that: free, in the browser, no account needed.
             </p>
 
-            <div>
-              <h2 className="dd-title text-xl mb-2" style={{ color: 'var(--ink)' }}>
-                Where the data comes from
-              </h2>
-              <ul className="space-y-2 text-sm leading-relaxed">
-                <li>
-                  <b style={{ color: 'var(--ink)' }}>City of Toronto Open Data:</b>{' '}
-                  <a
-                    href="https://open.toronto.ca/dataset/permanent-bicycle-counters/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="dd-link-accent"
-                  >
-                    cycling counter volumes
-                  </a>{' '}
-                  and ward boundaries.
-                </li>
-                <li>
-                  <b style={{ color: 'var(--ink)' }}>
-                    <a
-                      href="http://www.transportationtomorrow.on.ca/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="dd-link-accent"
-                    >
-                      Transportation Tomorrow Survey
-                    </a>
-                    :
-                  </b>{' '}
-                  The regional travel survey run by the Data Management Group at the University of
-                  Toronto, used for mode-share figures.
-                </li>
-                <li>
-                  <b style={{ color: 'var(--ink)' }}>Bike Share Toronto:</b> Trip activity via a
-                  public data feed based on the{' '}
-                  <a
-                    href="https://gbfs.org/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="dd-link-accent"
-                  >
-                    General Bikeshare Feed Specification (GBFS)
-                  </a>
-                  .
-                </li>
-              </ul>
-              <p className="text-sm leading-relaxed mt-3">
-                Each tool notes its own sources and any processing (for example, older survey wards
-                are mapped onto Toronto&rsquo;s current 25-ward model). These are independent
-                visualizations and are not affiliated with or endorsed by the City of Toronto, the
-                University of Toronto, or any data provider.
-              </p>
-            </div>
+            <p className="text-sm leading-relaxed">
+              The cycling numbers come from the City of Toronto&rsquo;s{' '}
+              <a
+                href="https://open.toronto.ca/dataset/permanent-bicycle-counters/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="dd-link-accent"
+              >
+                permanent bicycle counters
+              </a>
+              , which also supplies the ward boundaries used on the maps. The mode-share figures are
+              from the{' '}
+              <a
+                href="http://www.transportationtomorrow.on.ca/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="dd-link-accent"
+              >
+                Transportation Tomorrow Survey
+              </a>
+              , a regional travel survey run by the Data Management Group at the University of
+              Toronto. Bike Share trip activity comes from the system&rsquo;s public{' '}
+              <a
+                href="https://gbfs.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="dd-link-accent"
+              >
+                GBFS feed
+              </a>
+              . Each tool notes its own sources and whatever processing was involved. Older survey
+              wards get mapped onto the current 25-ward model, for instance. None of this is
+              affiliated with or endorsed by the City of Toronto, the University of Toronto, or
+              anyone else who publishes the data.
+            </p>
 
-            <div>
-              <h2 className="dd-title text-xl mb-2" style={{ color: 'var(--ink)' }}>
-                Who makes it
-              </h2>
-              <p className="text-sm leading-relaxed">
-                Observing the City is built and maintained by one independent developer, and is kept
-                free and running through advertising and reader support. Questions, corrections and
-                ideas are always welcome — see the{' '}
-                <a href="/contact" className="dd-link-accent">
-                  contact page
-                </a>
-                .
-              </p>
-            </div>
+            <p className="text-sm leading-relaxed">
+              It&rsquo;s a one-person project that I pay to keep online, kept free with the help of
+              reader support. If you spot something wrong, or there&rsquo;s a dataset you think
+              deserves this treatment, I&rsquo;d genuinely like to hear about it. The{' '}
+              <a href="/contact" className="dd-link-accent">
+                contact page
+              </a>{' '}
+              has my email.
+            </p>
           </div>
         </div>
       </div>

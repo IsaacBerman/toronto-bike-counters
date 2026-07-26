@@ -1,7 +1,7 @@
 import SiteHeader from '../components/site-header';
 
 export const metadata = {
-  title: 'Privacy Policy — Observing the City',
+  title: 'Privacy Policy | Observing the City',
   description:
     'How Observing the City handles data, cookies, advertising and analytics.',
 };
@@ -35,89 +35,66 @@ export default function PrivacyPage() {
 
           <div className="dd-panel-ruled p-6 sm:p-8 space-y-6">
             <p className="text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-              This Privacy Policy explains what information Observing the City
-              (&ldquo;we,&rdquo; &ldquo;us&rdquo;) collects when you visit{' '}
-              <b style={{ color: 'var(--ink)' }}>observingthecity.ca</b> and how it is used. By using
-              the site, you agree to the practices described here.
+              This page explains what information{' '}
+              <b style={{ color: 'var(--ink)' }}>observingthecity.ca</b> collects when you visit,
+              and what happens to it. The short version: there are no accounts, I never ask for
+              your name or email, and the little that is collected exists to keep the site running
+              and improve it.
             </p>
 
-            <Section title="Information we collect">
+            <Section title="What gets collected">
               <p>
-                We do not require you to create an account, and we do not ask for your name, email
-                address or other directly identifying information to use the tools on this site. We
-                collect:
+                Like most sites, this one automatically picks up some basic usage data when you
+                visit: which pages you view, roughly where you&rsquo;re visiting from, what browser
+                and device you&rsquo;re on, and what page sent you here. That happens through the
+                analytics and advertising services described below, which also set cookies of their
+                own.
               </p>
-              <ul className="list-disc pl-5 space-y-1.5">
-                <li>
-                  <b style={{ color: 'var(--ink)' }}>Usage and device data</b>, collected
-                  automatically when you visit — such as pages viewed, approximate location, browser
-                  and device type, and referring pages — through our analytics and advertising
-                  providers described below.
-                </li>
-                <li>
-                  <b style={{ color: 'var(--ink)' }}>Cookies and similar technologies</b>, set by us
-                  and by third parties (see &ldquo;Advertising&rdquo; and &ldquo;Analytics&rdquo;).
-                </li>
-                <li>
-                  <b style={{ color: 'var(--ink)' }}>Content you submit</b> — in the
-                  &ldquo;Where is Downtown?&rdquo; tool, the map area you draw is stored so it can be
-                  combined into an anonymous heatmap. It is saved with a one-way, salted hash of a
-                  randomly generated browser identifier (used only to let you update your own
-                  submission) and a separate salted hash of your IP address (used only to limit
-                  spam/abuse). We do not store your raw IP address, and these submissions are not
-                  linked to your identity.
-                </li>
-              </ul>
+              <p>
+                The one place you actively give the site something is the &ldquo;Where is
+                Downtown?&rdquo; tool, where the map area you draw is stored so it can be folded
+                into the anonymous heatmap. Your drawing is saved against a one-way, salted hash of
+                a randomly generated browser identifier, which is what lets you come back and
+                update your own submission, plus a separate salted hash of your IP address that
+                exists purely to limit spam. Your raw IP address is never stored, and nothing about
+                a submission is tied to who you are.
+              </p>
             </Section>
 
             <Section title="Advertising (Google AdSense)">
               <p>
-                We use <b style={{ color: 'var(--ink)' }}>Google AdSense</b> to show ads. Third-party
-                vendors, including Google, use cookies to serve ads based on your prior visits to
-                this and other websites.
-              </p>
-              <ul className="list-disc pl-5 space-y-1.5">
-                <li>
-                  Google&rsquo;s use of advertising cookies enables it and its partners to serve ads
-                  to you based on your visits to this site and/or other sites on the internet.
-                </li>
-                <li>
-                  You can opt out of personalized advertising by visiting{' '}
-                  <a
-                    href="https://www.google.com/settings/ads"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="dd-link-accent"
-                  >
-                    Google Ads Settings
-                  </a>
-                  .
-                </li>
-                <li>
-                  You can opt out of some third-party vendors&rsquo; use of cookies for personalized
-                  advertising at{' '}
-                  <a
-                    href="https://www.aboutads.info/choices/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="dd-link-accent"
-                  >
-                    aboutads.info/choices
-                  </a>{' '}
-                  and{' '}
-                  <a
-                    href="https://www.youronlinechoices.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="dd-link-accent"
-                  >
-                    youronlinechoices.com
-                  </a>
-                  .
-                </li>
-              </ul>
-              <p>
-                For more information on how Google uses data from sites that use its services, see{' '}
+                The site uses <b style={{ color: 'var(--ink)' }}>Google AdSense</b> to show ads.
+                Third-party vendors, including Google, use cookies to serve ads based on your prior
+                visits to this and other websites. That&rsquo;s what makes ads
+                &ldquo;personalized.&rdquo; If you&rsquo;d rather not have that, you can turn off
+                personalized advertising in{' '}
+                <a
+                  href="https://www.google.com/settings/ads"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="dd-link-accent"
+                >
+                  Google Ads Settings
+                </a>
+                , and opt out of many other vendors&rsquo; advertising cookies at{' '}
+                <a
+                  href="https://www.aboutads.info/choices/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="dd-link-accent"
+                >
+                  aboutads.info/choices
+                </a>{' '}
+                or{' '}
+                <a
+                  href="https://www.youronlinechoices.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="dd-link-accent"
+                >
+                  youronlinechoices.com
+                </a>
+                . For the full picture of how Google uses data from sites like this one, see{' '}
                 <a
                   href="https://policies.google.com/technologies/partner-sites"
                   target="_blank"
@@ -132,47 +109,41 @@ export default function PrivacyPage() {
 
             <Section title="Analytics">
               <p>
-                We use privacy-friendly analytics (Vercel Analytics) to understand aggregate traffic
-                — for example, which pages are visited and roughly where visitors come from. This is
-                used only in aggregate to improve the site.
+                I use Vercel Analytics, a privacy-friendly tool, to see aggregate traffic: which
+                pages get visited, roughly where visitors come from. I only ever look at it in
+                aggregate, to figure out which tools are worth improving.
               </p>
             </Section>
 
-            <Section title="How we use information">
+            <Section title="Sharing">
               <p>
-                We use the information above to operate and improve the site, understand which tools
-                are useful, prevent abuse, and display advertising that helps keep the site free.
-              </p>
-            </Section>
-
-            <Section title="Sharing of information">
-              <p>
-                We do not sell your personal information. Information is processed by the third-party
-                service providers that make the site work — principally Google (advertising) and
-                Vercel (hosting and analytics) — each under their own privacy policies. Anonymous,
-                aggregated data (such as the &ldquo;downtown&rdquo; heatmap) may be shown publicly on
-                the site.
+                I don&rsquo;t sell your personal information. The data described above passes
+                through the third-party services that make the site work, principally Google for
+                advertising and Vercel for hosting and analytics, each governed by its own privacy
+                policy. Anonymous, aggregated data, like the downtown heatmap itself, is shown
+                publicly on the site; that&rsquo;s the whole point of it.
               </p>
             </Section>
 
             <Section title="Your choices">
               <p>
-                You can control or delete cookies through your browser settings and opt out of
-                personalized advertising using the links above. Blocking cookies may affect how some
-                parts of the site work.
+                You can block or delete cookies in your browser settings, and use the opt-out links
+                above for personalized ads. Some parts of the site may behave differently with
+                cookies blocked. For example, the downtown tool won&rsquo;t remember that
+                you&rsquo;ve already submitted.
               </p>
             </Section>
 
-            <Section title="Changes to this policy">
+            <Section title="Changes">
               <p>
-                We may update this policy from time to time. Material changes will be reflected by
-                the &ldquo;Last updated&rdquo; date above.
+                If this policy changes in any meaningful way, the &ldquo;Last updated&rdquo; date at
+                the top will say so.
               </p>
             </Section>
 
             <Section title="Contact">
               <p>
-                Questions about this policy? Email{' '}
+                Questions about any of this? Email{' '}
                 <a href="mailto:observingthecity@gmail.com" className="dd-link-accent">
                   observingthecity@gmail.com
                 </a>
