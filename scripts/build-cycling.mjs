@@ -16,7 +16,7 @@ import Papa from 'papaparse';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
-const INPUT = path.join(root, 'data', 'cycling_counts_june_26.csv');
+const INPUT = path.join(root, 'data', 'cycling-counts.csv');
 const OUTPUT = path.join(root, 'public', 'cycling-counts.json');
 
 const csv = fs.readFileSync(INPUT, 'utf8');
