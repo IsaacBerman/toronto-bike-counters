@@ -18,9 +18,8 @@ export default function ContactPage() {
 
           <div className="dd-panel-ruled p-6 sm:p-8 space-y-5" style={{ color: 'var(--ink-2)' }}>
             <p className="text-base leading-relaxed">
-              This is a one-person project, so email really is the best way to reach me, and I do
-              read all of it. Questions about the data, something that looks off in a chart, an idea
-              for a dataset that deserves a better home than a spreadsheet: all welcome.
+              This is a one-person project, and email is the best way to reach me. Questions about the data, something that looks off in a chart, an idea
+              for a dataset that deserves a better home than a spreadsheet: all are welcome.
             </p>
 
             <div className="pt-2">
