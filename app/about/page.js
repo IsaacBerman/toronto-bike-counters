@@ -19,7 +19,7 @@ export default function AboutPage() {
 
           <div className="dd-panel-ruled p-6 sm:p-8 space-y-5" style={{ color: 'var(--ink-2)' }}>
             <p className="text-base leading-relaxed">
-             Obersving the City was born out of my desire to make opaque data more accessible to the public. There is so much open data hidden government portals and apis. It only sees the light of day when a report is requested by the government and then is buried as a PDF in a committees agenda. I set out to change that.
+             Observing the City was born out of my desire to make opaque data more accessible to the public. There is so much open data hidden in government portals and apis. It only sees the light of day when a report is requested by the government and then is buried as a PDF in a committees agenda. I set out to change that.
             </p>
 
             <p className="text-sm leading-relaxed">
