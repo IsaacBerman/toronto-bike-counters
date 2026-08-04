@@ -19,11 +19,7 @@ export default function AboutPage() {
 
           <div className="dd-panel-ruled p-6 sm:p-8 space-y-5" style={{ color: 'var(--ink-2)' }}>
             <p className="text-base leading-relaxed">
-              I started Observing the City because so much of the interesting data about Toronto
-              sits in spreadsheets and open data portals where almost nobody looks at it. The city
-              publishes bike counter readings, the university runs a huge travel survey every five
-              years, and most of it never turns into anything you can actually explore. This site
-              is my attempt to change that: free, in the browser, no account needed.
+             Obersving the City was born out of my desire to make opaque data more accessible to the public. There is so much open data hidden government portals and apis. It only sees the light of day when a report is requested by the government and then is buried as a PDF in a committees agenda. I set out to change that.
             </p>
 
             <p className="text-sm leading-relaxed">
