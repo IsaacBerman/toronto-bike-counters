@@ -17,14 +17,30 @@ const GRID = '#e5e3da';
 // (validated ordinal ramp on the paper surface). 0 km/h means trains are
 // held/diverted through the zone.
 const SEVERITY = [
-  { max: 0, color: '#6e0d1d', label: '0 km/h (stopped)' },
-  { max: 15, color: '#b02818', label: '≤ 15 km/h' },
-  { max: 25, color: '#d95f43', label: '16–25 km/h' },
-  { max: Infinity, color: '#f0926f', label: '26+ km/h' },
+  { max: 0, color: '#5f0a18', label: '0 km/h (stopped)' },
+  { max: 15, color: '#96201c', label: '≤ 15 km/h' },
+  { max: 25, color: '#c23a24', label: '16–25 km/h' },
+  { max: 35, color: '#dd6746', label: '26–35 km/h' },
+  { max: Infinity, color: '#f0926f', label: '36+ km/h' },
 ];
 
 function severityFor(reducedKmh) {
   return SEVERITY.find((s) => reducedKmh <= s.max) || SEVERITY[SEVERITY.length - 1];
+}
+
+// Estimated added travel time for one pass through a zone: its slow-track
+// length at the reduced speed vs. the normal speed. The length column is
+// already the row's total across its (xN) patches, so no multiplier. A
+// 0 km/h zone is counted at the TTC's stated 10 km/h crawl.
+function zoneDelayMin(z) {
+  if (!z.defect_m || !z.normal_kmh) return 0;
+  const reduced = Math.max(z.reduced_kmh ?? 0, 10);
+  return Math.max((z.defect_m / 1000) * 60 * (1 / reduced - 1 / z.normal_kmh), 0);
+}
+
+function formatDelay(min) {
+  if (min >= 1) return `${(Math.round(min * 10) / 10).toLocaleString()} min`;
+  return `${Math.round(min * 60)} s`;
 }
 
 function formatDay(day) {
@@ -73,6 +89,7 @@ export default function SlowZonesContent() {
   const [error, setError] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
   const [mapReady, setMapReady] = useState(false);
+  const [sort, setSort] = useState({ key: 'line', dir: 1 });
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const overlayRef = useRef(null);
@@ -95,15 +112,21 @@ export default function SlowZonesContent() {
   );
   const selectedMeta = days.find((d) => d.day === selectedDay);
 
-  // Estimated added travel time for one pass through a zone: its slow-track
-  // length at the reduced speed vs. the normal speed. The length column is
-  // already the row's total across its (xN) patches, so no multiplier. A
-  // 0 km/h zone is counted at the TTC's stated 10 km/h crawl.
-  const zoneDelayMin = (z) => {
-    if (!z.defect_m || !z.normal_kmh) return 0;
-    const reduced = Math.max(z.reduced_kmh ?? 0, 10);
-    return Math.max((z.defect_m / 1000) * 60 * (1 / reduced - 1 / z.normal_kmh), 0);
-  };
+  const sortedZones = useMemo(() => {
+    const { key, dir } = sort;
+    return selectedZones.map((z) => ({ ...z, delay_min: zoneDelayMin(z) })).sort((a, b) => {
+      const av = a[key];
+      const bv = b[key];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv));
+      return cmp * dir;
+    });
+  }, [selectedZones, sort]);
+
+  const toggleSort = (key) =>
+    setSort((s) => ({ key, dir: s.key === key ? -s.dir : 1 }));
 
   // Per-day chart series: zone count and total estimated delay.
   const perDay = useMemo(() => {
@@ -233,10 +256,12 @@ export default function SlowZonesContent() {
         const a2 = map.layerPointToLatLng([pA.x + ox, pA.y + oy]);
         const b2 = map.layerPointToLatLng([pB.x + ox, pB.y + oy]);
         const color = severityFor(zone.reduced_kmh).color;
+        const delay = zoneDelayMin(zone);
         const tooltip =
           `<b>${zone.location}</b><br/>` +
           `${zone.reduced_kmh} km/h (normal ${zone.normal_kmh} km/h)<br/>` +
-          `${zone.defect_m ?? '?'} m of track · target: ${zone.target || 'TBD'}`;
+          `${zone.defect_m ?? '?'} m of track · target: ${zone.target || 'TBD'}` +
+          (delay > 0 ? `<br/>est. delay +${formatDelay(delay)}` : '');
         // Dark casing under a thick severity stroke: restricted segments stay
         // structurally distinct from base lines even without color vision.
         L.polyline([a2, b2], { color: INK, weight: 9, opacity: 0.85 }).addTo(overlay);
@@ -427,28 +452,48 @@ export default function SlowZonesContent() {
               <table className="w-full text-sm" style={{ color: INK2 }}>
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide" style={{ color: INK3 }}>
-                    <th className="py-1.5 pr-3">Location</th>
-                    <th className="py-1.5 pr-3">Speed</th>
-                    <th className="py-1.5 pr-3">Normal</th>
-                    <th className="py-1.5 pr-3">Length</th>
-                    <th className="py-1.5">Target removal</th>
+                    {[
+                      ['line', 'Line'],
+                      ['location', 'Location'],
+                      ['reduced_kmh', 'Speed'],
+                      ['normal_kmh', 'Normal'],
+                      ['defect_m', 'Length'],
+                      ['delay_min', 'Est. delay'],
+                      ['target', 'Target removal'],
+                    ].map(([key, label]) => (
+                      <th key={key} className="py-1.5 pr-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(key)}
+                          className="uppercase tracking-wide font-bold cursor-pointer"
+                          style={{ color: sort.key === key ? INK : INK3 }}
+                        >
+                          {label}
+                          {sort.key === key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
+                        </button>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedZones.map((z, i) => (
+                  {sortedZones.map((z, i) => (
                     <tr key={i} className="border-t" style={{ borderColor: GRID }}>
+                      <td className="py-1.5 pr-3" style={{ color: INK }}>
+                        Line {z.line}
+                      </td>
                       <td className="py-1.5 pr-3">
                         <span
                           className="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle"
                           style={{ background: severityFor(z.reduced_kmh).color }}
                         />
-                        <span style={{ color: INK }}>Line {z.line}</span> · {z.location}
+                        {z.location}
                       </td>
                       <td className="py-1.5 pr-3 font-bold" style={{ color: INK }}>
                         {z.reduced_kmh} km/h
                       </td>
                       <td className="py-1.5 pr-3">{z.normal_kmh} km/h</td>
                       <td className="py-1.5 pr-3">{z.defect_m?.toLocaleString() ?? '—'} m</td>
+                      <td className="py-1.5 pr-3">{z.delay_min > 0 ? `+${formatDelay(z.delay_min)}` : '—'}</td>
                       <td className="py-1.5">{z.target || 'TBD'}</td>
                     </tr>
                   ))}
