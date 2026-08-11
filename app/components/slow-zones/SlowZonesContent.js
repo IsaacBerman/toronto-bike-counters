@@ -312,8 +312,7 @@ export default function SlowZonesContent() {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
-      <div className="container mx-auto px-4 max-w-5xl py-12">
-        <p className="dd-kicker mb-3">Observing the City</p>
+      <div className="container mx-auto px-4 max-w-5xl pt-4 pb-12">
         <h1 className="dd-title text-4xl sm:text-5xl mb-4" style={{ color: INK }}>
           TTC Slow Zones
         </h1>
@@ -322,7 +321,6 @@ export default function SlowZonesContent() {
           (&ldquo;slow orders&rdquo;) are posted by the TTC and captured here once a day,
           so the history builds over time.
         </p>
-
         {!history ? (
           <p className="dd-title text-xl py-20 text-center" style={{ color: INK2 }}>
             Loading…

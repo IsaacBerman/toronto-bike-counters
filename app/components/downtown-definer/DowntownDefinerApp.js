@@ -483,7 +483,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
-      <div className="container mx-auto px-4 max-w-4xl lg:max-w-6xl py-10">
+      <div className="container mx-auto px-4 max-w-4xl lg:max-w-6xl pt-4 pb-10">
         <div className="mb-6">
           <h1 className="dd-title text-4xl sm:text-5xl mb-2" style={{ color: 'var(--ink)' }}>
             Where is Downtown?

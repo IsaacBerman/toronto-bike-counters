@@ -212,7 +212,7 @@ export default function TravelExplorer() {
 
   return (
     <div style={{ background: 'var(--paper)' }}>
-      <div className="container mx-auto px-4 max-w-6xl py-8 sm:py-12">
+      <div className="container mx-auto px-4 max-w-6xl pt-4 pb-8 sm:pb-12">
         {/* Intro */}
         <h1 className="dd-title text-4xl sm:text-5xl mb-4" style={{ color: INK }}>
           TransformTO Tracking

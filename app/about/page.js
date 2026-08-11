@@ -11,7 +11,7 @@ export default function AboutPage() {
     <>
       <SiteHeader />
       <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
-        <div className="container mx-auto px-4 max-w-3xl py-12 sm:py-16">
+        <div className="container mx-auto px-4 max-w-3xl pt-4 pb-12 sm:pb-16">
           <p className="dd-kicker mb-3">About</p>
           <h1 className="dd-title text-4xl sm:text-5xl mb-6" style={{ color: 'var(--ink)' }}>
             Observing the City

@@ -218,7 +218,7 @@ export default function BicycleCountersContent() {
   };
 
   return (
-    <div className="min-h-screen py-10" style={{ background: 'var(--paper)' }}>
+    <div className="min-h-screen pt-4 pb-10" style={{ background: 'var(--paper)' }}>
       <div className="container mx-auto px-4 max-w-7xl">
         {/* Header Section */}
         <div className="mb-6">

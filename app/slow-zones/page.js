@@ -1,3 +1,4 @@
+import SiteHeader from '../components/site-header';
 import SlowZonesContent from '../components/slow-zones/SlowZonesContent';
 
 export const metadata = {
@@ -7,5 +8,10 @@ export const metadata = {
 };
 
 export default function SlowZonesPage() {
-  return <SlowZonesContent />;
+  return (
+    <>
+      <SiteHeader current="slow-zones" />
+      <SlowZonesContent />
+    </>
+  );
 }
