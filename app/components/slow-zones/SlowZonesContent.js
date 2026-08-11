@@ -320,7 +320,7 @@ export default function SlowZonesContent() {
         <p className="max-w-2xl text-sm leading-relaxed mb-8" style={{ color: INK2 }}>
           Where subway trains are running below normal speed. Reduced speed zones
           (&ldquo;slow orders&rdquo;) are posted by the TTC and captured here once a day,
-          so the history builds over time. One zone can add one to three minutes to a trip.
+          so the history builds over time.
         </p>
 
         {!history ? (
@@ -368,7 +368,10 @@ export default function SlowZonesContent() {
                 Slow zones on the network — {selectedDay ? formatDay(selectedDay) : ''}
               </h3>
               <div ref={mapRef} className="h-[440px] w-full rounded" />
-              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs" style={{ color: INK2 }}>
+              <p className="text-xs mt-2" style={{ color: INK3 }}>
+                Hover or click a highlighted segment to see data on that zone.
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs" style={{ color: INK2 }}>
                 {SEVERITY.map((s) => (
                   <span key={s.label} className="inline-flex items-center gap-1.5">
                     <span className="inline-block w-4 h-1.5 rounded-full" style={{ background: s.color }} />
