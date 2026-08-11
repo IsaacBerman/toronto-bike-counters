@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts';
-import { LINES, segmentsBetween, segmentLabel } from '../../lib/slow-zones/stations';
+import { LINES, segmentsBetween, spanBetween, segmentLabel } from '../../lib/slow-zones/stations';
 
 const ACCENT = '#e8590c';
 const INK = '#16150f';
@@ -95,19 +95,30 @@ export default function SlowZonesContent() {
   );
   const selectedMeta = days.find((d) => d.day === selectedDay);
 
-  // Per-day chart series: zone count and total speed drop
-  // (sum of zone_count × (normal − reduced) across that day's zones).
+  // Estimated added travel time for one pass through a zone: its slow-track
+  // length at the reduced speed vs. the normal speed. The length column is
+  // already the row's total across its (xN) patches, so no multiplier. A
+  // 0 km/h zone is counted at the TTC's stated 10 km/h crawl.
+  const zoneDelayMin = (z) => {
+    if (!z.defect_m || !z.normal_kmh) return 0;
+    const reduced = Math.max(z.reduced_kmh ?? 0, 10);
+    return Math.max((z.defect_m / 1000) * 60 * (1 / reduced - 1 / z.normal_kmh), 0);
+  };
+
+  // Per-day chart series: zone count and total estimated delay.
   const perDay = useMemo(() => {
-    const dropByDay = {};
+    const delayByDay = {};
+    const trackByDay = {};
     for (const z of zones) {
-      const drop = (z.normal_kmh ?? 0) - (z.reduced_kmh ?? 0);
-      dropByDay[z.day] = (dropByDay[z.day] || 0) + (z.zone_count || 1) * Math.max(drop, 0);
+      delayByDay[z.day] = (delayByDay[z.day] || 0) + zoneDelayMin(z);
+      trackByDay[z.day] = (trackByDay[z.day] || 0) + (z.defect_m || 0);
     }
     return days.map((d) => ({
       day: d.day,
       label: formatDay(d.day),
       zones: d.zone_total,
-      speedDrop: dropByDay[d.day] || 0,
+      delayMin: Math.round((delayByDay[d.day] || 0) * 10) / 10,
+      trackKm: Math.round((trackByDay[d.day] || 0) / 100) / 10,
     }));
   }, [days, zones]);
 
@@ -125,12 +136,14 @@ export default function SlowZonesContent() {
     return Object.values(counts).sort((a, b) => b.zoneDays - a.zoneDays).slice(0, 10);
   }, [zones]);
 
-  // Worst (lowest) reduced speed per segment for the selected day, for the map.
+  // Worst (lowest) reduced speed per segment *and direction* for the selected
+  // day, for the map. The segment pair is kept in travel order so the map can
+  // offset each direction to its own side and point arrows the right way.
   const segmentSeverity = useMemo(() => {
     const worst = {};
     for (const z of selectedZones) {
-      for (const seg of segmentsBetween(z.line, z.from_station, z.to_station)) {
-        const key = `${z.line}:${seg[0]}`;
+      for (const seg of spanBetween(z.line, z.from_station, z.to_station)) {
+        const key = `${z.line}:${Math.min(seg[0], seg[1])}:${z.direction || ''}`;
         if (!(key in worst) || z.reduced_kmh < worst[key].reduced_kmh) {
           worst[key] = { seg, ...z };
         }
@@ -192,28 +205,73 @@ export default function SlowZonesContent() {
   );
 
   // Redraw the severity overlay whenever the selected day's zones change.
+  // Each direction is offset to the right of its travel direction (so a
+  // segment slowed both ways shows two parallel strips) with arrows along the
+  // path. Offsets are computed in pixel space and redrawn on zoom so the
+  // separation stays constant on screen.
   useEffect(() => {
-    const overlay = overlayRef.current;
-    if (!mapReady || !overlay) return;
-    import('leaflet').then((L) => {
+    if (!mapReady || !overlayRef.current) return;
+    let disposed = false;
+    let map;
+    let L;
+    const draw = () => {
+      const overlay = overlayRef.current;
+      if (!overlay || !map || !L) return;
       overlay.clearLayers();
       for (const zone of Object.values(segmentSeverity)) {
         const stations = LINES[zone.line].stations;
-        const latlngs = [zone.seg[0], zone.seg[1]].map((i) => [stations[i][1], stations[i][2]]);
+        const [ai, bi] = zone.seg;
+        const pA = map.latLngToLayerPoint([stations[ai][1], stations[ai][2]]);
+        const pB = map.latLngToLayerPoint([stations[bi][1], stations[bi][2]]);
+        const dx = pB.x - pA.x;
+        const dy = pB.y - pA.y;
+        const len = Math.hypot(dx, dy) || 1;
+        // Right of travel in screen coords (y down): rotate (dx,dy) by +90°.
+        const OFFSET_PX = 5;
+        const ox = (-dy / len) * OFFSET_PX;
+        const oy = (dx / len) * OFFSET_PX;
+        const a2 = map.layerPointToLatLng([pA.x + ox, pA.y + oy]);
+        const b2 = map.layerPointToLatLng([pB.x + ox, pB.y + oy]);
         const color = severityFor(zone.reduced_kmh).color;
+        const tooltip =
+          `<b>${zone.location}</b><br/>` +
+          `${zone.reduced_kmh} km/h (normal ${zone.normal_kmh} km/h)<br/>` +
+          `${zone.defect_m ?? '?'} m of track · target: ${zone.target || 'TBD'}`;
         // Dark casing under a thick severity stroke: restricted segments stay
         // structurally distinct from base lines even without color vision.
-        L.polyline(latlngs, { color: INK, weight: 10, opacity: 0.85 }).addTo(overlay);
-        L.polyline(latlngs, { color, weight: 6, opacity: 1 })
-          .bindTooltip(
-            `<b>${zone.location}</b><br/>` +
-              `${zone.reduced_kmh} km/h (normal ${zone.normal_kmh} km/h)<br/>` +
-              `${zone.defect_m ?? '?'} m of track · target: ${zone.target || 'TBD'}`,
-            { sticky: true }
-          )
+        L.polyline([a2, b2], { color: INK, weight: 9, opacity: 0.85 }).addTo(overlay);
+        L.polyline([a2, b2], { color, weight: 5, opacity: 1 })
+          .bindTooltip(tooltip, { sticky: true })
           .addTo(overlay);
+        const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+        const mid = map.layerPointToLatLng([(pA.x + pB.x) / 2 + ox, (pA.y + pB.y) / 2 + oy]);
+        L.marker(mid, {
+          interactive: false,
+          keyboard: false,
+          icon: L.divIcon({
+            className: '',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+            html:
+              `<div style="transform:rotate(${angle.toFixed(1)}deg);font-size:10px;` +
+              `line-height:14px;text-align:center;color:#ffffff;` +
+              `text-shadow:0 0 2px rgba(0,0,0,0.9)">➤</div>`,
+          }),
+        }).addTo(overlay);
       }
+    };
+    import('leaflet').then((mod) => {
+      if (disposed) return;
+      L = mod.default || mod;
+      map = mapInstanceRef.current;
+      if (!map) return;
+      draw();
+      map.on('zoomend', draw);
     });
+    return () => {
+      disposed = true;
+      mapInstanceRef.current?.off('zoomend', draw);
+    };
   }, [mapReady, segmentSeverity]);
 
   if (error) {
@@ -224,10 +282,7 @@ export default function SlowZonesContent() {
     );
   }
 
-  const totalDrop = selectedZones.reduce(
-    (sum, z) => sum + (z.zone_count || 1) * Math.max((z.normal_kmh ?? 0) - (z.reduced_kmh ?? 0), 0),
-    0
-  );
+  const totalDelayMin = Math.round(selectedZones.reduce((sum, z) => sum + zoneDelayMin(z), 0) * 10) / 10;
   const slowTrackM = selectedZones.reduce((sum, z) => sum + (z.defect_m || 0), 0);
 
   return (
@@ -279,7 +334,7 @@ export default function SlowZonesContent() {
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
               <StatTile label="Slow zones" value={selectedMeta?.zone_total ?? 0} />
-              <StatTile label="Total speed drop" value={totalDrop} unit="km/h" />
+              <StatTile label="Est. added time" value={totalDelayMin} unit="min" />
               <StatTile label="Slow track" value={slowTrackM.toLocaleString()} unit="m" />
             </div>
 
@@ -295,6 +350,7 @@ export default function SlowZonesContent() {
                     {s.label}
                   </span>
                 ))}
+                <span>➤ direction of travel</span>
                 <span className="inline-flex items-center gap-1.5 ml-auto">
                   {Object.values(LINES).map((l) => (
                     <span key={l.name} className="inline-flex items-center gap-1 mr-2">
@@ -319,8 +375,8 @@ export default function SlowZonesContent() {
                 </ResponsiveContainer>
               </ChartPanel>
               <ChartPanel
-                title="Total speed drop per day"
-                subtitle="Sum of (normal − reduced) km/h across all zones"
+                title="Estimated delay per day"
+                subtitle="Added minutes riding through every zone once, from slow-track length and speed cut"
               >
                 <ResponsiveContainer width="100%" height={220}>
                   <AreaChart data={perDay} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
@@ -328,26 +384,41 @@ export default function SlowZonesContent() {
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
                     <YAxis tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
                     <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                    <Area type="monotone" dataKey="speedDrop" name="Speed drop (km/h)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
+                    <Area type="monotone" dataKey="delayMin" name="Est. delay (min)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
                   </AreaChart>
                 </ResponsiveContainer>
               </ChartPanel>
             </div>
 
-            <ChartPanel
-              title="Segments with the most slow zones"
-              subtitle="Cumulative zone-days per segment between adjacent stations, all time"
-            >
-              <ResponsiveContainer width="100%" height={Math.max(topSegments.length * 34, 120)}>
-                <BarChart data={topSegments} layout="vertical" margin={{ top: 0, right: 24, bottom: 0, left: 60 }}>
-                  <CartesianGrid stroke={GRID} horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
-                  <YAxis type="category" dataKey="label" width={130} tick={{ fontSize: 11, fill: INK2 }} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                  <Bar dataKey="zoneDays" name="Zone-days" fill={ACCENT} radius={[0, 4, 4, 0]} barSize={16} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartPanel>
+            <div className="grid md:grid-cols-2 gap-6">
+              <ChartPanel title="Slow track per day" subtitle="Total km of track under reduced speed">
+                <ResponsiveContainer width="100%" height={Math.max(topSegments.length * 34, 220)}>
+                  <AreaChart data={perDay} margin={{ top: 4, right: 8, bottom: 0, left: -24 }}>
+                    <CartesianGrid stroke={GRID} vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
+                    <YAxis tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
+                    <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
+                    <Area type="monotone" dataKey="trackKm" name="Slow track (km)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartPanel>
+              <div>
+                <ChartPanel
+                  title="Segments with the most slow zones"
+                  subtitle="Cumulative zone-days per segment between adjacent stations, all time"
+                >
+                  <ResponsiveContainer width="100%" height={Math.max(topSegments.length * 34, 120)}>
+                    <BarChart data={topSegments} layout="vertical" margin={{ top: 0, right: 24, bottom: 0, left: 0 }}>
+                      <CartesianGrid stroke={GRID} horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
+                      <YAxis type="category" dataKey="label" width={130} tick={{ fontSize: 11, fill: INK2 }} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
+                      <Bar dataKey="zoneDays" name="Zone-days" fill={ACCENT} radius={[0, 4, 4, 0]} barSize={16} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartPanel>
+              </div>
+            </div>
 
             <div className="dd-panel-ruled p-4 mt-6 overflow-x-auto">
               <h3 className="font-bold text-sm mb-3" style={{ color: INK }}>

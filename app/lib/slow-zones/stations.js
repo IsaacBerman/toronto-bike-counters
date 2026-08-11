@@ -143,6 +143,20 @@ export function segmentsBetween(lineId, fromName, toName) {
   return segments;
 }
 
+// Like segmentsBetween, but the pairs are in travel order (from -> to), so
+// callers can render direction (offset side, arrows).
+export function spanBetween(lineId, fromName, toName) {
+  const idx = indexByLine[lineId];
+  if (!idx) return [];
+  const a = idx[canonicalKey(fromName)];
+  const b = idx[canonicalKey(toName)];
+  if (a === undefined || b === undefined || a === b) return [];
+  const step = a < b ? 1 : -1;
+  const segments = [];
+  for (let i = a; i !== b; i += step) segments.push([i, i + step]);
+  return segments;
+}
+
 export function segmentLabel(lineId, [i, j]) {
   const stations = LINES[lineId]?.stations;
   if (!stations) return '';
