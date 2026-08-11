@@ -89,7 +89,7 @@ export default function SlowZonesContent() {
   const [error, setError] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
   const [mapReady, setMapReady] = useState(false);
-  const [sort, setSort] = useState({ key: 'line', dir: 1 });
+  const [sort, setSort] = useState({ key: 'delay_min', dir: -1 });
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const overlayRef = useRef(null);
