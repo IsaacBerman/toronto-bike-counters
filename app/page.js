@@ -62,6 +62,11 @@ export default function Home() {
             blurb="Mode share by ward, distance and year from the Transportation Tomorrow Survey — tracking the TransformTO 2030 goal."
           />
           <ProjectCard
+            href="/slow-zones"
+            title="TTC Slow Zones"
+            blurb="Daily tracking of subway reduced speed zones — where trains crawl, by how much, and for how long."
+          />
+          <ProjectCard
             href="/downtown-definer"
             title="Where is Downtown?"
             blurb="Draw the boundary of what you call &ldquo;downtown&rdquo; and watch it merge into a crowd heatmap."

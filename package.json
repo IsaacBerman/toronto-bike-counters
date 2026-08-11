@@ -8,6 +8,7 @@
     "start": "next start",
     "build:data": "node scripts/build-tts.mjs",
     "build:cycling": "node scripts/build-cycling.mjs",
+    "ingest:slow-zones": "node scripts/ingest-slow-zones.mjs",
     "lint": "eslint"
   },
   "dependencies": {

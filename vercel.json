@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/slow-zones/ingest",
+      "schedule": "0 12 * * *"
+    }
+  ]
+}
