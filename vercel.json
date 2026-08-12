@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/slow-zones/ingest",
-      "schedule": "0 12 * * *"
+      "schedule": "0 15 * * *"
     }
   ]
 }
