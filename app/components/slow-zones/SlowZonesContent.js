@@ -570,7 +570,7 @@ export default function SlowZonesContent() {
                           style={{ color: sort.key === key ? INK : INK3 }}
                           title={
                             key === 'cost_day'
-                              ? 'Estimated riders crossing the zone daily × added minutes ÷ 60 × $17/hr value of time. Hover a value for that zone’s numbers; method and sources below.'
+                              ? `Estimated riders crossing the zone daily × added minutes ÷ 60 × $${VALUE_OF_TIME}/hr value of time (Metrolinx). Hover a value for that zone’s numbers; method and sources below.`
                               : undefined
                           }
                         >
@@ -645,10 +645,20 @@ export default function SlowZonesContent() {
                 <b>Cost</b>: rider time lost is first totalled as person-hours,{' '}
                 <code>person-hours/day = Σ riders × t ÷ 60</code>, then valued at $
                 {VALUE_OF_TIME}/hour:{' '}
-                <code>cost/day = person-hours/day × ${VALUE_OF_TIME}</code> (the
-                half-of-average-wage convention used in Ontario transit business cases). The
-                cumulative line in the cost chart sums the daily figures from the start of data
-                collection. These are order-of-magnitude estimates, not measurements.
+                <code>cost/day = person-hours/day × ${VALUE_OF_TIME}</code>. The rate is
+                Metrolinx&rsquo;s standard value of time, $18.79/hr in 2021 dollars, converted to
+                2026 dollars using Canada CPI, from its{' '}
+                <a
+                  href="https://assets.metrolinx.com/image/upload/v1663237565/Documents/Metrolinx/Metrolinx-Business-Case-Guidance-Volume-2.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="dd-link-accent"
+                >
+                  Business Case Manual Volume 2
+                </a>{' '}
+                (Table 5.8, Economic Case parameters). The cumulative line in the cost chart sums
+                the daily figures from the start of data collection. These are order-of-magnitude
+                estimates, not measurements.
               </p>
               <p style={{ color: INK3 }}>
                 Sources:{' '}
@@ -678,7 +688,16 @@ export default function SlowZonesContent() {
                 >
                   Line 1 Capacity Enhancement Program
                 </a>{' '}
-                (peak-point calibration).
+                (peak-point calibration) ·{' '}
+                <a
+                  href="https://assets.metrolinx.com/image/upload/v1663237565/Documents/Metrolinx/Metrolinx-Business-Case-Guidance-Volume-2.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="dd-link-accent"
+                >
+                  Metrolinx Business Case Manual Vol. 2
+                </a>{' '}
+                (value of time).
               </p>
             </div>
           </>

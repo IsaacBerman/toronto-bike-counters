@@ -4,9 +4,10 @@
 import linkVolumes from './link-volumes.json';
 import { spanBetween } from './stations';
 
-// Value of travel time, $/hour — the standard "half the average wage"
-// convention used in Ontario transit business cases.
-export const VALUE_OF_TIME = 17;
+// Value of travel time, $/hour — Metrolinx's standard economic parameter
+// ($18.79/hr in 2021 dollars, Business Case Manual Volume 2, Table 5.8),
+// adjusted to 2026 dollars with Canada CPI (~+18% 2021->2026).
+export const VALUE_OF_TIME = 22.2;
 
 // Mean directed link volume (riders/weekday) across the segments a zone
 // spans, in the zone's direction of travel. Null when the zone can't be
