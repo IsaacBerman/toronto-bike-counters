@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar, ComposedChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import { LINES, segmentsBetween, spanBetween, segmentLabel } from '../../lib/slow-zones/stations';
 import { VALUE_OF_TIME, zoneDailyRiders } from '../../lib/slow-zones/ridership';
@@ -90,9 +90,9 @@ function StatTile({ label, value, unit }) {
   );
 }
 
-function ChartPanel({ title, subtitle, children }) {
+function ChartBlock({ title, subtitle, children }) {
   return (
-    <div className="dd-panel-ruled p-4">
+    <div>
       <h3 className="font-bold text-sm mb-0.5" style={{ color: INK }}>{title}</h3>
       <p className="text-xs mb-3" style={{ color: INK3 }}>{subtitle}</p>
       {children}
@@ -106,6 +106,7 @@ export default function SlowZonesContent() {
   const [selectedDay, setSelectedDay] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const [sort, setSort] = useState({ key: 'delay_min', dir: -1 });
+  const [chartTab, setChartTab] = useState('zones');
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const overlayRef = useRef(null);
@@ -153,21 +154,30 @@ export default function SlowZonesContent() {
   const toggleSort = (key) =>
     setSort((s) => ({ key, dir: s.key === key ? -s.dir : 1 }));
 
-  // Per-day chart series: zone count and total estimated delay.
+  // Per-day chart series: zone count, total estimated delay, slow track, and
+  // estimated daily + running cumulative cost.
   const perDay = useMemo(() => {
     const delayByDay = {};
     const trackByDay = {};
+    const costByDay = {};
     for (const z of zones) {
       delayByDay[z.day] = (delayByDay[z.day] || 0) + zoneDelayMin(z);
       trackByDay[z.day] = (trackByDay[z.day] || 0) + (z.defect_m || 0);
+      costByDay[z.day] = (costByDay[z.day] || 0) + (zoneImpact(z).cost || 0);
     }
-    return days.map((d) => ({
-      day: d.day,
-      label: formatDay(d.day),
-      zones: d.zone_total,
-      delayMin: Math.round((delayByDay[d.day] || 0) * 10) / 10,
-      trackKm: Math.round((trackByDay[d.day] || 0) / 100) / 10,
-    }));
+    let runningCost = 0;
+    return days.map((d) => {
+      runningCost += costByDay[d.day] || 0;
+      return {
+        day: d.day,
+        label: formatDay(d.day),
+        zones: d.zone_total,
+        delayMin: Math.round((delayByDay[d.day] || 0) * 10) / 10,
+        trackKm: Math.round((trackByDay[d.day] || 0) / 100) / 10,
+        cost: Math.round(costByDay[d.day] || 0),
+        cumulativeCost: Math.round(runningCost),
+      };
+    });
   }, [days, zones]);
 
   // Segments ranked by cumulative zone-days (a segment with 2 zones for 3
@@ -288,10 +298,8 @@ export default function SlowZonesContent() {
           `${zone.reduced_kmh} km/h (normal ${zone.normal_kmh} km/h)<br/>` +
           `${zone.defect_m ?? '?'} m of track · target: ${zone.target || 'TBD'}` +
           (delay > 0 ? `<br/>est. delay +${formatDelay(delay)}` : '') +
-          (impact.personHours != null
-            ? `<br/>≈${impact.riders.toLocaleString()} riders/day · ` +
-              `${Math.round(impact.personHours).toLocaleString()} person-hrs · ` +
-              `${formatMoney(impact.cost)}/day`
+          (impact.cost != null
+            ? `<br/>≈${impact.riders.toLocaleString()} riders/day · est. ${formatMoney(impact.cost)}/day`
             : '');
         // Dark casing under a thick severity stroke: restricted segments stay
         // structurally distinct from base lines even without color vision.
@@ -388,12 +396,15 @@ export default function SlowZonesContent() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
               <StatTile label="Slow zones" value={selectedMeta?.zone_total ?? 0} />
               <StatTile label="Est. added time" value={totalDelayMin} unit="min" />
               <StatTile label="Slow track" value={slowTrackM.toLocaleString()} unit="m" />
-              <StatTile label="Person-hours lost" value={Math.round(totalPersonHours).toLocaleString()} unit="/day" />
-              <StatTile label="Est. cost" value={formatMoney(totalCost)} unit="/day" />
+              <StatTile
+                label="Est. cost"
+                value={totalCost >= 1000 ? `$${Math.round(totalCost / 1000).toLocaleString()}k` : `$${Math.round(totalCost)}`}
+                unit="/day"
+              />
             </div>
 
             <div className="dd-panel-ruled p-4 mb-6">
@@ -423,52 +434,105 @@ export default function SlowZonesContent() {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6 mb-6">
-              <ChartPanel title="Slow zones per day" subtitle="Total zones in effect each day">
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={perDay} margin={{ top: 4, right: 8, bottom: 0, left: -24 }}>
-                    <CartesianGrid stroke={GRID} vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                    <Area type="monotone" dataKey="zones" name="Slow zones" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartPanel>
-              <ChartPanel
-                title="Estimated delay per day"
-                subtitle="Added minutes riding through every zone once, from slow-track length and speed cut"
-              >
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={perDay} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
-                    <CartesianGrid stroke={GRID} vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
-                    <YAxis tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                    <Area type="monotone" dataKey="delayMin" name="Est. delay (min)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartPanel>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <ChartPanel title="Slow track per day" subtitle="Total km of track under reduced speed">
-                <ResponsiveContainer width="100%" height={Math.max(topSegments.length * 34, 220)}>
-                  <AreaChart data={perDay} margin={{ top: 4, right: 8, bottom: 0, left: -24 }}>
-                    <CartesianGrid stroke={GRID} vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
-                    <YAxis tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                    <Area type="monotone" dataKey="trackKm" name="Slow track (km)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartPanel>
-              <div>
-                <ChartPanel
+            <div className="dd-panel-ruled p-4 mb-6">
+              <div className="flex flex-wrap gap-2 mb-3">
+                {[
+                  ['zones', 'Zones per day'],
+                  ['delay', 'Delay'],
+                  ['cost', 'Cost'],
+                  ['track', 'Slow track'],
+                  ['segments', 'Worst segments'],
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setChartTab(id)}
+                    className="px-2.5 py-1.5 rounded text-xs font-bold transition-colors cursor-pointer"
+                    style={
+                      chartTab === id
+                        ? { background: ACCENT, color: '#ffffff' }
+                        : { background: 'var(--paper)', color: INK2 }
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {chartTab === 'zones' && (
+                <ChartBlock title="Slow zones per day" subtitle="Total zones in effect each day">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={perDay} margin={{ top: 4, right: 8, bottom: 0, left: -24 }}>
+                      <CartesianGrid stroke={GRID} vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
+                      <Area type="monotone" dataKey="zones" name="Slow zones" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </ChartBlock>
+              )}
+              {chartTab === 'delay' && (
+                <ChartBlock
+                  title="Estimated delay per day"
+                  subtitle="Added minutes riding through every zone once, from slow-track length and speed cut"
+                >
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={perDay} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
+                      <CartesianGrid stroke={GRID} vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
+                      <YAxis tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
+                      <Area type="monotone" dataKey="delayMin" name="Est. delay (min)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </ChartBlock>
+              )}
+              {chartTab === 'cost' && (
+                <ChartBlock
+                  title="Estimated cost of slow zones"
+                  subtitle={`Daily and cumulative rider time cost at $${VALUE_OF_TIME}/hr — see method below`}
+                >
+                  <ResponsiveContainer width="100%" height={260}>
+                    <ComposedChart data={perDay} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                      <CartesianGrid stroke={GRID} vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: INK3 }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v) => (v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`)}
+                      />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        labelStyle={{ color: INK2 }}
+                        formatter={(v) => `$${Number(v).toLocaleString()}`}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11, color: INK2 }} />
+                      <Bar dataKey="cost" name="Daily cost" fill={ACCENT} radius={[3, 3, 0, 0]} barSize={18} />
+                      <Line type="monotone" dataKey="cumulativeCost" name="Cumulative" stroke={INK} strokeWidth={2} dot={{ r: 2.5 }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </ChartBlock>
+              )}
+              {chartTab === 'track' && (
+                <ChartBlock title="Slow track per day" subtitle="Total km of track under reduced speed">
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={perDay} margin={{ top: 4, right: 8, bottom: 0, left: -24 }}>
+                      <CartesianGrid stroke={GRID} vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
+                      <YAxis tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
+                      <Area type="monotone" dataKey="trackKm" name="Slow track (km)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </ChartBlock>
+              )}
+              {chartTab === 'segments' && (
+                <ChartBlock
                   title="Segments with the most slow zones"
                   subtitle="Cumulative zone-days per segment between adjacent stations, all time"
                 >
-                  <ResponsiveContainer width="100%" height={Math.max(topSegments.length * 34, 120)}>
+                  <ResponsiveContainer width="100%" height={Math.max(topSegments.length * 34, 160)}>
                     <BarChart data={topSegments} layout="vertical" margin={{ top: 0, right: 24, bottom: 0, left: 0 }}>
                       <CartesianGrid stroke={GRID} horizontal={false} />
                       <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
@@ -477,8 +541,8 @@ export default function SlowZonesContent() {
                       <Bar dataKey="zoneDays" name="Zone-days" fill={ACCENT} radius={[0, 4, 4, 0]} barSize={16} />
                     </BarChart>
                   </ResponsiveContainer>
-                </ChartPanel>
-              </div>
+                </ChartBlock>
+              )}
             </div>
 
             <div className="dd-panel-ruled p-4 mt-6 overflow-x-auto">
@@ -539,10 +603,10 @@ export default function SlowZonesContent() {
                       <td
                         className="py-1.5 pr-3"
                         title={
-                          z.person_hours != null
+                          z.cost_day != null
                             ? `≈${z.riders_day.toLocaleString()} riders/day × ${
                                 Math.round(z.delay_min * 100) / 100
-                              } min ÷ 60 = ${Math.round(z.person_hours).toLocaleString()} person-hrs × $${VALUE_OF_TIME}/hr`
+                              } min ÷ 60 × $${VALUE_OF_TIME}/hr ≈ ${formatMoney(z.cost_day)}/day`
                             : 'No ridership estimate for this zone'
                         }
                       >
@@ -578,10 +642,13 @@ export default function SlowZonesContent() {
                 consistent with the TTC&rsquo;s measured peak-point volumes.
               </p>
               <p className="mb-2">
-                <b>Person-hours and cost</b>:{' '}
-                <code>person-hours/day = Σ riders × t ÷ 60</code>, valued at $
-                {VALUE_OF_TIME}/hour (the half-of-average-wage convention used in Ontario transit
-                business cases). These are order-of-magnitude estimates, not measurements.
+                <b>Cost</b>: rider time lost is first totalled as person-hours,{' '}
+                <code>person-hours/day = Σ riders × t ÷ 60</code>, then valued at $
+                {VALUE_OF_TIME}/hour:{' '}
+                <code>cost/day = person-hours/day × ${VALUE_OF_TIME}</code> (the
+                half-of-average-wage convention used in Ontario transit business cases). The
+                cumulative line in the cost chart sums the daily figures from the start of data
+                collection. These are order-of-magnitude estimates, not measurements.
               </p>
               <p style={{ color: INK3 }}>
                 Sources:{' '}
