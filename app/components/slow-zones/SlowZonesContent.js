@@ -272,10 +272,13 @@ export default function SlowZonesContent() {
     let disposed = false;
     let map;
     let L;
+    let tip;
+    let hitSegments = [];
     const draw = () => {
       const overlay = overlayRef.current;
       if (!overlay || !map || !L) return;
       overlay.clearLayers();
+      hitSegments = [];
       for (const zone of Object.values(segmentSeverity)) {
         const stations = LINES[zone.line].stations;
         const [ai, bi] = zone.seg;
@@ -303,10 +306,12 @@ export default function SlowZonesContent() {
             : '');
         // Dark casing under a thick severity stroke: restricted segments stay
         // structurally distinct from base lines even without color vision.
-        L.polyline([a2, b2], { color: INK, weight: 9, opacity: 0.85 }).addTo(overlay);
-        L.polyline([a2, b2], { color, weight: 5, opacity: 1 })
-          .bindTooltip(tooltip, { sticky: true })
-          .addTo(overlay);
+        L.polyline([a2, b2], { color: INK, weight: 10, opacity: 0.85, interactive: false }).addTo(overlay);
+        L.polyline([a2, b2], { color, weight: 6, opacity: 1, interactive: false }).addTo(overlay);
+        // Tooltip hits are resolved by nearest-line-centre at the map level
+        // (see onPointer below), so overlapping directions stay individually
+        // tappable; record this segment's pixel geometry for that.
+        hitSegments.push({ ax: pA.x + ox, ay: pA.y + oy, bx: pB.x + ox, by: pB.y + oy, tooltip });
         const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
         const mid = map.layerPointToLatLng([(pA.x + pB.x) / 2 + ox, (pA.y + pB.y) / 2 + oy]);
         L.marker(mid, {
@@ -324,17 +329,56 @@ export default function SlowZonesContent() {
         }).addTo(overlay);
       }
     };
+    // Distance in px from a point to a segment, for nearest-zone hit testing.
+    const distToSegment = (px, py, s) => {
+      const dx = s.bx - s.ax;
+      const dy = s.by - s.ay;
+      const t = Math.max(0, Math.min(1, ((px - s.ax) * dx + (py - s.ay) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(px - (s.ax + t * dx), py - (s.ay + t * dy));
+    };
+    // Show the tooltip of whichever zone's line centre is closest to the
+    // pointer (within a finger-sized radius) — with parallel directional
+    // strips this picks the one you're actually nearer to.
+    const HIT_RADIUS_PX = 16;
+    const onPointer = (e) => {
+      if (!map || !tip) return;
+      const p = e.layerPoint;
+      let best = null;
+      let bestDist = HIT_RADIUS_PX;
+      for (const s of hitSegments) {
+        const d = distToSegment(p.x, p.y, s);
+        if (d < bestDist) {
+          bestDist = d;
+          best = s;
+        }
+      }
+      if (best) {
+        tip.setContent(best.tooltip).setLatLng(e.latlng);
+        map.openTooltip(tip);
+      } else {
+        map.closeTooltip(tip);
+      }
+    };
     import('leaflet').then((mod) => {
       if (disposed) return;
       L = mod.default || mod;
       map = mapInstanceRef.current;
       if (!map) return;
+      tip = L.tooltip({ direction: 'top', offset: [0, -10] });
       draw();
       map.on('zoomend', draw);
+      map.on('mousemove', onPointer);
+      map.on('click', onPointer);
     });
     return () => {
       disposed = true;
-      mapInstanceRef.current?.off('zoomend', draw);
+      const m = mapInstanceRef.current;
+      if (m) {
+        m.off('zoomend', draw);
+        m.off('mousemove', onPointer);
+        m.off('click', onPointer);
+        if (tip) m.closeTooltip(tip);
+      }
     };
   }, [mapReady, segmentSeverity]);
 
