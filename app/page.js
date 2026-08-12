@@ -59,12 +59,12 @@ export default function Home() {
           <ProjectCard
             href="/transform-toronto"
             title="TransformTO Tracking"
-            blurb="Mode share by ward, distance and year from the Transportation Tomorrow Survey — tracking the TransformTO 2030 goal."
+            blurb="Mode share by ward, distance and year from the Transportation Tomorrow Survey, against the city's 2030 goal."
           />
           <ProjectCard
             href="/slow-zones"
             title="TTC Slow Zones"
-            blurb="Daily tracking of subway reduced speed zones — where trains crawl, by how much, and for how long."
+            blurb="Where subway trains are running below normal speed, how much time it costs riders, and how long the zones last."
           />
           <ProjectCard
             href="/downtown-definer"
