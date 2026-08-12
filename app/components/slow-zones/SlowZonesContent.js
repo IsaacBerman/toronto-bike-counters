@@ -440,8 +440,8 @@ export default function SlowZonesContent() {
                   ['zones', 'Zones'],
                   ['delay', 'Delay'],
                   ['cost', 'Cost'],
-                  ['track', 'Slow track'],
-                  ['segments', 'Worst segments'],
+                  ['track', 'Length'],
+                  ['segments', 'Segments'],
                 ].map(([id, label]) => (
                   <button
                     key={id}
