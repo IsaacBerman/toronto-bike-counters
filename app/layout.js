@@ -1,11 +1,14 @@
 import './globals.css';
-import { Archivo } from 'next/font/google';
+import localFont from 'next/font/local';
 import { Analytics } from '@vercel/analytics/next';
 import SiteFooter from './components/site-footer';
 
-const archivo = Archivo({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
+// Self-hosted Archivo (variable, latin subset) — next/font/google downloads
+// from Google at build time, which intermittently breaks Turbopack builds on
+// Vercel ("Can't resolve '@vercel/turbopack-next/internal/font/google/font'").
+const archivo = localFont({
+  src: './fonts/archivo-latin.woff2',
+  weight: '100 900',
   variable: '--font-archivo',
   display: 'swap',
 });
