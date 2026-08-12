@@ -6,6 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts';
 import { LINES, segmentsBetween, spanBetween, segmentLabel } from '../../lib/slow-zones/stations';
+import { VALUE_OF_TIME, zoneDailyRiders } from '../../lib/slow-zones/ridership';
 
 const ACCENT = '#e8590c';
 const INK = '#16150f';
@@ -41,6 +42,21 @@ function zoneDelayMin(z) {
 function formatDelay(min) {
   if (min >= 1) return `${(Math.round(min * 10) / 10).toLocaleString()} min`;
   return `${Math.round(min * 60)} s`;
+}
+
+// Riders crossing the zone daily x added minutes -> person-hours -> dollars.
+function zoneImpact(z) {
+  const riders = zoneDailyRiders(z);
+  const delay = zoneDelayMin(z);
+  if (riders == null || delay <= 0) return { riders, personHours: null, cost: null };
+  const personHours = (riders * delay) / 60;
+  return { riders, personHours, cost: personHours * VALUE_OF_TIME };
+}
+
+function formatMoney(cost) {
+  if (cost == null) return '—';
+  if (cost >= 1000) return `$${(Math.round(cost / 100) / 10).toLocaleString()}k`;
+  return `$${Math.round(cost).toLocaleString()}`;
 }
 
 function formatDay(day) {
@@ -114,7 +130,16 @@ export default function SlowZonesContent() {
 
   const sortedZones = useMemo(() => {
     const { key, dir } = sort;
-    return selectedZones.map((z) => ({ ...z, delay_min: zoneDelayMin(z) })).sort((a, b) => {
+    return selectedZones.map((z) => {
+      const impact = zoneImpact(z);
+      return {
+        ...z,
+        delay_min: zoneDelayMin(z),
+        riders_day: impact.riders,
+        person_hours: impact.personHours,
+        cost_day: impact.cost,
+      };
+    }).sort((a, b) => {
       const av = a[key];
       const bv = b[key];
       if (av == null && bv == null) return 0;
@@ -257,11 +282,17 @@ export default function SlowZonesContent() {
         const b2 = map.layerPointToLatLng([pB.x + ox, pB.y + oy]);
         const color = severityFor(zone.reduced_kmh).color;
         const delay = zoneDelayMin(zone);
+        const impact = zoneImpact(zone);
         const tooltip =
           `<b>${zone.location}</b><br/>` +
           `${zone.reduced_kmh} km/h (normal ${zone.normal_kmh} km/h)<br/>` +
           `${zone.defect_m ?? '?'} m of track · target: ${zone.target || 'TBD'}` +
-          (delay > 0 ? `<br/>est. delay +${formatDelay(delay)}` : '');
+          (delay > 0 ? `<br/>est. delay +${formatDelay(delay)}` : '') +
+          (impact.personHours != null
+            ? `<br/>≈${impact.riders.toLocaleString()} riders/day · ` +
+              `${Math.round(impact.personHours).toLocaleString()} person-hrs · ` +
+              `${formatMoney(impact.cost)}/day`
+            : '');
         // Dark casing under a thick severity stroke: restricted segments stay
         // structurally distinct from base lines even without color vision.
         L.polyline([a2, b2], { color: INK, weight: 9, opacity: 0.85 }).addTo(overlay);
@@ -309,6 +340,8 @@ export default function SlowZonesContent() {
 
   const totalDelayMin = Math.round(selectedZones.reduce((sum, z) => sum + zoneDelayMin(z), 0) * 10) / 10;
   const slowTrackM = selectedZones.reduce((sum, z) => sum + (z.defect_m || 0), 0);
+  const totalPersonHours = selectedZones.reduce((sum, z) => sum + (zoneImpact(z).personHours || 0), 0);
+  const totalCost = totalPersonHours * VALUE_OF_TIME;
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
@@ -355,10 +388,12 @@ export default function SlowZonesContent() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
               <StatTile label="Slow zones" value={selectedMeta?.zone_total ?? 0} />
               <StatTile label="Est. added time" value={totalDelayMin} unit="min" />
               <StatTile label="Slow track" value={slowTrackM.toLocaleString()} unit="m" />
+              <StatTile label="Person-hours lost" value={Math.round(totalPersonHours).toLocaleString()} unit="/day" />
+              <StatTile label="Est. cost" value={formatMoney(totalCost)} unit="/day" />
             </div>
 
             <div className="dd-panel-ruled p-4 mb-6">
@@ -460,6 +495,7 @@ export default function SlowZonesContent() {
                       ['normal_kmh', 'Normal'],
                       ['defect_m', 'Length'],
                       ['delay_min', 'Est. delay'],
+                      ['cost_day', 'Est. cost/day'],
                       ['target', 'Target removal'],
                     ].map(([key, label]) => (
                       <th key={key} className="py-1.5 pr-3">
@@ -468,6 +504,11 @@ export default function SlowZonesContent() {
                           onClick={() => toggleSort(key)}
                           className="uppercase tracking-wide font-bold cursor-pointer"
                           style={{ color: sort.key === key ? INK : INK3 }}
+                          title={
+                            key === 'cost_day'
+                              ? 'Estimated riders crossing the zone daily × added minutes ÷ 60 × $17/hr value of time. Hover a value for that zone’s numbers; method and sources below.'
+                              : undefined
+                          }
                         >
                           {label}
                           {sort.key === key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
@@ -495,6 +536,18 @@ export default function SlowZonesContent() {
                       <td className="py-1.5 pr-3">{z.normal_kmh} km/h</td>
                       <td className="py-1.5 pr-3">{z.defect_m?.toLocaleString() ?? '—'} m</td>
                       <td className="py-1.5 pr-3">{z.delay_min > 0 ? `+${formatDelay(z.delay_min)}` : '—'}</td>
+                      <td
+                        className="py-1.5 pr-3"
+                        title={
+                          z.person_hours != null
+                            ? `≈${z.riders_day.toLocaleString()} riders/day × ${
+                                Math.round(z.delay_min * 100) / 100
+                              } min ÷ 60 = ${Math.round(z.person_hours).toLocaleString()} person-hrs × $${VALUE_OF_TIME}/hr`
+                            : 'No ridership estimate for this zone'
+                        }
+                      >
+                        {formatMoney(z.cost_day)}
+                      </td>
                       <td className="py-1.5">{z.target || 'TBD'}</td>
                     </tr>
                   ))}
@@ -502,18 +555,65 @@ export default function SlowZonesContent() {
               </table>
             </div>
 
-            <p className="text-xs mt-6" style={{ color: INK3 }}>
-              Source:{' '}
-              <a
-                href="https://www.ttc.ca/riding-the-ttc/Updates/Reduced-Speed-Zones"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="dd-link-accent"
-              >
-                TTC Reduced Speed Zones
-              </a>
-              , captured daily. Zone counts include multi-zone segments (&ldquo;x2&rdquo;).
-            </p>
+            <div className="dd-panel-ruled p-4 mt-6 text-xs leading-relaxed" style={{ color: INK2 }}>
+              <h3 className="font-bold text-sm mb-2" style={{ color: INK }}>
+                Method &amp; sources
+              </h3>
+              <p className="mb-2">
+                <b>Added time per zone</b>: the slow-track length travelled at the reduced speed
+                instead of the normal speed,{' '}
+                <code>t = L × (1/v_reduced − 1/v_normal)</code>, where L is the zone&rsquo;s
+                &ldquo;length of defect&rdquo; and a 0 km/h zone is counted at a 10 km/h crawl.
+                The length already totals a row&rsquo;s multiple patches (&ldquo;x2&rdquo;,
+                &ldquo;x3&rdquo;), so no multiplier is applied.
+              </p>
+              <p className="mb-2">
+                <b>Riders per zone</b>: estimated from the TTC&rsquo;s published typical-weekday
+                station usage with a gravity trip-assignment model. Each station&rsquo;s usage U
+                splits evenly into boardings B and alightings A (<code>B = A = U/2</code>); trips
+                between stations i and j are assigned as{' '}
+                <code>T(i,j) = B(i) × A(j) / (ΣA − A(i))</code>, and a zone&rsquo;s ridership is
+                the mean volume crossing its track segments in its direction of travel. The
+                model&rsquo;s busiest link (southbound through Bloor-Yonge, ≈156k riders/day) is
+                consistent with the TTC&rsquo;s measured peak-point volumes.
+              </p>
+              <p className="mb-2">
+                <b>Person-hours and cost</b>:{' '}
+                <code>person-hours/day = Σ riders × t ÷ 60</code>, valued at $
+                {VALUE_OF_TIME}/hour (the half-of-average-wage convention used in Ontario transit
+                business cases). These are order-of-magnitude estimates, not measurements.
+              </p>
+              <p style={{ color: INK3 }}>
+                Sources:{' '}
+                <a
+                  href="https://www.ttc.ca/riding-the-ttc/Updates/Reduced-Speed-Zones"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="dd-link-accent"
+                >
+                  TTC Reduced Speed Zones
+                </a>{' '}
+                (captured daily) ·{' '}
+                <a
+                  href="https://cdn.ttc.ca/-/media/Project/TTC/DevProto/Documents/Home/Transparency-and-accountability/Subway-Ridership-20232024.pdf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="dd-link-accent"
+                >
+                  TTC Subway Ridership 2023–2024
+                </a>{' '}
+                (station usage, Sep 2023–Aug 2024) ·{' '}
+                <a
+                  href="https://www.ttc.ca/about-the-ttc/projects-and-plans/Major-Projects/Line-1-Capacity-Enhancement-Program"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="dd-link-accent"
+                >
+                  Line 1 Capacity Enhancement Program
+                </a>{' '}
+                (peak-point calibration).
+              </p>
+            </div>
           </>
         )}
       </div>
