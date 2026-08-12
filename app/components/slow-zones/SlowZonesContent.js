@@ -314,6 +314,8 @@ export default function SlowZonesContent() {
         hitSegments.push({ ax: pA.x + ox, ay: pA.y + oy, bx: pB.x + ox, by: pB.y + oy, tooltip });
         const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
         const mid = map.layerPointToLatLng([(pA.x + pB.x) / 2 + ox, (pA.y + pB.y) / 2 + oy]);
+        // Simple two-stroke chevron, drawn centred in its box so it rotates
+        // about the line midpoint.
         L.marker(mid, {
           interactive: false,
           keyboard: false,
@@ -322,9 +324,11 @@ export default function SlowZonesContent() {
             iconSize: [14, 14],
             iconAnchor: [7, 7],
             html:
-              `<div style="transform:rotate(${angle.toFixed(1)}deg);font-size:10px;` +
-              `line-height:14px;text-align:center;color:#ffffff;` +
-              `text-shadow:0 0 2px rgba(0,0,0,0.9)">➤</div>`,
+              `<div style="transform:rotate(${angle.toFixed(1)}deg);width:14px;height:14px;` +
+              `filter:drop-shadow(0 0 1px rgba(0,0,0,0.8))">` +
+              `<svg width="14" height="14" viewBox="0 0 14 14">` +
+              `<path d="M4.5 3.5 L10 7 L4.5 10.5" fill="none" stroke="#ffffff" ` +
+              `stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`,
           }),
         }).addTo(overlay);
       }
@@ -466,7 +470,9 @@ export default function SlowZonesContent() {
                     {s.label}
                   </span>
                 ))}
-                <span>➤ direction of travel</span>
+                <span>
+                  <span className="font-bold" aria-hidden="true">›</span> direction of travel
+                </span>
                 <span className="inline-flex items-center gap-1.5 ml-auto">
                   {Object.values(LINES).map((l) => (
                     <span key={l.name} className="inline-flex items-center gap-1 mr-2">
