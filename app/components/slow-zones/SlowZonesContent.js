@@ -437,7 +437,7 @@ export default function SlowZonesContent() {
             <div className="dd-panel-ruled p-4 mb-6">
               <div className="flex flex-wrap gap-2 mb-3">
                 {[
-                  ['zones', 'Zones per day'],
+                  ['zones', 'Zones'],
                   ['delay', 'Delay'],
                   ['cost', 'Cost'],
                   ['track', 'Slow track'],
