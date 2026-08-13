@@ -4,10 +4,10 @@ import TilePreconnect from '../components/downtown-definer/TilePreconnect';
 
 export const metadata = {
   title: 'Where is Downtown?',
-  description: 'Draw what you consider "downtown" for a city and see how it compares to everyone else\'s.',
+  description: 'Map tool for drawing your definition of downtown, aggregated into a heatmap of all submissions.',
   openGraph: {
     title: 'Where is Downtown? — Observing the City',
-    description: 'Draw the boundary of what you call "downtown" and watch it merge into a crowd heatmap.',
+    description: 'Map tool for drawing your definition of downtown, aggregated into a heatmap of all submissions.',
     url: 'https://www.observingthecity.ca/downtown-definer',
     siteName: 'Observing the City',
     type: 'website',
@@ -15,7 +15,7 @@ export const metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Where is Downtown? — Observing the City',
-    description: 'Draw the boundary of what you call "downtown" and watch it merge into a crowd heatmap.',
+    description: 'Map tool for drawing your definition of downtown, aggregated into a heatmap of all submissions.',
   },
 };
 

@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export const metadata = {
   title: 'Observing the City',
-  description: 'Data and community tools exploring how cities move and how people see them',
+  description: 'Toronto transportation data dashboards and mapping tools',
 };
 
 function ProjectCard({ href, title, blurb }) {
@@ -42,11 +42,8 @@ export default function Home() {
           </a>
         </div>
         <div className="mb-14">
-          <p className="dd-kicker mb-3">Observing the City</p>
           <h1 className="dd-title text-5xl sm:text-6xl mb-5" style={{ color: 'var(--ink)' }}>
-            How cities move,
-            <br />
-            and how we see them.
+            Observing the City
           </h1>
         </div>
 
@@ -54,22 +51,22 @@ export default function Home() {
           <ProjectCard
             href="/bike-counters"
             title="Toronto Bicycle Counters"
-            blurb="Bicycle traffic from permanent counting stations across Toronto, updated from the city's live feed."
+            blurb="Dashboard showing Toronto permanent bicycle counter data and Bike Share ridership."
           />
           <ProjectCard
             href="/transform-toronto"
             title="TransformTO Tracking"
-            blurb="Mode share by ward, distance and year from the Transportation Tomorrow Survey, against the city's 2030 goal."
+            blurb="Toronto travel mode share by ward, trip distance and year, from the Transportation Tomorrow Survey."
           />
           <ProjectCard
             href="/slow-zones"
             title="TTC Slow Zones"
-            blurb="Where subway trains are running below normal speed, how much time it costs riders, and how long the zones last."
+            blurb="Daily tracking of TTC subway reduced speed zones and the delay they add."
           />
           <ProjectCard
             href="/downtown-definer"
             title="Where is Downtown?"
-            blurb="Draw the boundary of what you call &ldquo;downtown&rdquo; and watch it merge into a crowd heatmap."
+            blurb="Map tool for drawing your definition of downtown, aggregated into a heatmap of all submissions."
           />
         </div>
       </div>
