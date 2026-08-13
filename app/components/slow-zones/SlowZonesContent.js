@@ -405,11 +405,6 @@ export default function SlowZonesContent() {
         <h1 className="dd-title text-4xl sm:text-5xl mb-4" style={{ color: INK }}>
           TTC Slow Zones
         </h1>
-        <p className="max-w-2xl text-sm leading-relaxed mb-8" style={{ color: INK2 }}>
-          Where subway trains are running below normal speed. Reduced speed zones
-          (&ldquo;slow orders&rdquo;) are posted by the TTC and captured here daily for
-          tracking.
-        </p>
         {!history ? (
           <p className="dd-title text-xl py-20 text-center" style={{ color: INK2 }}>
             Loading…
