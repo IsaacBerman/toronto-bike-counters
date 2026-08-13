@@ -677,7 +677,7 @@ export default function SlowZonesContent() {
                 <b>Added time per zone</b>: the slow-track length travelled at the reduced speed
                 instead of the normal speed,{' '}
                 <code>t = L × (1/v_reduced − 1/v_normal)</code>, where L is the zone&rsquo;s
-                &ldquo;length of defect&rdquo; and a 0 km/h zone is counted at a 10 km/h crawl.
+                &ldquo;length of defect&rdquo;.
                 The length already totals a row&rsquo;s multiple patches (&ldquo;x2&rdquo;,
                 &ldquo;x3&rdquo;), so no multiplier is applied.
               </p>
