@@ -109,10 +109,14 @@ export function stationKey(name) {
     .replace(/^-|-$/g, '');
 }
 
-// Old names the TTC may still use in zone locations.
+// Old or short names the TTC may still use in zone locations. Unresolved
+// names silently drop the zone out of the map, the segment ranking and the
+// ridership/cost estimate, so shorthand has to be aliased here.
 const ALIASES = {
   'eglinton-west': 'cedarvale',
   downsview: 'sheppard-west',
+  vaughan: 'vaughan-metropolitan-centre',
+  vmc: 'vaughan-metropolitan-centre',
 };
 
 function canonicalKey(name) {

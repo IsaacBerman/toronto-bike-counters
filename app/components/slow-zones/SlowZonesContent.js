@@ -90,6 +90,130 @@ function StatTile({ label, value, unit }) {
   );
 }
 
+// Day picker. A native <select> is an OS popup on macOS/iOS: it positions
+// itself so the *selected* row lands under the cursor, so picking a middle day
+// opens the menu over the control instead of below it. This is a listbox so
+// the panel always drops downward from the button, whatever is selected.
+function DayPicker({ id, days, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const wrapRef = useRef(null);
+  const listRef = useRef(null);
+
+  const selectedIndex = Math.max(days.findIndex((d) => d.day === value), 0);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDocDown = (e) => {
+      if (!wrapRef.current?.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, [open]);
+
+  // Keep the highlighted row in view when opening on a long history.
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [open, active]);
+
+  const openWith = (index) => {
+    setActive(index);
+    setOpen(true);
+  };
+
+  const commit = (index) => {
+    const day = days[index]?.day;
+    if (day) onChange(day);
+    setOpen(false);
+  };
+
+  const onKeyDown = (e) => {
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openWith(selectedIndex);
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      setOpen(false);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActive((i) => Math.min(i + 1, days.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActive((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setActive(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setActive(days.length - 1);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      commit(active);
+    } else if (e.key === 'Tab') {
+      setOpen(false);
+    }
+  };
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button
+        id={id}
+        type="button"
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={`${id}-listbox`}
+        onClick={() => (open ? setOpen(false) : openWith(selectedIndex))}
+        onKeyDown={onKeyDown}
+        className="dd-panel px-3 py-1.5 text-sm rounded border inline-flex items-center gap-2 cursor-pointer"
+        style={{ color: INK, borderColor: GRID }}
+      >
+        {value ? formatDay(value) : ''}
+        <span aria-hidden="true" style={{ color: INK3, fontSize: 10 }}>▾</span>
+      </button>
+      {open && (
+        <ul
+          id={`${id}-listbox`}
+          ref={listRef}
+          role="listbox"
+          tabIndex={-1}
+          className="absolute left-0 top-full mt-1 min-w-full max-h-64 overflow-y-auto rounded border py-1 shadow-lg"
+          // Above Leaflet's panes/controls (400-800), which share the root
+          // stacking context and would otherwise paint over the open list.
+          style={{ background: 'var(--panel, #ffffff)', borderColor: GRID, zIndex: 1000 }}
+        >
+          {days.map((d, i) => {
+            const isSelected = d.day === value;
+            const isActive = i === active;
+            return (
+              <li
+                key={d.day}
+                role="option"
+                aria-selected={isSelected}
+                data-active={isActive}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => commit(i)}
+                className="px-3 py-1.5 text-sm cursor-pointer whitespace-nowrap"
+                style={{
+                  background: isActive ? ACCENT : 'transparent',
+                  color: isActive ? '#ffffff' : INK,
+                  fontWeight: isSelected ? 700 : 400,
+                }}
+              >
+                {formatDay(d.day)}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function ChartBlock({ title, subtitle, children }) {
   return (
     <div>
@@ -106,7 +230,7 @@ export default function SlowZonesContent() {
   const [selectedDay, setSelectedDay] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const [sort, setSort] = useState({ key: 'delay_min', dir: -1 });
-  const [chartTab, setChartTab] = useState('zones');
+  const [chartTab, setChartTab] = useState('delay');
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const overlayRef = useRef(null);
@@ -419,19 +543,12 @@ export default function SlowZonesContent() {
               <label className="text-xs font-bold" style={{ color: INK2 }} htmlFor="sz-day">
                 Snapshot day
               </label>
-              <select
+              <DayPicker
                 id="sz-day"
-                value={selectedDay || ''}
-                onChange={(e) => setSelectedDay(e.target.value)}
-                className="dd-panel px-3 py-1.5 text-sm rounded border"
-                style={{ color: INK, borderColor: GRID }}
-              >
-                {days.map((d) => (
-                  <option key={d.day} value={d.day}>
-                    {formatDay(d.day)}
-                  </option>
-                ))}
-              </select>
+                days={days}
+                value={selectedDay}
+                onChange={setSelectedDay}
+              />
               {selectedMeta?.as_of && (
                 <span className="text-xs" style={{ color: INK3 }}>
                   TTC page timestamp: {selectedMeta.as_of}
@@ -482,10 +599,10 @@ export default function SlowZonesContent() {
             <div className="dd-panel-ruled p-4 mb-6">
               <div className="flex flex-wrap gap-2 mb-3">
                 {[
-                  ['zones', 'Zones'],
                   ['delay', 'Delay'],
                   ['cost', 'Cost'],
                   ['track', 'Length'],
+                  ['zones', 'Zones'],
                   ['segments', 'Segments'],
                 ].map(([id, label]) => (
                   <button
