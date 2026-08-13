@@ -59,6 +59,33 @@ function formatMoney(cost) {
   return `$${Math.round(cost).toLocaleString()}`;
 }
 
+const MONTHS = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+];
+
+// The TTC states removal targets as "Early <Month>" / "Late <Month>", or TBD.
+// Rank them chronologically, counting forward from the snapshot's own month so
+// the order survives a year boundary — an "Early January" target on a December
+// snapshot is next month, not eleven months ago. Returns null for TBD and
+// anything unparseable, which the table's null handling pins last.
+function targetRank(target, refMonth) {
+  const m = String(target ?? '').trim().match(/^(early|mid|late)\s+([a-z]+)$/i);
+  if (!m) return null;
+  const monthIdx = MONTHS.indexOf(m[2].toLowerCase());
+  if (monthIdx < 0) return null;
+  const half = { early: 0, mid: 1, late: 2 }[m[1].toLowerCase()];
+  return ((monthIdx - refMonth + 12) % 12) * 3 + half;
+}
+
+// Compact axis ticks. The cumulative series reaches millions over a long
+// history, so short-scale past $1M keeps the axis from crowding.
+function formatAxisMoney(v) {
+  if (v >= 1e6) return `$${Math.round(v / 1e5) / 10}M`;
+  if (v >= 1000) return `$${Math.round(v / 1000)}k`;
+  return `$${v}`;
+}
+
 function formatDay(day) {
   const [y, m, d] = day.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
@@ -173,7 +200,7 @@ function DayPicker({ id, days, value, onChange }) {
         style={{ color: INK, borderColor: GRID }}
       >
         {value ? formatDay(value) : ''}
-        <span aria-hidden="true" style={{ color: INK3, fontSize: 10 }}>▾</span>
+        <span aria-hidden="true" style={{ color: INK2, fontSize: 15, lineHeight: 1 }}>▾</span>
       </button>
       {open && (
         <ul
@@ -254,7 +281,11 @@ export default function SlowZonesContent() {
   const selectedMeta = days.find((d) => d.day === selectedDay);
 
   const sortedZones = useMemo(() => {
-    const { key, dir } = sort;
+    const { dir } = sort;
+    // "Target removal" sorts on its chronological rank, not its text, or
+    // "Early October" would land before "Early September".
+    const key = sort.key === 'target' ? 'target_rank' : sort.key;
+    const refMonth = selectedDay ? Number(selectedDay.split('-')[1]) - 1 : 0;
     return selectedZones.map((z) => {
       const impact = zoneImpact(z);
       return {
@@ -263,6 +294,7 @@ export default function SlowZonesContent() {
         riders_day: impact.riders,
         person_hours: impact.personHours,
         cost_day: impact.cost,
+        target_rank: targetRank(z.target, refMonth),
       };
     }).sort((a, b) => {
       const av = a[key];
@@ -273,7 +305,7 @@ export default function SlowZonesContent() {
       const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv));
       return cmp * dir;
     });
-  }, [selectedZones, sort]);
+  }, [selectedZones, sort, selectedDay]);
 
   const toggleSort = (key) =>
     setSort((s) => ({ key, dir: s.key === key ? -s.dir : 1 }));
@@ -655,14 +687,26 @@ export default function SlowZonesContent() {
                   subtitle={`Daily and cumulative rider time cost at $${VALUE_OF_TIME}/hr — see method below`}
                 >
                   <ResponsiveContainer width="100%" height={260}>
-                    <ComposedChart data={perDay} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                    <ComposedChart data={perDay} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                       <CartesianGrid stroke={GRID} vertical={false} />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
+                      {/* Cumulative outgrows the daily figure by orders of
+                          magnitude within weeks, so each series gets its own
+                          scale. Tick colour keys the axis to its series. */}
                       <YAxis
-                        tick={{ fontSize: 11, fill: INK3 }}
+                        yAxisId="daily"
+                        tick={{ fontSize: 11, fill: ACCENT }}
                         tickLine={false}
                         axisLine={false}
-                        tickFormatter={(v) => (v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`)}
+                        tickFormatter={formatAxisMoney}
+                      />
+                      <YAxis
+                        yAxisId="cumulative"
+                        orientation="right"
+                        tick={{ fontSize: 11, fill: INK2 }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={formatAxisMoney}
                       />
                       <Tooltip
                         contentStyle={chartTooltipStyle}
@@ -670,8 +714,8 @@ export default function SlowZonesContent() {
                         formatter={(v) => `$${Number(v).toLocaleString()}`}
                       />
                       <Legend wrapperStyle={{ fontSize: 11, color: INK2 }} />
-                      <Bar dataKey="cost" name="Daily cost" fill={ACCENT} radius={[3, 3, 0, 0]} barSize={18} />
-                      <Line type="monotone" dataKey="cumulativeCost" name="Cumulative" stroke={INK} strokeWidth={2} dot={{ r: 2.5 }} />
+                      <Bar yAxisId="daily" dataKey="cost" name="Daily cost (left)" fill={ACCENT} radius={[3, 3, 0, 0]} barSize={18} />
+                      <Line yAxisId="cumulative" type="monotone" dataKey="cumulativeCost" name="Cumulative (right)" stroke={INK} strokeWidth={2} dot={{ r: 2.5 }} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </ChartBlock>
