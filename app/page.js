@@ -61,7 +61,7 @@ export default function Home() {
           <ProjectCard
             href="/slow-zones"
             title="TTC Slow Zones"
-            blurb="Daily tracking of TTC subway reduced speed zones and the delay they add."
+            blurb="Daily tracking of TTC subway reduced speed zones."
           />
           <ProjectCard
             href="/downtown-definer"
