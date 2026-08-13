@@ -3,25 +3,26 @@ import localFont from 'next/font/local';
 import { Analytics } from '@vercel/analytics/next';
 import SiteFooter from './components/site-footer';
 
-// Self-hosted Archivo (variable, latin subset) — next/font/google downloads
-// from Google at build time, which intermittently breaks Turbopack builds on
-// Vercel ("Can't resolve '@vercel/turbopack-next/internal/font/google/font'").
-const archivo = localFont({
-  src: './fonts/archivo-latin.woff2',
+// Self-hosted Libre Franklin (variable, latin subset) — next/font/google
+// downloads from Google at build time, which intermittently breaks Turbopack
+// builds on Vercel ("Can't resolve
+// '@vercel/turbopack-next/internal/font/google/font'").
+const libreFranklin = localFont({
+  src: './fonts/libre-franklin-latin.woff2',
   weight: '100 900',
-  variable: '--font-archivo',
+  variable: '--font-libre-franklin',
   display: 'swap',
 });
 
 export const metadata = {
   metadataBase: new URL('https://www.observingthecity.ca'),
   title: 'Observing the City',
-  description: 'Data and community tools exploring how cities move and how people see them',
+  description: 'Toronto transportation data dashboards and mapping tools',
 }
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={archivo.variable}>
+    <html lang="en" className={libreFranklin.variable}>
        <head>
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6437776129058819"
      crossorigin="anonymous"></script>

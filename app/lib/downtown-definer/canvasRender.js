@@ -207,7 +207,7 @@ function drawChoropleth(ctx, m, rect, grid) {
 }
 
 function drawPanelLabel(ctx, rect, label, color) {
-  ctx.font = '700 20px Archivo, system-ui, sans-serif';
+  ctx.font = "700 20px 'Libre Franklin', system-ui, sans-serif";
   ctx.textBaseline = 'middle';
   const text = label.toUpperCase();
   const padX = 12;
@@ -245,15 +245,15 @@ function drawChrome(ctx, W, H, kicker, title, subtitle) {
 
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = ACCENT;
-  ctx.font = '700 22px Archivo, system-ui, sans-serif';
+  ctx.font = "700 22px 'Libre Franklin', system-ui, sans-serif";
   ctx.fillText(kicker.toUpperCase(), MARGIN + 30, 60);
 
   ctx.fillStyle = INK;
-  ctx.font = '800 54px Archivo, system-ui, sans-serif';
+  ctx.font = "800 54px 'Libre Franklin', system-ui, sans-serif";
   ctx.fillText(title, MARGIN, 118);
 
   ctx.fillStyle = INK_2;
-  ctx.font = '600 22px Archivo, system-ui, sans-serif';
+  ctx.font = "600 22px 'Libre Franklin', system-ui, sans-serif";
   ctx.fillText(subtitle, MARGIN, H - 30);
   ctx.textAlign = 'right';
   ctx.fillStyle = ACCENT;

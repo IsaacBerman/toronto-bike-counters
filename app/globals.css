@@ -18,13 +18,13 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-archivo);
+  --font-sans: var(--font-libre-franklin);
 }
 
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-archivo), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-libre-franklin), system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
