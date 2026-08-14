@@ -690,20 +690,26 @@ export default function SlowZonesContent() {
                     <ComposedChart data={perDay} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                       <CartesianGrid stroke={GRID} vertical={false} />
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
-                      {/* Cumulative outgrows the daily figure by orders of
-                          magnitude within weeks, so each series gets its own
-                          scale. Tick colour keys the axis to its series. */}
+                      {/* The cumulative figure outgrows the daily one by orders
+                          of magnitude within weeks, so each series gets its own
+                          scale. The cumulative total is the headline number, so
+                          it takes the left axis that reads first. Tick colour
+                          keys each axis to its series. */}
                       <YAxis
-                        yAxisId="daily"
-                        tick={{ fontSize: 11, fill: ACCENT }}
+                        yAxisId="cumulative"
+                        tick={{ fontSize: 11, fill: INK2 }}
                         tickLine={false}
                         axisLine={false}
                         tickFormatter={formatAxisMoney}
                       />
+                      {/* Twice the tallest bar, so the daily bars fill about the
+                          bottom half and leave the cumulative line room to read
+                          above them. */}
                       <YAxis
-                        yAxisId="cumulative"
+                        yAxisId="daily"
                         orientation="right"
-                        tick={{ fontSize: 11, fill: INK2 }}
+                        domain={[0, (dataMax) => dataMax * 2]}
+                        tick={{ fontSize: 11, fill: ACCENT }}
                         tickLine={false}
                         axisLine={false}
                         tickFormatter={formatAxisMoney}
@@ -713,9 +719,13 @@ export default function SlowZonesContent() {
                         labelStyle={{ color: INK2 }}
                         formatter={(v) => `$${Number(v).toLocaleString()}`}
                       />
-                      <Legend wrapperStyle={{ fontSize: 11, color: INK2 }} />
-                      <Bar yAxisId="daily" dataKey="cost" name="Daily cost (left)" fill={ACCENT} radius={[3, 3, 0, 0]} barSize={18} />
-                      <Line yAxisId="cumulative" type="monotone" dataKey="cumulativeCost" name="Cumulative (right)" stroke={INK} strokeWidth={2} dot={{ r: 2.5 }} />
+                      {/* itemSorter defaults to sorting labels alphabetically,
+                          which puts the right-axis series first; turning it off
+                          makes the legend follow the order of the series below,
+                          so it reads left axis, then right. */}
+                      <Legend wrapperStyle={{ fontSize: 11, color: INK2 }} itemSorter={null} />
+                      <Line yAxisId="cumulative" type="monotone" dataKey="cumulativeCost" name="Cumulative cost (left)" stroke={INK} strokeWidth={2} dot={{ r: 2.5 }} />
+                      <Bar yAxisId="daily" dataKey="cost" name="Daily cost (right)" fill={ACCENT} radius={[3, 3, 0, 0]} barSize={18} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </ChartBlock>
