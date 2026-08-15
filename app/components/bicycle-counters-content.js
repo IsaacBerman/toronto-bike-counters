@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime } from '../lib/dataUtils';
+import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime, bikeshareMonthlyBreakdown, USER_TYPES, BIKE_TYPES } from '../lib/dataUtils';
 import CounterChart from './counterChart';
 import HourlyBarChart from './hourlyBarChart';
 import StationMap from './stationMap';
 import StationDetail from './stationDetail';
+import TripTypeBreakdownChart from './tripTypeBreakdownChart';
 
 export default function BicycleCountersContent() {
   const [counters, setCounters] = useState([]);
@@ -18,7 +19,13 @@ export default function BicycleCountersContent() {
   const [showStationDetail, setShowStationDetail] = useState(false);
   const [selectedStationId, setSelectedStationId] = useState(null);
   const [showMap, setShowMap] = useState(true); // New state to control map visibility
-  
+
+  // Bike Share trip-type filters, and which of its two tabs is showing.
+  const [rawBikeshare, setRawBikeshare] = useState([]);
+  const [userType, setUserType] = useState('all');
+  const [bikeType, setBikeType] = useState('all');
+  const [bikeshareTab, setBikeshareTab] = useState('trends'); // 'trends' | 'breakdown'
+
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -36,7 +43,10 @@ export default function BicycleCountersContent() {
         
         const processedCSVData = processCounterData(rawCSVData);
         const processedBikeshareData = processBikeshareCounter(rawBikeshareData);
-        
+
+        // Kept raw so the trip-type filters can re-derive the series without refetching.
+        setRawBikeshare(rawBikeshareData);
+
         // Combine both data sources
         const allCounters = [processedBikeshareData, ...processedCSVData];
         
@@ -90,6 +100,17 @@ export default function BicycleCountersContent() {
     }
   }, [selectedCounter, loading, router]);
 
+  // Re-derive the Bike Share series whenever the trip-type filters change.
+  const filteredBikeshare = useMemo(() => {
+    if (!rawBikeshare.length) return null;
+    return processBikeshareCounter(rawBikeshare, userType, bikeType);
+  }, [rawBikeshare, userType, bikeType]);
+
+  const monthlyBreakdown = useMemo(
+    () => bikeshareMonthlyBreakdown(rawBikeshare),
+    [rawBikeshare]
+  );
+
   const handleCounterChange = (counterLocation) => {
     setSelectedCounter(counterLocation);
     // Reset to daily view when changing counters
@@ -99,6 +120,10 @@ export default function BicycleCountersContent() {
     setSelectedStationId(null);
     // Show map when switching counters
     setShowMap(true);
+    // Back to the default, unfiltered Bike Share view
+    setBikeshareTab('trends');
+    setUserType('all');
+    setBikeType('all');
   };
 
   const handleStationSelect = (stationId) => {
@@ -202,8 +227,24 @@ export default function BicycleCountersContent() {
     );
   }
 
-  const selectedCounterData = counters.find(counter => counter.location === selectedCounter);
   const isBikeShare = selectedCounter === "Bike Share Toronto";
+  // Bike Share reads from the filtered series; every other counter is unfiltered.
+  const selectedCounterData = isBikeShare && filteredBikeshare
+    ? filteredBikeshare
+    : counters.find(counter => counter.location === selectedCounter);
+
+  const isFiltered = userType !== 'all' || bikeType !== 'all';
+  const userLabel = USER_TYPES.find(t => t.value === userType)?.label;
+  const bikeLabel = BIKE_TYPES.find(t => t.value === bikeType)?.label;
+  // Names the active filter for the axis, e.g. "Member E-bike".
+  const measureLabel = isBikeShare && isFiltered
+    ? [userType !== 'all' ? userLabel.replace(/s$/, '') : null,
+       bikeType !== 'all' ? bikeLabel : null].filter(Boolean).join(' ')
+    : undefined;
+
+  const fmtDay = (iso) => iso
+    ? new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+    : '';
 
   // Add a helper to show EST time in the UI
   const getESTTimeDisplay = () => {
@@ -264,40 +305,131 @@ export default function BicycleCountersContent() {
               </select>
             </div>
 
-            {/* Daily/Hourly toggle — only for Bike Share Toronto */}
+            {/* Bike Share only: tabs, then the controls for the active tab */}
             {isBikeShare && (
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1">
-                {/* Daily / Hourly toggle */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold" style={{ color: viewMode === 'daily' ? 'var(--accent)' : 'var(--ink-3)' }}>
-                    Daily
-                  </span>
-                  <button
-                    onClick={handleViewModeChange}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none"
-                    style={{ background: viewMode === 'hourly' ? 'var(--accent)' : '#d6d3c8' }}
-                    role="switch"
-                    aria-checked={viewMode === 'hourly'}
-                  >
-                    <span
-                      className={`
-                        inline-block h-4 w-4 transform rounded-full bg-white
-                        transition-transform duration-200
-                        ${viewMode === 'hourly' ? 'translate-x-6' : 'translate-x-1'}
-                      `}
-                    />
-                  </button>
-                  <span className="text-sm font-semibold" style={{ color: viewMode === 'hourly' ? 'var(--accent)' : 'var(--ink-3)' }}>
-                    Hourly
-                  </span>
+              <>
+                <div className="flex gap-1 border-b" style={{ borderColor: 'var(--line)' }} role="tablist">
+                  {[
+                    { id: 'trends', label: 'Daily trends' },
+                    { id: 'breakdown', label: 'Trip type breakdown' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      role="tab"
+                      aria-selected={bikeshareTab === tab.id}
+                      onClick={() => setBikeshareTab(tab.id)}
+                      className="px-4 py-2 text-sm font-semibold transition-colors duration-150"
+                      style={{
+                        color: bikeshareTab === tab.id ? 'var(--accent)' : 'var(--ink-3)',
+                        borderBottom: bikeshareTab === tab.id ? '2px solid var(--accent)' : '2px solid transparent',
+                        marginBottom: '-1px'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
-              </div>
+
+                {bikeshareTab === 'trends' && (
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-3 pt-1">
+                    {/* Daily / Hourly toggle */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold" style={{ color: viewMode === 'daily' ? 'var(--accent)' : 'var(--ink-3)' }}>
+                        Daily
+                      </span>
+                      <button
+                        onClick={handleViewModeChange}
+                        className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none"
+                        style={{ background: viewMode === 'hourly' ? 'var(--accent)' : '#d6d3c8' }}
+                        role="switch"
+                        aria-checked={viewMode === 'hourly'}
+                      >
+                        <span
+                          className={`
+                            inline-block h-4 w-4 transform rounded-full bg-white
+                            transition-transform duration-200
+                            ${viewMode === 'hourly' ? 'translate-x-6' : 'translate-x-1'}
+                          `}
+                        />
+                      </button>
+                      <span className="text-sm font-semibold" style={{ color: viewMode === 'hourly' ? 'var(--accent)' : 'var(--ink-3)' }}>
+                        Hourly
+                      </span>
+                    </div>
+
+                    {/* Trip-type filters — daily view only; the hourly feed has no splits */}
+                    {viewMode === 'daily' && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <label htmlFor="userTypeSelect" className="dd-kicker" style={{ color: 'var(--ink-2)' }}>
+                            Rider
+                          </label>
+                          <select
+                            id="userTypeSelect"
+                            value={userType}
+                            onChange={(e) => setUserType(e.target.value)}
+                            className="dd-select"
+                          >
+                            {USER_TYPES.map(t => (
+                              <option key={t.value} value={t.value}>{t.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label htmlFor="bikeTypeSelect" className="dd-kicker" style={{ color: 'var(--ink-2)' }}>
+                            Bike
+                          </label>
+                          <select
+                            id="bikeTypeSelect"
+                            value={bikeType}
+                            onChange={(e) => setBikeType(e.target.value)}
+                            className="dd-select"
+                          >
+                            {BIKE_TYPES.map(t => (
+                              <option key={t.value} value={t.value}>{t.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {isFiltered && (
+                          <button
+                            onClick={() => { setUserType('all'); setBikeType('all'); }}
+                            className="text-sm underline"
+                            style={{ color: 'var(--ink-3)' }}
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
+
+          {/* A narrower filter covers less time than the full record — say so
+              rather than letting the shorter series read as a decline. */}
+          {isBikeShare && bikeshareTab === 'trends' && viewMode === 'daily' && isFiltered && selectedCounterData?.coverage && (
+            <p className="text-xs mt-3" style={{ color: 'var(--ink-3)' }}>
+              Showing {measureLabel.toLowerCase()} trips. This split is recorded from{' '}
+              {fmtDay(selectedCounterData.coverage.from)} to {fmtDay(selectedCounterData.coverage.to)}.
+              {bikeType !== 'all' && ' Bike model is recorded from January 2024.'}
+              {' '}The live feed reports totals only, so filtered views end where the published data does.
+            </p>
+          )}
         </div>
 
         {/* Chart Display */}
-        {!selectedCounterData ? (
+        {isBikeShare && bikeshareTab === 'breakdown' ? (
+          <div className="dd-panel overflow-hidden">
+            <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
+              <h2 className="dd-title text-xl" style={{ color: 'var(--ink)' }}>
+                Bike Share Toronto — Trip type breakdown
+              </h2>
+            </div>
+            <TripTypeBreakdownChart breakdown={monthlyBreakdown} />
+          </div>
+        ) : !selectedCounterData ? (
           <div className="text-center py-16 dd-panel">
             <p className="text-xl" style={{ color: 'var(--ink-3)' }}>Please select a counter to view data.</p>
           </div>
@@ -318,17 +450,39 @@ export default function BicycleCountersContent() {
             <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
               <h2 className="dd-title text-xl" style={{ color: 'var(--ink)' }}>
                 {selectedCounterData.location}
+                {measureLabel && (
+                  <span className="ml-2 text-base font-normal" style={{ color: 'var(--ink-2)' }}>
+                    — {measureLabel} trips
+                  </span>
+                )}
               </h2>
             </div>
             <CounterChart
               data={selectedCounterData.data}
               title=""
+              measureLabel={measureLabel}
             />
+            {isBikeShare && (
+              <p className="text-xs px-4 pb-4" style={{ color: 'var(--ink-3)' }}>
+                Trips to March 31, 2026 are official counts from the{' '}
+                <a
+                  href="https://open.toronto.ca/dataset/bike-share-toronto-ridership-data/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="dd-link-accent"
+                >
+                  City of Toronto ridership data
+                </a>
+                . Later days are bikeraccoon estimates, which undercount by about 2%.
+                Bike model is recorded from January 2024. Rider type is not shown for
+                October 2021 to December 2023, where the City&rsquo;s data is not accurate.
+              </p>
+            )}
           </div>
         ) : null}
 
         {/* Station Map - Only shown for Bike Share Toronto when in daily view and not showing station detail */}
-        {isBikeShare && viewMode === 'daily' && showMap && !showStationDetail && (
+        {isBikeShare && bikeshareTab === 'trends' && viewMode === 'daily' && showMap && !showStationDetail && (
           <div className="mt-6">
             <div className="dd-panel-ruled p-6">
               <h3 className="dd-title text-lg mb-4" style={{ color: 'var(--ink)' }}>
@@ -345,7 +499,7 @@ export default function BicycleCountersContent() {
         )}
 
         {/* Station Detail View */}
-        {isBikeShare && showStationDetail && (
+        {isBikeShare && bikeshareTab === 'trends' && showStationDetail && (
           <div className="mt-6">
             <StationDetail 
               stationId={selectedStationId} 
@@ -370,16 +524,27 @@ export default function BicycleCountersContent() {
               . Last Updated: August 6th, 2026
             </p>
             <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
-              Bike share data from{' '}
+              Bike share ridership through March 31, 2026 from{' '}
+              <a
+                href="https://open.toronto.ca/dataset/bike-share-toronto-ridership-data/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="dd-link-accent"
+              >
+                Bike Share Toronto Ridership Data
+              </a>
+              {' '}on the City of Toronto Open Data Portal. These are official trip records,
+              and the only source with rider and bike-type detail. Days after that come from the{' '}
               <a
                 href="https://github.com/mjarrett/bikeraccoon"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="dd-link-accent"
               >
-                bikeracoon api
+                bikeraccoon api
               </a>
-              . All bike share data are estimates and not official counts. They are inferred from station counts and tend to undercount trips by about 2%.
+              , which are estimates rather than official counts: they are inferred from
+              station counts and tend to undercount trips by about 2%.
             </p>
             <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
               All times displayed in Eastern Time (EST/EDT) for consistency across all users

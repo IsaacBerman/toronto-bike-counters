@@ -217,49 +217,145 @@ export function calculateRollingAverage(data, windowSize = 14) {
 
 // BIKESHARE DATA FUNCTIONS
 
-export async function loadBikeshareData() {
-  try {
-    // Calculate date range
-    const startDate = '2020010100'; // Start of 2020
-    const today = new Date();
-    const endDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}00`;
-    
-    const apiUrl = `https://api.raccoon.bike/activity?system=bike_share_toronto&start=${startDate}&end=${endDate}&frequency=d&key=YIOJaaLtLdazfrG7GVwcyAybB2WfpmSaxtCUx6gxLBw`;
-    
-    const response = await fetch(apiUrl);
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch bikeshare data');
-    }
-    
-    const data = await response.json();
-    return data.data || [];
-  } catch (error) {
-    console.error('Error loading bikeshare data:', error);
-    return [];
+// The City's trip-level ridership archives, pre-reduced to one row per day
+// (see build_bikeshare_daily.py in the dash.raccoon.bike repo). Authoritative
+// from 2016 through `cutoff`; the live API covers only what comes after.
+async function loadArchivedBikeshareData() {
+  const response = await fetch('/bikeshare-daily.json');
+  if (!response.ok) {
+    throw new Error('Failed to fetch archived bikeshare data');
   }
+  const d = await response.json();
+  return {
+    cutoff: d.cutoff,
+    points: d.dates.map((date, i) => ({
+      datetime: date,
+      trips: d.trips[i],
+      member: d.member[i],
+      casual: d.casual[i],
+      // The user x model joint. Null before 2024 — the City records no bike
+      // model until then — which is why classic/electric can't go back further.
+      member_classic: d.member_classic[i],
+      member_electric: d.member_electric[i],
+      casual_classic: d.casual_classic[i],
+      casual_electric: d.casual_electric[i]
+    }))
+  };
 }
 
-export function processBikeshareCounter(rawData) {
+// The trip-type filters. The archive stores only what can't be derived, so a
+// classic/electric total is the joint summed over users, and every combination
+// below is either a stored column or a sum of stored columns.
+export const USER_TYPES = [
+  { value: 'all', label: 'All riders' },
+  { value: 'member', label: 'Members' },
+  { value: 'casual', label: 'Casual' }
+];
+export const BIKE_TYPES = [
+  { value: 'all', label: 'All bikes' },
+  { value: 'classic', label: 'Classic' },
+  { value: 'electric', label: 'E-bike' }
+];
+
+// Trips on one day matching the selected filters, or null when that
+// combination isn't recorded for that day (so the series breaks rather than
+// plotting a phantom zero).
+export function tripsMatching(point, userType = 'all', bikeType = 'all') {
+  const num = (v) => (typeof v === 'number' ? v : null);
+
+  if (userType === 'all' && bikeType === 'all') return num(point.trips);
+  if (bikeType === 'all') return num(point[userType]);
+
+  if (userType === 'all') {
+    const m = num(point[`member_${bikeType}`]);
+    const c = num(point[`casual_${bikeType}`]);
+    return m === null || c === null ? null : m + c;
+  }
+  return num(point[`${userType}_${bikeType}`]);
+}
+
+// 'YYYY-MM-DD' -> the API's 'YYYYMMDD' stamp for the following day.
+function nextDayStamp(isoDate) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+export async function loadBikeshareData() {
+  let archive = { cutoff: null, points: [] };
+  try {
+    archive = await loadArchivedBikeshareData();
+  } catch (error) {
+    console.error('Error loading archived bikeshare data:', error);
+  }
+
+  const today = new Date();
+  const endDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+  // Ask the API only for days the archive doesn't already cover.
+  const startDate = archive.cutoff ? nextDayStamp(archive.cutoff) : '20200101';
+
+  let live = [];
+  if (startDate <= endDate) {
+    try {
+      const apiUrl = `https://api.raccoon.bike/activity?system=bike_share_toronto&start=${startDate}00&end=${endDate}00&frequency=d&key=YIOJaaLtLdazfrG7GVwcyAybB2WfpmSaxtCUx6gxLBw`;
+      const response = await fetch(apiUrl);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch bikeshare data');
+      }
+
+      const data = await response.json();
+      live = data.data || [];
+    } catch (error) {
+      console.error('Error loading bikeshare data:', error);
+    }
+  }
+
+  // Archive wins on any overlap — it is the City's own count, not an estimate.
+  const byDate = new Map();
+  for (const point of [...live, ...archive.points]) {
+    byDate.set(point.datetime.split('T')[0], point);
+  }
+  return [...byDate.values()];
+}
+
+export function processBikeshareCounter(rawData, userType = 'all', bikeType = 'all') {
   if (!rawData || rawData.length === 0) {
     return {
       location: "Bike Share Toronto",
       data: [],
       isOperational: true,
-      totalCount: 0
+      totalCount: 0,
+      coverage: null
     };
   }
 
-  // Convert API data to our standard format and sort by date
+  // Convert API data to our standard format and sort by date. Days the chosen
+  // filter isn't recorded for are dropped rather than zeroed, so a narrower
+  // filter shortens the series instead of inventing a collapse in ridership.
   const dataPoints = rawData.map(point => {
     const date = point.datetime.split('T')[0];
-    return {
+    const volume = tripsMatching(point, userType, bikeType);
+    return volume === null ? null : {
       date: date,
-      volume: point.trips,
+      volume: volume,
       timestamp: new Date(date).getTime(),
-      originalVolume: point.trips // Keep original for reference
+      originalVolume: volume // Keep original for reference
     };
-  }).sort((a, b) => a.timestamp - b.timestamp);
+  }).filter(Boolean).sort((a, b) => a.timestamp - b.timestamp);
+
+  if (dataPoints.length === 0) {
+    return {
+      location: "Bike Share Toronto",
+      data: [],
+      isOperational: true,
+      totalCount: 0,
+      coverage: null
+    };
+  }
+
+  // What span this filter actually covers, so the UI can say so.
+  const coverage = { from: dataPoints[0].date, to: dataPoints[dataPoints.length - 1].date };
 
   // Step 1: Remove outliers
   const dataWithoutOutliers = removeOutliers(dataPoints);
@@ -277,7 +373,55 @@ export function processBikeshareCounter(rawData) {
     location: "Bike Share Toronto",
     data: dataWithRollingAvg,
     isOperational: true,
-    totalCount: totalCount
+    totalCount: totalCount,
+    coverage: coverage
+  };
+}
+
+// Monthly totals for the trip-type breakdown charts. Months are kept whole:
+// a partial month at either end would read as a real drop in a bar chart, so
+// only months with a full complement of days are returned.
+export function bikeshareMonthlyBreakdown(rawData) {
+  if (!rawData || rawData.length === 0) return { bikeType: [], userType: [] };
+
+  const months = new Map();
+  for (const point of rawData) {
+    const date = point.datetime.split('T')[0];
+    const key = date.slice(0, 7);
+    if (!months.has(key)) {
+      months.set(key, { month: key, days: 0, classic: 0, electric: 0, member: 0, casual: 0, hasModel: true, hasUser: true });
+    }
+    const m = months.get(key);
+    m.days += 1;
+
+    const classic = tripsMatching(point, 'all', 'classic');
+    const electric = tripsMatching(point, 'all', 'electric');
+    if (classic === null || electric === null) m.hasModel = false;
+    else { m.classic += classic; m.electric += electric; }
+
+    const member = tripsMatching(point, 'member', 'all');
+    const casual = tripsMatching(point, 'casual', 'all');
+    if (member === null || casual === null) m.hasUser = false;
+    else { m.member += member; m.casual += casual; }
+  }
+
+  const daysInMonth = (key) => {
+    const [y, mo] = key.split('-').map(Number);
+    return new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  };
+  const label = (key) => {
+    const [y, mo] = key.split('-').map(Number);
+    return new Date(Date.UTC(y, mo - 1, 1)).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+  };
+
+  const whole = [...months.values()]
+    .filter(m => m.days === daysInMonth(m.month))
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .map(m => ({ ...m, label: label(m.month) }));
+
+  return {
+    bikeType: whole.filter(m => m.hasModel).map(({ month, label, classic, electric }) => ({ month, label, classic, electric })),
+    userType: whole.filter(m => m.hasUser).map(({ month, label, member, casual }) => ({ month, label, member, casual }))
   };
 }
 
