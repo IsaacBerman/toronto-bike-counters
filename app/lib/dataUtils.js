@@ -456,6 +456,14 @@ function removeOutliers(dataPoints) {
   return cleaned;
 }
 
+// A day counts as an outlier only if it falls below this share of the
+// surrounding week. The rule is meant to catch a feed that dropped most of a
+// day's records, not a quiet day: at 30% it was rewriting about one day in
+// eleven of the casual and e-bike series, which are genuinely spiky because
+// casual riding is weekend-driven. 10% keeps the collapses and leaves ordinary
+// quiet days alone.
+const OUTLIER_FRACTION_OF_WEEK = 0.1;
+
 function removeOutliersFromRun(dataPoints) {
   const cleanedData = [...dataPoints];
 
@@ -472,8 +480,9 @@ function removeOutliersFromRun(dataPoints) {
     const afterAverage = after7Days.length > 0 
       ? after7Days.reduce((sum, point) => sum + point.volume, 0) / after7Days.length
       : currentPoint.volume;
-    // Check if current value is less than 30% of the 7-day average
-    if (currentPoint.volume < previousAverage * 0.3 || currentPoint.volume < afterAverage * 0.3) {
+    // Check if current value is far below the surrounding week
+    if (currentPoint.volume < previousAverage * OUTLIER_FRACTION_OF_WEEK
+        || currentPoint.volume < afterAverage * OUTLIER_FRACTION_OF_WEEK) {
       // Replace outlier with the 7-day average
       cleanedData[i] = {
         ...currentPoint,
