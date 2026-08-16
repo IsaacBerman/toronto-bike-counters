@@ -462,6 +462,14 @@ function removeOutliers(dataPoints) {
 
 // GAP FILLING FUNCTIONS
 
+// Gaps longer than this are left as gaps. A missing day or two is a feed
+// hiccup, and bridging it keeps a rolling average honest. A months-long
+// absence is not a hiccup: interpolating across it draws a smooth invented
+// curve between the last real reading and the next, which reads as data. The
+// member/casual series is withheld for over two years, and filling that span
+// produced exactly such a curve.
+const MAX_INTERPOLATED_GAP_DAYS = 14;
+
 function fillMissingDates(dataPoints) {
   if (dataPoints.length === 0) return [];
 
@@ -496,7 +504,7 @@ function fillMissingDates(dataPoints) {
         currentDate >= g.startDate && currentDate <= g.endDate
       );
       
-      if (gap) {
+      if (gap && gap.size <= MAX_INTERPOLATED_GAP_DAYS) {
         const interpolatedVolume = calculateGapInterpolation(dateStr, gap, dataPoints);
         filledData.push({
           date: dateStr,
@@ -504,15 +512,9 @@ function fillMissingDates(dataPoints) {
           timestamp: currentDate.getTime(),
           isInterpolated: true
         });
-      } else {
-        // Should not happen, but fallback
-        filledData.push({
-          date: dateStr,
-          volume: 3000, // Reasonable default
-          timestamp: currentDate.getTime(),
-          isInterpolated: true
-        });
       }
+      // Otherwise leave the day out entirely. The chart plots missing days as
+      // nulls and breaks the line there, which is the truthful rendering.
     }
     
     currentDate.setDate(currentDate.getDate() + 1);
