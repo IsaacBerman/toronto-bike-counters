@@ -427,11 +427,38 @@ export function bikeshareMonthlyBreakdown(rawData) {
 
 // OUTLIER DETECTION AND REMOVAL
 
+// Outlier detection compares each day against its neighbours by array
+// position, which is only meaningful while those neighbours are actually
+// adjacent in time. Where the record breaks, they aren't: with the withheld
+// 2021-2023 span dropped, September 2021 sat directly beside January 2024, so
+// every low winter day measured as an outlier against a summer baseline, was
+// replaced by that baseline, and the replacement then fed the next window and
+// pinned the series to a constant. Each unbroken run is cleaned on its own.
 function removeOutliers(dataPoints) {
   if (dataPoints.length === 0) return [];
-  
+
+  const cleaned = [];
+  let run = [];
+  const flushRun = () => {
+    if (run.length) cleaned.push(...removeOutliersFromRun(run));
+    run = [];
+  };
+
+  for (const point of dataPoints) {
+    if (run.length) {
+      const daysSincePrevious = (point.timestamp - run[run.length - 1].timestamp) / 86400000;
+      if (daysSincePrevious > MAX_INTERPOLATED_GAP_DAYS) flushRun();
+    }
+    run.push(point);
+  }
+  flushRun();
+
+  return cleaned;
+}
+
+function removeOutliersFromRun(dataPoints) {
   const cleanedData = [...dataPoints];
-  
+
   for (let i = 7; i < cleanedData.length; i++) {
     const currentPoint = cleanedData[i];
     
