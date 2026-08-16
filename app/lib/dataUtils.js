@@ -230,6 +230,9 @@ async function loadArchivedBikeshareData() {
     cutoff: d.cutoff,
     points: d.dates.map((date, i) => ({
       datetime: date,
+      // Flags these as official City records rather than live estimates, so
+      // outlier removal leaves them alone (see processBikeshareCounter).
+      isArchive: true,
       trips: d.trips[i],
       member: d.member[i],
       casual: d.casual[i],
@@ -340,7 +343,8 @@ export function processBikeshareCounter(rawData, userType = 'all', bikeType = 'a
       date: date,
       volume: volume,
       timestamp: new Date(date).getTime(),
-      originalVolume: volume // Keep original for reference
+      originalVolume: volume, // Keep original for reference
+      isArchive: point.isArchive === true
     };
   }).filter(Boolean).sort((a, b) => a.timestamp - b.timestamp);
 
@@ -357,8 +361,12 @@ export function processBikeshareCounter(rawData, userType = 'all', bikeType = 'a
   // What span this filter actually covers, so the UI can say so.
   const coverage = { from: dataPoints[0].date, to: dataPoints[dataPoints.length - 1].date };
 
-  // Step 1: Remove outliers
-  const dataWithoutOutliers = removeOutliers(dataPoints);
+  // Step 1: Remove outliers — but never from the City's own archive. That rule
+  // exists because bikeraccoon infers trips from station polling and can drop
+  // most of a day's records. The archive is trip-level: every trip is a row, so
+  // a partial day isn't possible, and the days it flagged were real ones —
+  // blizzards and Christmas, when almost nobody rode. Live days keep the check.
+  const dataWithoutOutliers = removeOutliers(dataPoints, point => !point.isArchive);
   
   // Step 2: Fill in missing dates
   const filledDataPoints = fillMissingDates(dataWithoutOutliers);
@@ -434,13 +442,16 @@ export function bikeshareMonthlyBreakdown(rawData) {
 // every low winter day measured as an outlier against a summer baseline, was
 // replaced by that baseline, and the replacement then fed the next window and
 // pinned the series to a constant. Each unbroken run is cleaned on its own.
-function removeOutliers(dataPoints) {
+// `canReplace` decides which points may be rewritten. Points that fail it still
+// count toward the surrounding-week average, so live days keep real context
+// from the archive days before them.
+function removeOutliers(dataPoints, canReplace = () => true) {
   if (dataPoints.length === 0) return [];
 
   const cleaned = [];
   let run = [];
   const flushRun = () => {
-    if (run.length) cleaned.push(...removeOutliersFromRun(run));
+    if (run.length) cleaned.push(...removeOutliersFromRun(run, canReplace));
     run = [];
   };
 
@@ -464,7 +475,7 @@ function removeOutliers(dataPoints) {
 // quiet days alone.
 const OUTLIER_FRACTION_OF_WEEK = 0.1;
 
-function removeOutliersFromRun(dataPoints) {
+function removeOutliersFromRun(dataPoints, canReplace = () => true) {
   const cleanedData = [...dataPoints];
 
   for (let i = 7; i < cleanedData.length; i++) {
@@ -481,8 +492,9 @@ function removeOutliersFromRun(dataPoints) {
       ? after7Days.reduce((sum, point) => sum + point.volume, 0) / after7Days.length
       : currentPoint.volume;
     // Check if current value is far below the surrounding week
-    if (currentPoint.volume < previousAverage * OUTLIER_FRACTION_OF_WEEK
-        || currentPoint.volume < afterAverage * OUTLIER_FRACTION_OF_WEEK) {
+    if (canReplace(currentPoint)
+        && (currentPoint.volume < previousAverage * OUTLIER_FRACTION_OF_WEEK
+            || currentPoint.volume < afterAverage * OUTLIER_FRACTION_OF_WEEK)) {
       // Replace outlier with the 7-day average
       cleanedData[i] = {
         ...currentPoint,
