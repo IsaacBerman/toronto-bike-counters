@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Pool } from 'pg';
+import { getIngestHealth } from '../../lib/slow-zones/db';
 
 // Admin API — guarded by middleware.js (Basic Auth). GET returns cities +
 // stats; POST performs { action: 'delete' | 'merge' }.
@@ -32,6 +33,13 @@ export async function GET() {
              (SELECT COUNT(*) FROM cities) AS city_count
     `);
     const s = stats.rows[0];
+    // Slow-zone ingest health is a separate concern from the Downtown data
+    // above, and it reads through the slow-zones module's own pool. A failure
+    // there shouldn't blank the cities table, so it degrades to an error
+    // string in its own section.
+    const ingest = await getIngestHealth(25).catch((error) => ({
+      error: String(error.message || error),
+    }));
     return NextResponse.json({
       cities: cities.rows,
       stats: {
@@ -40,6 +48,7 @@ export async function GET() {
         submission_count: Number(s.submission_count),
         city_count: Number(s.city_count),
       },
+      ingest,
     });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });

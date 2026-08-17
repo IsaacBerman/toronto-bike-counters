@@ -15,6 +15,106 @@ function deriveDisplay(name) {
     .join('');
 }
 
+function formatStamp(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('en-CA', {
+    timeZone: 'America/Toronto',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+// The two crons are ~6h and ~18h apart, so anything past a day without a
+// capture means both of a day's attempts went missing — the failure mode that
+// went unnoticed for three days in August 2026.
+const STALE_AFTER_HOURS = 26;
+
+function hoursSince(ts) {
+  return ts ? (Date.now() - new Date(ts).getTime()) / 36e5 : null;
+}
+
+// Slow-zone ingest health. Two questions, in order of how often they matter:
+// is the record current, and what did the recent runs actually do. A run that
+// never happened leaves no row, so the missing-days list is the part that
+// catches a cron that stopped firing — the log alone can't show an absence.
+function IngestPanel({ ingest, cell }) {
+  if (!ingest) return null;
+  if (ingest.error) {
+    return (
+      <div className="dd-panel" style={{ padding: '14px', marginBottom: '18px' }}>
+        <p className="dd-kicker" style={{ marginBottom: '8px' }}>Slow-zone ingest</p>
+        <p style={{ fontSize: '13px', color: 'var(--accent)' }}>Could not load: {ingest.error}</p>
+      </div>
+    );
+  }
+
+  const { runs = [], missingDays = [], lastSnapshot } = ingest;
+  const age = hoursSince(lastSnapshot?.captured_at);
+  const stale = age == null || age > STALE_AFTER_HOURS;
+
+  return (
+    <div className="dd-panel" style={{ padding: '14px', marginBottom: '18px' }}>
+      <p className="dd-kicker" style={{ marginBottom: '8px' }}>Slow-zone ingest</p>
+
+      <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', fontSize: '14px', marginBottom: '10px' }}>
+        <span>
+          Latest snapshot <strong>{lastSnapshot?.day || 'none'}</strong>
+          {lastSnapshot?.zone_total != null && <> · {lastSnapshot.zone_total} zones</>}
+        </span>
+        <span style={{ color: stale ? 'var(--accent)' : 'var(--ink-2)' }}>
+          captured <strong>{formatStamp(lastSnapshot?.captured_at)}</strong>
+          {age != null && <> ({Math.round(age)}h ago)</>}
+          {stale && ' — stale, check the cron'}
+        </span>
+        <span style={{ color: 'var(--ink-2)' }}>TTC page said {lastSnapshot?.as_of || '—'}</span>
+      </div>
+
+      {missingDays.length > 0 && (
+        <p style={{ fontSize: '13px', color: 'var(--accent)', marginBottom: '10px' }}>
+          <strong>{missingDays.length} day{missingDays.length === 1 ? '' : 's'} with no snapshot:</strong>{' '}
+          <span style={{ fontFamily: 'monospace' }}>{missingDays.join(', ')}</span>
+        </p>
+      )}
+
+      {runs.length === 0 ? (
+        <p style={{ fontSize: '13px', color: 'var(--ink-3)' }}>
+          No runs logged yet — the run log starts recording from its first ingest after deploy.
+        </p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                {['Ran at', 'Source', 'Result', 'Day', 'TTC as of', 'Rows', 'Zones', 'ms'].map((h) => (
+                  <th key={h} style={{ ...cell, fontWeight: 700 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {runs.map((r, i) => (
+                <tr key={`${r.ran_at}-${i}`}>
+                  <td style={cell}>{formatStamp(r.ran_at)}</td>
+                  <td style={{ ...cell, color: 'var(--ink-2)' }}>{r.source}</td>
+                  <td style={{ ...cell, color: r.ok ? 'var(--ink)' : 'var(--accent)' }}>
+                    {r.ok ? 'ok' : `failed: ${r.error || 'unknown'}`}
+                  </td>
+                  <td style={{ ...cell, fontFamily: 'monospace' }}>{r.day || '—'}</td>
+                  <td style={{ ...cell, color: 'var(--ink-2)' }}>{r.as_of || '—'}</td>
+                  <td style={cell}>{r.row_count ?? '—'}</td>
+                  <td style={cell}>{r.zone_total ?? '—'}</td>
+                  <td style={{ ...cell, color: 'var(--ink-3)' }}>{r.duration_ms ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -76,7 +176,7 @@ export default function AdminPage() {
           Admin
         </h1>
         <p style={{ color: 'var(--ink-2)', fontSize: '14px', marginBottom: '20px' }}>
-          Where is Downtown — cities & submissions
+          Where is Downtown — cities & submissions · slow-zone ingest health
         </p>
 
         {error && <p style={{ color: 'var(--accent)' }}>{error}</p>}
@@ -89,6 +189,8 @@ export default function AdminPage() {
               <span>DB <strong>{data.stats.database_mb} MB</strong></span>
               <span>submissions table <strong>{data.stats.submissions_mb} MB</strong></span>
             </div>
+
+            <IngestPanel ingest={data.ingest} cell={cell} />
 
             <div className="dd-panel" style={{ padding: '14px', marginBottom: '18px' }}>
               <p className="dd-kicker" style={{ marginBottom: '8px' }}>Merge (moves submissions, deletes source)</p>
