@@ -106,12 +106,16 @@ const chartTooltipStyle = {
   color: INK,
 };
 
-// Draws a point only where the series can't draw a line: a captured day with
-// gaps on both sides. Everywhere else the line carries the value and a dot per
-// day would just add noise to a long history.
-function IsolatedDot({ cx, cy, payload }) {
-  if (!payload?.isolated || cx == null || cy == null) return null;
-  return <circle cx={cx} cy={cy} r={3} fill={ACCENT} stroke="none" />;
+// Dots mark days we actually captured. The lines run straight from one
+// captured day to the next across any gap, so the dots are what separates a
+// measurement from the stretch of line drawn between two of them — a long
+// segment with nothing on it is a span nobody looked at. The x axis still
+// gives those days their real width, so the gap stays visible as distance.
+// `color` rather than `fill`, so Recharts' own dot props can't overwrite it
+// when it clones this element.
+function CapturedDot({ cx, cy, payload, color = ACCENT, r = 3 }) {
+  if (payload?.assumed !== false || cx == null || cy == null) return null;
+  return <circle cx={cx} cy={cy} r={r} fill={color} stroke="none" />;
 }
 
 function StatTile({ label, value, unit }) {
@@ -337,8 +341,9 @@ export default function SlowZonesContent() {
   // The series covers every calendar date between the first and last snapshot,
   // not just the dates we captured, so a break in the record takes up its true
   // width on the x axis instead of collapsing into the next observed day. The
-  // measured series go null on an uncaptured date — Recharts breaks the line
-  // at a null rather than drawing a segment nobody measured. Cost is the
+  // measured series go null on an uncaptured date; the charts connect across
+  // those nulls and mark the captured days with dots, so the gap reads as a
+  // long bare stretch of line rather than as days of measurement. Cost is the
   // deliberate exception: it carries the last recorded day forward so the
   // cumulative total keeps running, which is an assumption, not an
   // observation, and rows say so via `assumed`.
@@ -373,14 +378,6 @@ export default function SlowZonesContent() {
         cost: Math.round(lastCost),
         cumulativeCost: Math.round(runningCost),
       });
-    }
-    // A captured day with no captured neighbour has no line segment to sit on,
-    // and these areas draw no dots, so it would render as nothing at all — the
-    // most recent day disappears whenever it follows a gap. Mark those so the
-    // series can draw a standalone point for them.
-    for (let i = 0; i < rows.length; i += 1) {
-      rows[i].isolated =
-        !rows[i].assumed && rows[i - 1]?.assumed !== false && rows[i + 1]?.assumed !== false;
     }
     return rows;
   }, [days, zones]);
@@ -709,7 +706,7 @@ export default function SlowZonesContent() {
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
                       <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                      <Area type="monotone" dataKey="zones" name="Slow zones" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} dot={<IsolatedDot />} />
+                      <Area type="monotone" dataKey="zones" name="Slow zones" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} connectNulls dot={<CapturedDot />} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </ChartBlock>
@@ -725,7 +722,7 @@ export default function SlowZonesContent() {
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
                       <YAxis tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                      <Area type="monotone" dataKey="delayMin" name="Est. delay (min)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} dot={<IsolatedDot />} />
+                      <Area type="monotone" dataKey="delayMin" name="Est. delay (min)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} connectNulls dot={<CapturedDot />} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </ChartBlock>
@@ -775,7 +772,10 @@ export default function SlowZonesContent() {
                           makes the legend follow the order of the series below,
                           so it reads left axis, then right. */}
                       <Legend wrapperStyle={{ fontSize: 11, color: INK2 }} itemSorter={null} />
-                      <Line yAxisId="cumulative" type="monotone" dataKey="cumulativeCost" name="Cumulative cost (left)" stroke={INK} strokeWidth={2} dot={{ r: 2.5 }} />
+                      {/* Same rule as the other charts: a dot means a day we
+                          captured. The line itself stays continuous, since a
+                          carried-forward day still accrues cost. */}
+                      <Line yAxisId="cumulative" type="monotone" dataKey="cumulativeCost" name="Cumulative cost (left)" stroke={INK} strokeWidth={2} dot={<CapturedDot color={INK} r={2.5} />} />
                       {/* Carried-forward days are drawn faint so an assumed
                           bar can't be mistaken for a day we actually captured. */}
                       <Bar
@@ -801,7 +801,7 @@ export default function SlowZonesContent() {
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
                       <YAxis tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                      <Area type="monotone" dataKey="trackKm" name="Slow track (km)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} dot={<IsolatedDot />} />
+                      <Area type="monotone" dataKey="trackKm" name="Slow track (km)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} connectNulls dot={<CapturedDot />} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </ChartBlock>
