@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, ComposedChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, Rectangle,
 } from 'recharts';
 import { LINES, segmentsBetween, spanBetween, segmentLabel } from '../../lib/slow-zones/stations';
 import { VALUE_OF_TIME, zoneDailyRiders } from '../../lib/slow-zones/ridership';
@@ -91,6 +91,13 @@ function formatDay(day) {
   return new Date(y, m - 1, d).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
 }
 
+// Step a YYYY-MM-DD string by whole days. The arithmetic runs in UTC and only
+// the date parts are read back, so a DST boundary can't shift the result.
+function addDays(day, n) {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
 const chartTooltipStyle = {
   background: '#ffffff',
   border: `1px solid ${GRID}`,
@@ -127,7 +134,13 @@ function DayPicker({ id, days, value, onChange }) {
   const wrapRef = useRef(null);
   const listRef = useRef(null);
 
-  const selectedIndex = Math.max(days.findIndex((d) => d.day === value), 0);
+  // Newest first: the most recent snapshot is what you nearly always want, so
+  // it sits at the top of the list rather than after a scroll. `days` arrives
+  // ascending and stays that way for the charts — only the menu is reversed,
+  // so every index below is into `ordered`.
+  const ordered = useMemo(() => [...days].reverse(), [days]);
+
+  const selectedIndex = Math.max(ordered.findIndex((d) => d.day === value), 0);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -150,7 +163,7 @@ function DayPicker({ id, days, value, onChange }) {
   };
 
   const commit = (index) => {
-    const day = days[index]?.day;
+    const day = ordered[index]?.day;
     if (day) onChange(day);
     setOpen(false);
   };
@@ -167,7 +180,7 @@ function DayPicker({ id, days, value, onChange }) {
       setOpen(false);
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActive((i) => Math.min(i + 1, days.length - 1));
+      setActive((i) => Math.min(i + 1, ordered.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActive((i) => Math.max(i - 1, 0));
@@ -176,7 +189,7 @@ function DayPicker({ id, days, value, onChange }) {
       setActive(0);
     } else if (e.key === 'End') {
       e.preventDefault();
-      setActive(days.length - 1);
+      setActive(ordered.length - 1);
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       commit(active);
@@ -213,7 +226,7 @@ function DayPicker({ id, days, value, onChange }) {
           // stacking context and would otherwise paint over the open list.
           style={{ background: 'var(--panel, #ffffff)', borderColor: GRID, zIndex: 1000 }}
         >
-          {days.map((d, i) => {
+          {ordered.map((d, i) => {
             const isSelected = d.day === value;
             const isActive = i === active;
             return (
@@ -312,7 +325,17 @@ export default function SlowZonesContent() {
 
   // Per-day chart series: zone count, total estimated delay, slow track, and
   // estimated daily + running cumulative cost.
+  //
+  // The series covers every calendar date between the first and last snapshot,
+  // not just the dates we captured, so a break in the record takes up its true
+  // width on the x axis instead of collapsing into the next observed day. The
+  // measured series go null on an uncaptured date — Recharts breaks the line
+  // at a null rather than drawing a segment nobody measured. Cost is the
+  // deliberate exception: it carries the last recorded day forward so the
+  // cumulative total keeps running, which is an assumption, not an
+  // observation, and rows say so via `assumed`.
   const perDay = useMemo(() => {
+    if (days.length === 0) return [];
     const delayByDay = {};
     const trackByDay = {};
     const costByDay = {};
@@ -321,19 +344,29 @@ export default function SlowZonesContent() {
       trackByDay[z.day] = (trackByDay[z.day] || 0) + (z.defect_m || 0);
       costByDay[z.day] = (costByDay[z.day] || 0) + (zoneImpact(z).cost || 0);
     }
+    const totalByDay = {};
+    for (const d of days) totalByDay[d.day] = d.zone_total;
+
+    const rows = [];
+    const lastDay = days[days.length - 1].day;
     let runningCost = 0;
-    return days.map((d) => {
-      runningCost += costByDay[d.day] || 0;
-      return {
-        day: d.day,
-        label: formatDay(d.day),
-        zones: d.zone_total,
-        delayMin: Math.round((delayByDay[d.day] || 0) * 10) / 10,
-        trackKm: Math.round((trackByDay[d.day] || 0) / 100) / 10,
-        cost: Math.round(costByDay[d.day] || 0),
+    let lastCost = 0;
+    for (let day = days[0].day; day <= lastDay; day = addDays(day, 1)) {
+      const captured = day in totalByDay;
+      if (captured) lastCost = costByDay[day] || 0;
+      runningCost += lastCost;
+      rows.push({
+        day,
+        label: formatDay(day),
+        assumed: !captured,
+        zones: captured ? totalByDay[day] : null,
+        delayMin: captured ? Math.round((delayByDay[day] || 0) * 10) / 10 : null,
+        trackKm: captured ? Math.round((trackByDay[day] || 0) / 100) / 10 : null,
+        cost: Math.round(lastCost),
         cumulativeCost: Math.round(runningCost),
-      };
-    });
+      });
+    }
+    return rows;
   }, [days, zones]);
 
   // Segments ranked by cumulative zone-days (a segment with 2 zones for 3
@@ -684,7 +717,7 @@ export default function SlowZonesContent() {
               {chartTab === 'cost' && (
                 <ChartBlock
                   title="Estimated cost of slow zones"
-                  subtitle={`Daily and cumulative rider time cost at $${VALUE_OF_TIME}/hr — see method below`}
+                  subtitle={`Daily and cumulative rider time cost at $${VALUE_OF_TIME}/hr — days the TTC didn't update carry the last figure forward; see method below`}
                 >
                   <ResponsiveContainer width="100%" height={260}>
                     <ComposedChart data={perDay} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
@@ -717,7 +750,9 @@ export default function SlowZonesContent() {
                       <Tooltip
                         contentStyle={chartTooltipStyle}
                         labelStyle={{ color: INK2 }}
-                        formatter={(v) => `$${Number(v).toLocaleString()}`}
+                        formatter={(v, name, item) =>
+                          `$${Number(v).toLocaleString()}${item?.payload?.assumed ? ' (assumed)' : ''}`
+                        }
                       />
                       {/* itemSorter defaults to sorting labels alphabetically,
                           which puts the right-axis series first; turning it off
@@ -725,7 +760,19 @@ export default function SlowZonesContent() {
                           so it reads left axis, then right. */}
                       <Legend wrapperStyle={{ fontSize: 11, color: INK2 }} itemSorter={null} />
                       <Line yAxisId="cumulative" type="monotone" dataKey="cumulativeCost" name="Cumulative cost (left)" stroke={INK} strokeWidth={2} dot={{ r: 2.5 }} />
-                      <Bar yAxisId="daily" dataKey="cost" name="Daily cost (right)" fill={ACCENT} radius={[3, 3, 0, 0]} barSize={18} />
+                      {/* Carried-forward days are drawn faint so an assumed
+                          bar can't be mistaken for a day we actually captured. */}
+                      <Bar
+                        yAxisId="daily"
+                        dataKey="cost"
+                        name="Daily cost (right)"
+                        fill={ACCENT}
+                        radius={[3, 3, 0, 0]}
+                        barSize={18}
+                        shape={(props) => (
+                          <Rectangle {...props} fillOpacity={props.payload?.assumed ? 0.35 : 1} />
+                        )}
+                      />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </ChartBlock>
