@@ -3,6 +3,10 @@
     {
       "path": "/api/slow-zones/ingest",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/slow-zones/ingest",
+      "schedule": "0 21 * * *"
     }
   ]
 }
