@@ -292,8 +292,17 @@ export async function loadBikeshareData() {
     console.error('Error loading archived bikeshare data:', error);
   }
 
-  const today = new Date();
-  const endDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+  // Stop at the last day that actually finished. Today is still in progress, so
+  // its count is a fraction of a real day: at 00:26 it stood at 265 against a
+  // ~43,000 average. Plotted raw it reads as a collapse in ridership, and the
+  // outlier rule instead rewrites it to that full-day average, which makes an
+  // hour-old day look complete and busy. Toronto's date decides the boundary,
+  // not the viewer's.
+  const est = getCurrentESTTime();
+  const lastComplete = new Date(Date.UTC(est.year, est.month - 1, est.day));
+  lastComplete.setUTCDate(lastComplete.getUTCDate() - 1);
+  const endDate = `${lastComplete.getUTCFullYear()}${String(lastComplete.getUTCMonth() + 1).padStart(2, '0')}${String(lastComplete.getUTCDate()).padStart(2, '0')}`;
+
   // Ask the API only for days the archive doesn't already cover.
   const startDate = archive.cutoff ? nextDayStamp(archive.cutoff) : '20200101';
 
