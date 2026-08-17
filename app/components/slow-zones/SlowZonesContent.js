@@ -106,6 +106,14 @@ const chartTooltipStyle = {
   color: INK,
 };
 
+// Draws a point only where the series can't draw a line: a captured day with
+// gaps on both sides. Everywhere else the line carries the value and a dot per
+// day would just add noise to a long history.
+function IsolatedDot({ cx, cy, payload }) {
+  if (!payload?.isolated || cx == null || cy == null) return null;
+  return <circle cx={cx} cy={cy} r={3} fill={ACCENT} stroke="none" />;
+}
+
 function StatTile({ label, value, unit }) {
   return (
     <div className="dd-panel-ruled p-4">
@@ -365,6 +373,14 @@ export default function SlowZonesContent() {
         cost: Math.round(lastCost),
         cumulativeCost: Math.round(runningCost),
       });
+    }
+    // A captured day with no captured neighbour has no line segment to sit on,
+    // and these areas draw no dots, so it would render as nothing at all — the
+    // most recent day disappears whenever it follows a gap. Mark those so the
+    // series can draw a standalone point for them.
+    for (let i = 0; i < rows.length; i += 1) {
+      rows[i].isolated =
+        !rows[i].assumed && rows[i - 1]?.assumed !== false && rows[i + 1]?.assumed !== false;
     }
     return rows;
   }, [days, zones]);
@@ -693,7 +709,7 @@ export default function SlowZonesContent() {
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
                       <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                      <Area type="monotone" dataKey="zones" name="Slow zones" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
+                      <Area type="monotone" dataKey="zones" name="Slow zones" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} dot={<IsolatedDot />} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </ChartBlock>
@@ -709,7 +725,7 @@ export default function SlowZonesContent() {
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
                       <YAxis tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                      <Area type="monotone" dataKey="delayMin" name="Est. delay (min)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
+                      <Area type="monotone" dataKey="delayMin" name="Est. delay (min)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} dot={<IsolatedDot />} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </ChartBlock>
@@ -785,7 +801,7 @@ export default function SlowZonesContent() {
                       <XAxis dataKey="label" tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={{ stroke: GRID }} />
                       <YAxis tick={{ fontSize: 11, fill: INK3 }} tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: INK2 }} />
-                      <Area type="monotone" dataKey="trackKm" name="Slow track (km)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} />
+                      <Area type="monotone" dataKey="trackKm" name="Slow track (km)" stroke={ACCENT} strokeWidth={2} fill={ACCENT} fillOpacity={0.12} dot={<IsolatedDot />} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </ChartBlock>
