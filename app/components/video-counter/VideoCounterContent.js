@@ -6,7 +6,7 @@ import {
   createTracker, emptyCounts, groupsForMode, modeConfig, MODES, totalOf,
 } from '../../lib/video-counter/tracker';
 import { detectFrame, loadDetector, MODELS } from '../../lib/video-counter/detector';
-import { drawAnnotations, drawCountingLine } from '../../lib/video-counter/draw';
+import { drawAnnotations, drawCountingLine, drawWatermark } from '../../lib/video-counter/draw';
 import { createMp4Recorder, exportSupported } from '../../lib/video-counter/encoder';
 
 // 720p-ish output keeps encoding quick and the download a sane size; detection
@@ -146,6 +146,7 @@ export default function VideoCounterContent() {
     drawCountingLine(ctx, toPixels(lineRef.current, media.w, media.h), media.w, {
       hovered: hover !== null,
     });
+    drawWatermark(ctx, media.w, media.h);
   }, [media, hover]);
 
   // Redraw whenever the line moves — the video element still holds the frame,

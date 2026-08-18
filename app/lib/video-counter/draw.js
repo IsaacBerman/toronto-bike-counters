@@ -164,8 +164,41 @@ function drawScoreboard(ctx, counts, groups, width, { time, duration }) {
   ctx.restore();
 }
 
+// Site credit, bottom left. Echoes the header's accent square and wordmark, on
+// the same translucent slab as the scoreboard so it stays readable over both
+// bright asphalt and night footage.
+const WATERMARK = 'observingthecity.ca';
+
+export function drawWatermark(ctx, width, height) {
+  const s = scaleFor(width);
+  ctx.save();
+  ctx.font = `700 ${10 * s}px system-ui, sans-serif`;
+
+  const padX = 8 * s;
+  const chip = 8 * s;
+  const gap = 6 * s;
+  const boxW = padX * 2 + chip + gap + ctx.measureText(WATERMARK).width;
+  const boxH = 22 * s;
+  const x = 12 * s;
+  const y = height - 12 * s - boxH;
+
+  ctx.fillStyle = 'rgba(22,21,15,0.72)';
+  roundRect(ctx, x, y, boxW, boxH, 4 * s);
+  ctx.fill();
+
+  ctx.fillStyle = '#e8590c';
+  roundRect(ctx, x + padX, y + boxH / 2 - chip / 2, chip, chip, 1.5 * s);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(WATERMARK, x + padX + chip + gap, y + boxH / 2);
+  ctx.restore();
+}
+
 export function drawAnnotations(ctx, {
-  tracks, counts, groups, line, width, frameIndex, time, duration,
+  tracks, counts, groups, line, width, height, frameIndex, time, duration,
   showBoxes = true, coastDrawFrames = 4, flashFrames = 5,
 }) {
   const s = scaleFor(width);
@@ -180,5 +213,6 @@ export function drawAnnotations(ctx, {
   }
   drawCountingLine(ctx, line, width);
   drawScoreboard(ctx, counts, groups, width, { time, duration });
+  drawWatermark(ctx, width, height);
   ctx.restore();
 }
