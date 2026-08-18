@@ -25,36 +25,43 @@ function roundRect(ctx, x, y, w, h, r) {
 
 // The line is vertical by definition, so a crossing is simply rightward or
 // leftward and the scoreboard's arrows say which. Nothing to label.
-export function drawCountingLine(ctx, line, width, { active = true } = {}) {
+export function drawCountingLine(ctx, line, width, { active = true, hovered = false } = {}) {
   const s = scaleFor(width);
   const top = Math.min(line.y1, line.y2);
   const bottom = Math.max(line.y1, line.y2);
+  const stroke = active ? (hovered ? '#cf4e08' : '#e8590c') : '#8a887c';
+  // Thicken on hover as well as darkening: the colour shift alone is easy to
+  // miss against a busy street scene.
+  const weight = (hovered ? 4.5 : 3) * s;
 
   ctx.save();
   ctx.lineCap = 'round';
 
   // White halo underneath keeps the line legible over dark asphalt.
   ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.lineWidth = 6 * s;
+  ctx.lineWidth = weight + 3 * s;
   ctx.beginPath();
   ctx.moveTo(line.x, top);
   ctx.lineTo(line.x, bottom);
   ctx.stroke();
 
-  ctx.strokeStyle = active ? '#e8590c' : '#8a887c';
-  ctx.lineWidth = 3 * s;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = weight;
   ctx.beginPath();
   ctx.moveTo(line.x, top);
   ctx.lineTo(line.x, bottom);
   ctx.stroke();
 
-  for (const y of [top, bottom]) {
+  // Handles are inset slightly so they stay fully on canvas when the line runs
+  // the full height of the frame, which is where it starts.
+  const inset = 7 * s;
+  for (const y of [top + inset, bottom - inset]) {
     ctx.beginPath();
-    ctx.arc(line.x, y, 7 * s, 0, Math.PI * 2);
+    ctx.arc(line.x, y, (hovered ? 8 : 7) * s, 0, Math.PI * 2);
     ctx.fillStyle = '#fff';
     ctx.fill();
     ctx.lineWidth = 3 * s;
-    ctx.strokeStyle = active ? '#e8590c' : '#8a887c';
+    ctx.strokeStyle = stroke;
     ctx.stroke();
   }
 

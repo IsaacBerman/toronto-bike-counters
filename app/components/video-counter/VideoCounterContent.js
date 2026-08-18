@@ -100,7 +100,10 @@ export default function VideoCounterContent() {
   const [error, setError] = useState(null);
   const [fileName, setFileName] = useState('');
   const [media, setMedia] = useState(null); // { w, h, duration }
-  const [line, setLine] = useState({ x: 0.5, y1: 0.05, y2: 0.95 });
+  // Full height by default: most clips want the whole frame, and the handles
+  // are there to trim it down to one lane when they don't.
+  const [line, setLine] = useState({ x: 0.5, y1: 0, y2: 1 });
+  const [hover, setHover] = useState(null);
   const [previewTime, setPreviewTime] = useState(0);
   const [mode, setMode] = useState(MODES[0].value);
   const [counts, setCounts] = useState(() => emptyCounts(MODES[0].value));
@@ -140,8 +143,10 @@ export default function VideoCounterContent() {
     if (!video || !canvas || !media) return;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, media.w, media.h);
-    drawCountingLine(ctx, toPixels(lineRef.current, media.w, media.h), media.w);
-  }, [media]);
+    drawCountingLine(ctx, toPixels(lineRef.current, media.w, media.h), media.w, {
+      hovered: hover !== null,
+    });
+  }, [media, hover]);
 
   // Redraw whenever the line moves — the video element still holds the frame,
   // so this costs nothing but a drawImage.
@@ -245,31 +250,52 @@ export default function VideoCounterContent() {
     };
   }
 
+  // What the pointer is over: an end handle, the line itself, or nothing. Only
+  // these spots are interactive, which is what the cursor is promising.
+  function hitTest(p) {
+    if (!media) return null;
+    const px = toPixels(line, media.w, media.h);
+    const handleReach = Math.max(15, media.w * 0.022);
+    const lineReach = Math.max(9, media.w * 0.012);
+    const top = Math.min(px.y1, px.y2);
+    const bottom = Math.max(px.y1, px.y2);
+    // Matches the inset the handles are drawn at, so the grab zone sits on the
+    // circle the user can see rather than on the line's true end.
+    const inset = 7 * Math.max(1, media.w / 640);
+
+    if (Math.hypot(p.x - px.x, p.y - (top + inset)) < handleReach) {
+      return px.y1 <= px.y2 ? 'y1' : 'y2';
+    }
+    if (Math.hypot(p.x - px.x, p.y - (bottom - inset)) < handleReach) {
+      return px.y1 <= px.y2 ? 'y2' : 'y1';
+    }
+    if (Math.abs(p.x - px.x) < lineReach && p.y > top - lineReach && p.y < bottom + lineReach) {
+      return 'x';
+    }
+    return null;
+  }
+
   function onPointerDown(event) {
     if (stage !== 'ready' || !media) return;
-    const p = canvasPoint(event);
-    const px = toPixels(line, media.w, media.h);
-    const grab = Math.max(16, media.w * 0.025);
-
-    const dTop = Math.hypot(p.x - px.x, p.y - px.y1);
-    const dBottom = Math.hypot(p.x - px.x, p.y - px.y2);
-
-    // Handles trim the ends; anywhere else slides the whole line sideways.
-    if (dTop < grab && dTop <= dBottom) dragRef.current = { mode: 'y1' };
-    else if (dBottom < grab) dragRef.current = { mode: 'y2' };
-    else dragRef.current = { mode: 'x' };
-
+    const target = hitTest(canvasPoint(event));
+    if (!target) return;
+    dragRef.current = { mode: target };
+    setHover(target);
     event.currentTarget.setPointerCapture(event.pointerId);
-    onPointerMove(event);
   }
 
   function onPointerMove(event) {
-    const drag = dragRef.current;
-    if (!drag || !media) return;
+    if (stage !== 'ready' || !media) return;
     const p = canvasPoint(event);
+    const drag = dragRef.current;
+
+    if (!drag) {
+      setHover(hitTest(p));
+      return;
+    }
+
     const nx = Math.min(1, Math.max(0, p.x / media.w));
     const ny = Math.min(1, Math.max(0, p.y / media.h));
-
     if (drag.mode === 'y1') setLine((l) => ({ ...l, y1: ny }));
     else if (drag.mode === 'y2') setLine((l) => ({ ...l, y2: ny }));
     else setLine((l) => ({ ...l, x: nx }));
@@ -409,13 +435,11 @@ export default function VideoCounterContent() {
       <canvas ref={detectCanvasRef} className="hidden" />
 
       <div className="mb-6">
-        <p className="dd-kicker mb-2">Computer vision</p>
-        <h1 className="dd-title text-3xl sm:text-4xl mb-3">Count what crosses the line</h1>
+        <h1 className="dd-title text-3xl sm:text-4xl mb-3">Transportation Mode Counter</h1>
         <p className="max-w-2xl text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
           Drop in a video of a street, drag the counting line across the lane, sidewalk or bike
           path you care about, and everything that crosses it gets counted, with the running tally
-          drawn into the video for you to download. One run counts bikes against vehicles, or
-          people on foot against vehicles.
+          drawn into the video for you to download.
         </p>
         <p className="mt-3 max-w-2xl text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
           Your video never leaves this browser tab. There is no upload and nothing is stored on a
@@ -469,11 +493,14 @@ export default function VideoCounterContent() {
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={onPointerUp}
+              onPointerLeave={() => { if (!dragRef.current) setHover(null); }}
               className="block w-full"
               style={{
                 background: '#16150f',
                 touchAction: 'none',
-                cursor: stage === 'ready' ? 'grab' : 'default',
+                // Only the line reports as grabbable, and the arrows say which
+                // way it moves: sideways for the line, up/down for its ends.
+                cursor: hover === 'x' ? 'ew-resize' : hover ? 'ns-resize' : 'default',
               }}
             />
 
@@ -482,8 +509,8 @@ export default function VideoCounterContent() {
                 <>
                   <div className="mb-3 flex items-center gap-2 text-xs font-semibold" style={{ color: 'var(--ink-2)' }}>
                     <Info size={14} style={{ color: 'var(--accent)' }} />
-                    Drag anywhere to slide the line across the frame, or drag the two handles to
-                    trim its ends. Crossings are tallied as → and ←.
+                    Drag the line to slide it across the frame, or drag its end handles to trim
+                    what it watches. Crossings are tallied as → and ←.
                   </div>
                   <label className="flex items-center gap-3 text-xs font-semibold" style={{ color: 'var(--ink-3)' }}>
                     <span className="whitespace-nowrap">Preview frame</span>
