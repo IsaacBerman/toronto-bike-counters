@@ -68,7 +68,10 @@ export default function SiteHeader({ current }) {
             {open && (
               <div
                 role="menu"
-                className="dd-panel absolute right-0 z-50 mt-1 py-1"
+                // Anchored to the trigger's left edge and opening rightward. On
+                // mobile the header wraps this group onto its own row at the
+                // left, so a right-anchored menu ran off the side of the screen.
+                className="dd-panel absolute left-0 z-50 mt-1 py-1 max-w-[calc(100vw-2rem)]"
                 style={{ minWidth: '15rem', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}
               >
                 {PAGES.map((page) => {
