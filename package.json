@@ -12,10 +12,14 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "@tensorflow-models/coco-ssd": "^2.2.3",
+    "@tensorflow/tfjs": "^4.22.0",
     "@turf/turf": "^7.3.5",
     "@vercel/analytics": "^2.0.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.545.0",
+    "mp4-muxer": "^5.2.2",
     "next": "15.5.9",
     "papaparse": "^5.5.3",
     "pg": "^8.22.0",

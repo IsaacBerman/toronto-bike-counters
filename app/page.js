@@ -68,6 +68,11 @@ export default function Home() {
             title="Where is Downtown?"
             blurb="Map tool for drawing your definition of downtown, aggregated into a heatmap of all submissions."
           />
+          <ProjectCard
+            href="/video-counter"
+            title="Video Traffic Counter"
+            blurb="Upload a street video, draw a counting line, and tally the vehicles, bikes and pedestrians that cross it. Runs entirely in your browser."
+          />
         </div>
       </div>
     </div>
