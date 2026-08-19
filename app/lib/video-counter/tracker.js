@@ -44,11 +44,14 @@ export const MODES = [
   },
 ];
 
+// Motorcycles count with bikes rather than with traffic. Detectors also
+// routinely call a bicycle a motorcycle and back again, so grouping them
+// together removes a class flip that used to split one rider's track in two.
 const GROUP_BY_CLASS = {
   car: 'vehicles',
   truck: 'vehicles',
   bus: 'vehicles',
-  motorcycle: 'vehicles',
+  motorcycle: 'bikes',
   bicycle: 'bikes',
   person: 'pedestrians',
 };
