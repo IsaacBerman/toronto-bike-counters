@@ -5,6 +5,8 @@
 import { GROUPS, totalOf } from './tracker';
 
 const COLOR_BY_GROUP = Object.fromEntries(GROUPS.map((g) => [g.key, g.color]));
+
+const LABEL_OVERRIDES = { motorcycle: 'bicycle' };
 const INK = '#16150f';
 
 // One scale factor drives every stroke and font so the overlay looks the same
@@ -95,9 +97,10 @@ function drawBox(ctx, track, s, frameIndex, coastDrawFrames, flashFrames) {
     ctx.globalAlpha = coasting ? 0.5 : 1;
   }
 
+  const name = LABEL_OVERRIDES[track.className] || track.className;
   const label = justCounted
-    ? `${track.className} ✓${track.direction === 'right' ? '→' : '←'}`
-    : track.className;
+    ? `${name} ✓${track.direction === 'right' ? '→' : '←'}`
+    : name;
   ctx.font = `700 ${10 * s}px system-ui, sans-serif`;
   const padding = 4 * s;
   const textWidth = ctx.measureText(label).width;
