@@ -40,25 +40,72 @@ function dedupeOverlapping(detections) {
   return kept;
 }
 
-const RTDETR_REPO = 'onnx-community/rtdetr_r18vd_coco_o365';
-
 export const MODELS = [
   {
-    value: 'rtdetr',
-    label: 'RT-DETR R18 — most accurate',
-    note: '20 MB download. Much stronger on small and distant traffic. Uses WebGPU when available.',
+    value: 'rtdetr-r18',
+    label: 'RT-DETR R18 — balanced',
+    backend: 'rtdetr',
+    repo: 'onnx-community/rtdetr_r18vd_coco_o365',
+    note: '20 MB download. Much stronger on small and distant traffic than COCO-SSD. Uses WebGPU when available.',
+  },
+  {
+    value: 'rtdetr-r50',
+    label: 'RT-DETR R50 — most accurate',
+    backend: 'rtdetr',
+    repo: 'onnx-community/rtdetr_r50vd_coco_o365',
+    note: '43 MB download and slower per frame, but the best detection here. Same family as R18 with a heavier backbone.',
   },
   {
     value: 'lite_mobilenet_v2',
     label: 'COCO-SSD lite — fastest',
+    backend: 'cocossd',
+    base: 'lite_mobilenet_v2',
     note: '5 MB download. Quickest per frame, but misses small or partly hidden objects.',
   },
   {
     value: 'mobilenet_v2',
     label: 'COCO-SSD MobileNet v2',
+    backend: 'cocossd',
+    base: 'mobilenet_v2',
     note: '25 MB download. A middle option.',
   },
 ];
+
+export function modelConfig(id) {
+  return MODELS.find((m) => m.value === id) || MODELS[0];
+}
+
+// Every model resizes its input to a fixed square internally — 640x640 for
+// RT-DETR, 300x300 for COCO-SSD — so handing the detector a bigger frame buys
+// nothing. Splitting the frame into tiles and detecting each one separately is
+// what actually gives a distant cyclist more pixels to be found in.
+export const TILINGS = [
+  { value: 1, label: 'Whole frame', note: 'One pass per frame. Fastest.' },
+  { value: 2, label: '2 × 2 tiles', note: 'Five passes per frame, so roughly 5× slower. Finds smaller, further traffic.' },
+  { value: 3, label: '3 × 3 tiles', note: 'Ten passes per frame, so roughly 10× slower. For distant or high-angle footage.' },
+];
+
+// Tiles overlap so an object sitting on a seam is whole in at least one of
+// them; the duplicate that creates is removed by the same NMS as everything else.
+const TILE_OVERLAP = 0.15;
+const WHOLE_FRAME = { x: 0, y: 0, w: 1, h: 1 };
+
+function tileRegions(count) {
+  if (count <= 1) return [WHOLE_FRAME];
+  const regions = [WHOLE_FRAME]; // keeps objects too big for one tile
+  const step = 1 / count;
+  const pad = step * TILE_OVERLAP;
+  for (let row = 0; row < count; row += 1) {
+    for (let col = 0; col < count; col += 1) {
+      const x = Math.max(0, col * step - pad);
+      const y = Math.max(0, row * step - pad);
+      const right = Math.min(1, (col + 1) * step + pad);
+      const bottom = Math.min(1, (row + 1) * step + pad);
+      regions.push({ x, y, w: right - x, h: bottom - y });
+    }
+  }
+  return regions;
+}
 
 // RT-DETR's label set uses the older COCO names for a few classes.
 const CLASS_ALIASES = {
@@ -77,7 +124,7 @@ function canonicalClass(label) {
 
 let cached = null;
 
-async function loadTransformers() {
+async function loadTransformers(repo) {
   const { pipeline, env, RawImage } = await import('@huggingface/transformers');
   // Never look for weights on our own origin — they live on the Hub CDN.
   env.allowLocalModels = false;
@@ -90,20 +137,20 @@ async function loadTransformers() {
 
   let pipe;
   try {
-    pipe = await pipeline('object-detection', RTDETR_REPO, { device, dtype });
+    pipe = await pipeline('object-detection', repo, { device, dtype });
   } catch (err) {
     if (!useWebGpu) throw err;
     // Some machines advertise WebGPU but fail to compile the graph.
-    pipe = await pipeline('object-detection', RTDETR_REPO, { device: 'wasm', dtype: 'q8' });
+    pipe = await pipeline('object-detection', repo, { device: 'wasm', dtype: 'q8' });
     return { pipe, RawImage, device: 'wasm' };
   }
   return { pipe, RawImage, device };
 }
 
-async function buildRtdetr() {
-  const { pipe, RawImage, device } = await loadTransformers();
+async function buildRtdetr(model) {
+  const { pipe, RawImage, device } = await loadTransformers(model.repo);
   return {
-    id: 'rtdetr',
+    id: model.value,
     device,
     async detect(canvas, minScore) {
       const image = RawImage.fromCanvas(canvas);
@@ -156,20 +203,60 @@ async function buildCocoSsd(base) {
 
 export async function loadDetector(id) {
   if (cached && cached.id === id) return cached;
-  const detector = id === 'rtdetr' ? await buildRtdetr() : await buildCocoSsd(id);
+  const model = modelConfig(id);
+  const detector = model.backend === 'rtdetr'
+    ? await buildRtdetr(model)
+    : await buildCocoSsd(model.base);
   cached = detector;
   return detector;
 }
 
+// Draws one region of the source frame into the scratch canvas at that canvas's
+// full size, detects, and maps the boxes back to fractions of the whole frame.
+// Cropping from `source` — the video element at its native resolution — is the
+// point: a quarter of a 4K frame redrawn at 640px keeps detail that downscaling
+// the whole frame throws away.
+async function detectRegion(detector, source, scratch, region, minScore) {
+  const sourceW = source.videoWidth || source.width;
+  const sourceH = source.videoHeight || source.height;
+  const ctx = scratch.getContext('2d');
+  ctx.drawImage(
+    source,
+    region.x * sourceW, region.y * sourceH, region.w * sourceW, region.h * sourceH,
+    0, 0, scratch.width, scratch.height,
+  );
+
+  const found = await detector.detect(scratch, minScore);
+  return found.map((d) => ({
+    className: d.className,
+    score: d.score,
+    box: [
+      region.x + d.box[0] * region.w,
+      region.y + d.box[1] * region.h,
+      d.box[2] * region.w,
+      d.box[3] * region.h,
+    ],
+  }));
+}
+
 /**
- * Runs the detector on `canvas` and returns boxes in output-pixel coordinates.
+ * Detects in `source` (the video element) using `scratch` as the working canvas,
+ * returning boxes in output-pixel coordinates.
  *
  * `minScore` is deliberately low: the tracker wants the weak detections too, to
  * hold a track together through a blurred or half-occluded frame. It applies
  * the user's real threshold itself when deciding what may start a new track.
  */
-export async function detectFrame(detector, canvas, { width, height, minScore = 0.15 } = {}) {
-  const found = await detector.detect(canvas, minScore);
+export async function detectFrame(detector, source, scratch, {
+  width, height, minScore = 0.15, tiles = 1,
+} = {}) {
+  const regions = tileRegions(tiles);
+  const found = [];
+  for (const region of regions) {
+    // Sequential on purpose: these all contend for the same GPU, and running
+    // them at once only deepens the queue.
+    found.push(...await detectRegion(detector, source, scratch, region, minScore));
+  }
 
   const detections = found
     .map((d) => ({
@@ -180,5 +267,6 @@ export async function detectFrame(detector, canvas, { width, height, minScore = 
     }))
     .filter((d) => d.group);
 
+  // Also collapses the same object found in two overlapping tiles.
   return dedupeOverlapping(detections);
 }

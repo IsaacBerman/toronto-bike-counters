@@ -1,10 +1,14 @@
-// Constant-velocity Kalman filter for bounding boxes, in the SORT / DeepSORT /
-// ByteTrack formulation.
+// Constant-velocity Kalman filter for bounding boxes.
 //
-// State is 8-dimensional: [cx, cy, a, h, vcx, vcy, va, vh] — centre, aspect
-// ratio, height, and their velocities. Measurements are the first four. Process
-// and measurement noise both scale with box height, so a car close to the
-// camera is allowed to move further between frames than one far down the street.
+// State is 8-dimensional: [cx, cy, w, h, vcx, vcy, vw, vh] — centre, width,
+// height, and their velocities. Noise scales with the box's own size, so a car
+// close to the camera is allowed to move further between frames than one far
+// down the street.
+//
+// SORT and DeepSORT track aspect ratio instead of width, which couples the two
+// dimensions: a vehicle turning changes its aspect sharply while its height
+// barely moves, and the filter fights itself. BoT-SORT switched to width and
+// height directly for that reason, and this follows it.
 
 const STD_POSITION = 1 / 20;
 const STD_VELOCITY = 1 / 160;
@@ -81,18 +85,16 @@ function invert(matrix) {
   return a.map((row) => row.slice(n));
 }
 
-// [x, y, w, h] -> [cx, cy, aspect, height]
+// [x, y, w, h] -> [cx, cy, w, h]
 export function boxToMeasurement(box) {
   const [x, y, w, h] = box;
-  const height = Math.max(h, 1e-3);
-  return [x + w / 2, y + height / 2, w / height, height];
+  return [x + w / 2, y + h / 2, Math.max(w, 1e-3), Math.max(h, 1e-3)];
 }
 
-// [cx, cy, aspect, height] -> [x, y, w, h]
+// [cx, cy, w, h] -> [x, y, w, h]
 export function measurementToBox(mean) {
-  const [cx, cy, aspect, height] = mean;
-  const w = aspect * height;
-  return [cx - w / 2, cy - height / 2, w, height];
+  const [cx, cy, w, h] = mean;
+  return [cx - w / 2, cy - h / 2, w, h];
 }
 
 const MOTION = (() => {
@@ -109,11 +111,12 @@ const UPDATE = (() => {
 const UPDATE_T = transpose(UPDATE);
 
 export function initiate(measurement) {
+  const w = measurement[2];
   const h = measurement[3];
   const mean = [...measurement, 0, 0, 0, 0];
   const std = [
-    2 * STD_POSITION * h, 2 * STD_POSITION * h, 1e-2, 2 * STD_POSITION * h,
-    10 * STD_VELOCITY * h, 10 * STD_VELOCITY * h, 1e-5, 10 * STD_VELOCITY * h,
+    2 * STD_POSITION * w, 2 * STD_POSITION * h, 2 * STD_POSITION * w, 2 * STD_POSITION * h,
+    10 * STD_VELOCITY * w, 10 * STD_VELOCITY * h, 10 * STD_VELOCITY * w, 10 * STD_VELOCITY * h,
   ];
   const covariance = zeros(2 * NDIM, 2 * NDIM);
   for (let i = 0; i < 2 * NDIM; i += 1) covariance[i][i] = std[i] * std[i];
@@ -121,10 +124,11 @@ export function initiate(measurement) {
 }
 
 export function predict(state) {
+  const w = Math.max(state.mean[2], 1e-3);
   const h = Math.max(state.mean[3], 1e-3);
   const std = [
-    STD_POSITION * h, STD_POSITION * h, 1e-2, STD_POSITION * h,
-    STD_VELOCITY * h, STD_VELOCITY * h, 1e-5, STD_VELOCITY * h,
+    STD_POSITION * w, STD_POSITION * h, STD_POSITION * w, STD_POSITION * h,
+    STD_VELOCITY * w, STD_VELOCITY * h, STD_VELOCITY * w, STD_VELOCITY * h,
   ];
   const q = zeros(2 * NDIM, 2 * NDIM);
   for (let i = 0; i < 2 * NDIM; i += 1) q[i][i] = std[i] * std[i];
@@ -135,8 +139,9 @@ export function predict(state) {
 }
 
 function project(state) {
+  const w = Math.max(state.mean[2], 1e-3);
   const h = Math.max(state.mean[3], 1e-3);
-  const std = [STD_POSITION * h, STD_POSITION * h, 1e-1, STD_POSITION * h];
+  const std = [STD_POSITION * w, STD_POSITION * h, STD_POSITION * w, STD_POSITION * h];
   const r = zeros(NDIM, NDIM);
   for (let i = 0; i < NDIM; i += 1) r[i][i] = std[i] * std[i];
 

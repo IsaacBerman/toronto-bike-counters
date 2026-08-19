@@ -5,19 +5,26 @@ import { Upload, Play, Square, Download, RotateCcw, Loader2, Info } from 'lucide
 import {
   createTracker, emptyCounts, groupsForMode, modeConfig, MODES, totalOf,
 } from '../../lib/video-counter/tracker';
-import { detectFrame, loadDetector, MODELS } from '../../lib/video-counter/detector';
+import {
+  detectFrame, loadDetector, modelConfig, MODELS, TILINGS,
+} from '../../lib/video-counter/detector';
 import { drawAnnotations, drawCountingLine, drawWatermark } from '../../lib/video-counter/draw';
 import { createMp4Recorder, exportSupported } from '../../lib/video-counter/encoder';
 
-// 720p-ish output keeps encoding quick and the download a sane size; detection
-// runs on a smaller copy still, since SSD only ever sees 300x300 internally.
+// 720p-ish output keeps encoding quick and the download a sane size.
 const MAX_OUT_WIDTH = 1280;
+// Working canvas each detection region is drawn into. No larger, because every
+// model resizes its input to a fixed square anyway — 640x640 for RT-DETR,
+// 300x300 for COCO-SSD. Resolution is bought by tiling, not by this number.
 const DETECT_WIDTH = 640;
 const SAMPLE_RATES = [4, 6, 8, 10, 15];
 const SPEEDS = [1, 2, 3, 5];
 // Detections below the user's threshold are still fetched: the tracker leans on
-// them to bridge frames where an object is blurred or half-hidden.
-const WEAK_SCORE = 0.15;
+// them to bridge frames where an object is blurred or half-hidden. There is a
+// floor, though — reaching down to near-zero floods a busy street with dozens of
+// junk boxes per frame, and a track will always find one close enough to latch
+// onto, so it drifts between objects instead of dying.
+const weakFloorFor = (threshold) => Math.max(0.25, threshold * 0.5);
 // Above this, some players stop honouring the frame rate, so a fast export
 // drops frames instead of pushing the rate higher.
 const MAX_EXPORT_FPS = 60;
@@ -110,6 +117,11 @@ export default function VideoCounterContent() {
   const [progress, setProgress] = useState(0);
   const [resultUrl, setResultUrl] = useState(null);
   const [resultSize, setResultSize] = useState(0);
+  // Available the moment a run starts, so a stopped or failed run can still be
+  // inspected — those are often the interesting ones.
+  const [debugReady, setDebugReady] = useState(false);
+  const trackerRef = useRef(null);
+  const runInfoRef = useRef(null);
   const [dropping, setDropping] = useState(false);
   const [canExport, setCanExport] = useState(true);
   const [device, setDevice] = useState(null);
@@ -118,6 +130,7 @@ export default function VideoCounterContent() {
   const [sampleRate, setSampleRate] = useState(10);
   const [speed, setSpeed] = useState(1);
   const [modelBase, setModelBase] = useState(MODELS[0].value);
+  const [tiles, setTiles] = useState(1);
   const [minScore, setMinScore] = useState(0.7);
   const [excludeRiders, setExcludeRiders] = useState(true);
   const [showBoxes, setShowBoxes] = useState(true);
@@ -315,7 +328,6 @@ export default function VideoCounterContent() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     const detectCanvas = detectCanvasRef.current;
-    const detectCtx = detectCanvas.getContext('2d', { willReadFrequently: false });
 
     cancelRef.current = false;
     resetResult();
@@ -331,12 +343,31 @@ export default function VideoCounterContent() {
 
       const fps = sampleRate;
       const totalFrames = Math.max(1, Math.floor(media.duration * fps));
-      const tracker = createTracker({ fps, scoreThreshold: minScore, mode, excludeRiders });
+      const tracker = createTracker({
+        fps, scoreThreshold: minScore, mode, excludeRiders, frameWidth: media.w,
+      });
       const groups = groupsForMode(mode);
       const linePx = toPixels(lineRef.current, media.w, media.h);
 
       const plan = exportPlan(fps, speed);
+      const detectionLog = [];
       let exportedFrames = 0;
+
+      // Published before the first frame, and holding live references, so the
+      // log can be pulled at any point during the run.
+      trackerRef.current = tracker;
+      runInfoRef.current = {
+        recordedAt: new Date().toISOString(),
+        file: fileName,
+        settings: {
+          mode, model: modelBase, device: detector.device, sampleRate, tiles, speed,
+          confidence: minScore, excludeRiders,
+        },
+        media: { width: media.w, height: media.h, duration: media.duration, totalFrames },
+        line: linePx,
+        detectionsPerFrame: detectionLog,
+      };
+      setDebugReady(true);
       if (canExport) {
         recorder = await createMp4Recorder({ width: media.w, height: media.h, fps: plan.fps });
       }
@@ -347,14 +378,16 @@ export default function VideoCounterContent() {
         await seekTo(video, time);
 
         ctx.drawImage(video, 0, 0, media.w, media.h);
-        detectCtx.drawImage(video, 0, 0, media.detectW, media.detectH);
 
-        const detections = await detectFrame(detector, detectCanvas, {
+        // The video element, not the canvas above, is the detection source: it
+        // still holds the frame at native resolution, which is what tiling needs.
+        const detections = await detectFrame(detector, video, detectCanvas, {
           width: media.w,
           height: media.h,
+          tiles,
           // Weak detections are kept and handed to the tracker, which uses them
           // only to hold existing tracks together.
-          minScore: Math.min(WEAK_SCORE, minScore),
+          minScore: Math.min(weakFloorFor(minScore), minScore),
         });
         const tracks = tracker.update(detections, linePx);
 
@@ -378,6 +411,12 @@ export default function VideoCounterContent() {
           await recorder.addFrame(canvas, exportedFrames);
           exportedFrames += 1;
         }
+
+        detectionLog.push({
+          frame: i,
+          total: detections.length,
+          strong: detections.filter((d) => d.score >= minScore).length,
+        });
 
         setCounts(cloneCounts(tracker.counts));
         setProgress((i + 1) / totalFrames);
@@ -407,6 +446,30 @@ export default function VideoCounterContent() {
     cancelRef.current = true;
   }
 
+  // Snapshots whatever has happened so far — during a run, after one, or after
+  // a stopped or failed one.
+  function downloadDebugLog() {
+    const tracker = trackerRef.current;
+    const info = runInfoRef.current;
+    if (!tracker || !info) return;
+
+    const diagnostics = {
+      ...info,
+      progressFrames: tracker.frame,
+      ...tracker.report(info.line),
+    };
+    console.log('[video-counter] diagnostics', diagnostics);
+
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(diagnostics, null, 2)], { type: 'application/json' }),
+    );
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${downloadName}-debug-f${tracker.frame}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
   function startOver() {
     cancelRef.current = true;
     resetResult();
@@ -419,6 +482,8 @@ export default function VideoCounterContent() {
 
   const busy = stage === 'loading' || stage === 'running';
   const totalFrames = media ? Math.max(1, Math.floor(media.duration * sampleRate)) : 0;
+  // Tiling adds a detector pass per tile, plus the whole-frame pass.
+  const passesPerFrame = tiles > 1 ? 1 + tiles * tiles : 1;
   const downloadName = fileName.replace(/\.[^.]+$/, '') || 'video';
 
   return (
@@ -620,8 +685,27 @@ export default function VideoCounterContent() {
                     ))}
                   </select>
                   <span className="font-semibold" style={{ color: 'var(--ink-3)' }}>
-                    {MODELS.find((m) => m.value === modelBase)?.note}
+                    {modelConfig(modelBase).note}
                     {device ? ` Running on ${device === 'webgpu' ? 'WebGPU' : device === 'webgl' ? 'WebGL' : 'CPU'}.` : ''}
+                  </span>
+                </label>
+
+                <label className="flex flex-col gap-1 text-xs font-bold" style={{ color: 'var(--ink-2)' }}>
+                  Detection detail
+                  <select
+                    className="dd-select"
+                    value={tiles}
+                    disabled={busy}
+                    onChange={(e) => setTiles(Number(e.target.value))}
+                  >
+                    {TILINGS.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                  <span className="font-semibold" style={{ color: 'var(--ink-3)' }}>
+                    {TILINGS.find((t) => t.value === tiles)?.note}
+                    {' '}Every model shrinks the frame to a fixed size, so tiling is the only way
+                    to give distant traffic more pixels.
                   </span>
                 </label>
 
@@ -661,7 +745,7 @@ export default function VideoCounterContent() {
                 </label>
 
                 <label className="flex flex-col gap-1 text-xs font-bold" style={{ color: 'var(--ink-2)' }}>
-                  Confidence threshold: {minScore.toFixed(2)}
+                  Confidence to start tracking: {minScore.toFixed(2)}
                   <input
                     type="range"
                     min={0.6}
@@ -672,6 +756,12 @@ export default function VideoCounterContent() {
                     onChange={(e) => setMinScore(Number(e.target.value))}
                     style={{ accentColor: 'var(--accent)' }}
                   />
+                  <span className="font-semibold" style={{ color: 'var(--ink-3)' }}>
+                    How sure the model must be before a new object is tracked. These models score
+                    low on ordinary street footage, so set this too high and most traffic is never
+                    picked up at all. Weaker detections still keep objects already being tracked
+                    alive.
+                  </span>
                 </label>
 
                 {/* Only meaningful when pedestrians are the thing being counted;
@@ -723,6 +813,13 @@ export default function VideoCounterContent() {
                 </a>
               )}
 
+              {debugReady && (
+                <button type="button" className="dd-btn dd-btn-ghost" onClick={downloadDebugLog}>
+                  <Download size={15} /> Download debug log
+                  {busy ? ' (so far)' : ''}
+                </button>
+              )}
+
               <button type="button" className="dd-btn dd-btn-ghost" onClick={startOver}>
                 <RotateCcw size={15} /> Use a different video
               </button>
@@ -731,9 +828,10 @@ export default function VideoCounterContent() {
             {media && (
               <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
                 {fileName}, {media.w}×{media.h}, {formatTime(media.duration)}. The pass will
-                analyse {totalFrames} frames; expect roughly {Math.ceil(totalFrames / 12)}–
-                {Math.ceil(totalFrames / 4)} seconds depending on your machine. The download will
-                run {formatTime(media.duration / speed)} and has no audio track.
+                analyse {totalFrames} frames{tiles > 1 ? ` in ${1 + tiles * tiles} passes each` : ''};
+                expect roughly {Math.ceil((totalFrames * passesPerFrame) / 12)}–
+                {Math.ceil((totalFrames * passesPerFrame) / 4)} seconds depending on your machine.
+                The download will run {formatTime(media.duration / speed)} and has no audio track.
               </p>
             )}
 
