@@ -604,9 +604,14 @@ export default function SlowZonesContent() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
       <div className="container mx-auto px-4 max-w-5xl pt-4 pb-12">
-        <h1 className="dd-title text-4xl sm:text-5xl mb-4" style={{ color: INK }}>
-          TTC Slow Zones
+        <h1 className="dd-title text-4xl sm:text-5xl mb-3" style={{ color: INK }}>
+          TTC Reduced Speed Zones
         </h1>
+        <p className="mb-6 max-w-3xl text-sm leading-relaxed" style={{ color: INK2 }}>
+          Every reduced speed zone on the TTC subway, captured daily from the TTC&apos;s own list.
+          These slow zones are stretches of track where trains are held below normal speed, and
+          each one adds time to every trip through it.
+        </p>
         {!history ? (
           <p className="dd-title text-xl py-20 text-center" style={{ color: INK2 }}>
             Loading…
