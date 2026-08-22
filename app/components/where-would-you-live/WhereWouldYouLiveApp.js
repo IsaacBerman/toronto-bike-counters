@@ -835,9 +835,8 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                     )}
                   </div>
                   <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-                    Click an area to filter the map above to just the people who live there — the same
-                    way the buttons at the top filter it. {declaredCount} of {totalCount} people said
-                    which part of the city they live in.
+                    Click an area to filter the map above to just see response from the people who
+                    live in the selected area.
                   </p>
                   <CityMap
                     mode="zones"
