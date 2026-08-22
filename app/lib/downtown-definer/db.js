@@ -1,27 +1,4 @@
-import { Pool } from 'pg';
-
-let pool;
-
-function getPool() {
-  if (!pool) {
-    const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-    if (!connectionString) {
-      throw new Error('Missing DATABASE_URL (or POSTGRES_URL) environment variable');
-    }
-    // Neon (and most hosted Postgres) require TLS; a local dev database does not.
-    const isLocal = /localhost|127\.0\.0\.1/.test(connectionString);
-    pool = new Pool({
-      connectionString,
-      ssl: isLocal ? false : { rejectUnauthorized: false },
-    });
-  }
-  return pool;
-}
-
-async function query(text, params) {
-  const result = await getPool().query(text, params);
-  return result.rows;
-}
+import { getPool, query } from '../db-pool.js';
 
 // Cities (and their large, immutable boundaries) rarely change, so cache them in
 // memory. This is the key egress saver — the full boundary was previously

@@ -12,6 +12,7 @@ const PAGES = [
   { key: 'slow-zones', href: '/slow-zones', label: 'TTC Slow Zones' },
   { key: 'transform-toronto', href: '/transform-toronto', label: 'Transform Toronto' },
   { key: 'downtown-definer', href: '/downtown-definer', label: 'Where is Downtown?' },
+  { key: 'where-would-you-live', href: '/where-would-you-live', label: 'Where Would You Live?' },
   { key: 'video-counter', href: '/video-counter', label: 'Video Counter' },
 ];
 

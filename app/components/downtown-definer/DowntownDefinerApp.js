@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import CityMap from './CityMap';
 import ShareButton from './ShareButton';
+import CityPicker from '../city-picker/CityPicker';
+import { displayCityName, resolveCitySlug } from '../../lib/cities-client';
 import { expandCompactGrid } from '../../lib/downtown-definer/heatmapGrid';
 
 // Mirrors identity.js's IDENTITY_COOKIE — duplicated as a literal here so
@@ -57,40 +59,6 @@ function clearAllStoredPoints() {
       if (key.startsWith(STORED_POINTS_PREFIX)) localStorage.removeItem(key);
     }
   } catch {}
-}
-
-// Accent-insensitive, lowercased text for matching: "Montréal" -> "montreal".
-function normalizeText(text) {
-  return (text || '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .trim();
-}
-
-// Mirrors the server's slugify so we can tell whether a geocoder suggestion
-// (by its full "City, Region, Country" query) is already an added city.
-function slugifyCity(name) {
-  return normalizeText(name).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
-
-// Title-case a city name for display (keeps apostrophes intact, capitalizes
-// across spaces and hyphens): "new york" -> "New York", "st. john's" -> "St. John's".
-function titleCaseCity(name) {
-  if (!name) return '';
-  return name
-    .toLowerCase()
-    .split(/(\s|-)/)
-    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1) : part))
-    .join('');
-}
-
-// Display name for a city: if it has 2+ commas (e.g. "Regina, Saskatchewan,
-// Canada"), drop everything from the second comma on -> "Regina, Saskatchewan".
-function displayCityName(name) {
-  const parts = (name || '').split(',');
-  const trimmed = parts.length > 2 ? parts.slice(0, 2).join(',') : name;
-  return titleCaseCity(trimmed);
 }
 
 // Converts a stored GeoJSON Polygon/MultiPolygon (outer ring, [lng, lat]) into
@@ -187,13 +155,8 @@ function computeResultsFrame(grid, yourPoints) {
 
 export default function DowntownDefinerApp({ initialCitySlug }) {
   const [phase, setPhase] = useState('picking-city');
-  const [cities, setCities] = useState([]);
-  const [query, setQuery] = useState('');
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const [searchedQuery, setSearchedQuery] = useState(''); // query the suggestions belong to
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState(false);
+  // Only for the deep-link path (/downtown-definer/<slug>); the picker owns
+  // its own loading and error state.
   const [cityLoading, setCityLoading] = useState(false);
   const [cityError, setCityError] = useState(null);
 
@@ -210,39 +173,11 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     setDevIdentity(readCookie(IDENTITY_COOKIE));
   }, [phase]);
 
-  useEffect(() => {
-    fetch('/api/downtown-definer/cities')
-      .then((res) => res.json())
-      .then((data) => setCities(data.cities || []))
-      .catch(() => setCities([]));
-  }, []);
-
   // Deep link support: if the URL carries a city slug, load it on mount.
   useEffect(() => {
     if (initialCitySlug) loadCityBySlug(initialCitySlug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCitySlug]);
-
-  // The geocoder is only queried when the user explicitly clicks "Add a city"
-  // (not on every keystroke) — typing just filters the already-loaded list,
-  // which avoids a request per keystroke and keeps Nominatim/Vercel usage low.
-  async function runCitySearch() {
-    const q = query.trim();
-    if (q.length < 3) return;
-    setSearchLoading(true);
-    setSearchError(false);
-    setSearchedQuery(q);
-    try {
-      const d = await fetch(`/api/downtown-definer/search?q=${encodeURIComponent(q)}`).then((r) => r.json());
-      setSuggestions(d.suggestions || []);
-      setSearchError(!!d.error);
-    } catch {
-      setSuggestions([]);
-      setSearchError(true);
-    } finally {
-      setSearchLoading(false);
-    }
-  }
 
   useEffect(() => {
     if (phase !== 'drawing') return;
@@ -255,25 +190,6 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [phase]);
 
-  // Cities shown in the picker (always include Toronto as a suggestion), each
-  // with a title-cased display label, filtered by the search query.
-  const cityList = (() => {
-    const list = cities.map((c) => ({ slug: c.slug, name: c.name, label: c.label || displayCityName(c.name) }));
-    if (!list.some((c) => c.slug === 'toronto')) {
-      list.unshift({ slug: 'toronto', name: 'Toronto', label: 'Toronto' });
-    }
-    return list;
-  })();
-  const q = normalizeText(query.trim());
-  const filteredCities = q ? cityList.filter((c) => normalizeText(c.label).includes(q)) : cityList;
-  // Hide a geocoder suggestion only if that exact city is already added (matched
-  // by the slug its full query would produce) — so "Portland, Maine" still shows
-  // even when "Portland, Oregon" exists.
-  const existingSlugs = new Set(cityList.map((c) => c.slug));
-  const newSuggestions = suggestions.filter((s) => !existingSlugs.has(slugifyCity(s.query)));
-  // Only show geocoder results if they belong to what's currently typed.
-  const searchIsCurrent = searchedQuery !== '' && searchedQuery === query.trim();
-
   function updateUrl(slug) {
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', slug ? `/downtown-definer/${slug}` : '/downtown-definer');
@@ -285,7 +201,6 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
   async function enterCity(city) {
     setSelectedCity({ ...city, name: city.label || displayCityName(city.name) });
     updateUrl(city.slug);
-    setPickerOpen(false);
 
     // This browser's own copy of its submitted shape means no status call at
     // all — straight to results with the map it drew. Deliberately not gated
@@ -309,64 +224,22 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
         setPhase('drawing');
       }
     }
-
-    fetch('/api/downtown-definer/cities')
-      .then((r) => r.json())
-      .then((d) => setCities(d.cities || []))
-      .catch(() => {});
   }
 
-  async function loadCity(name) {
-    if (!name?.trim()) return;
-    setCityError(null);
-    setCityLoading(true);
-    try {
-      const res = await fetch('/api/downtown-definer/cities', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setCityError(data.error || 'Could not load that city.');
-        return;
-      }
-      await enterCity(data.city);
-    } catch {
-      setCityError('Could not load that city.');
-    } finally {
-      setCityLoading(false);
-    }
-  }
-
-  // Deep link: /downtown-definer/<slug>. Use the cached city if present,
-  // otherwise resolve the slug as a city name (fetch its boundary and cache it).
+  // Deep link: /downtown-definer/<slug>. Uses the cached city if we have one,
+  // otherwise resolves the slug as a city name (fetching its boundary).
   async function loadCityBySlug(slug) {
     setCityError(null);
     setCityLoading(true);
     try {
-      const cached = await fetch(`/api/downtown-definer/cities/${slug}`);
-      if (cached.ok) {
-        const data = await cached.json();
-        await enterCity(data.city);
-        return;
-      }
-      const res = await fetch('/api/downtown-definer/cities', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: slug.replace(/-/g, ' ') }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setCityError(data.error || 'Could not find that city.');
+      const { city, error } = await resolveCitySlug(slug);
+      if (error) {
+        setCityError(error);
         setPhase('picking-city');
         updateUrl(null);
         return;
       }
-      await enterCity(data.city);
-    } catch {
-      setCityError('Could not load that city.');
-      setPhase('picking-city');
+      await enterCity(city);
     } finally {
       setCityLoading(false);
     }
@@ -467,7 +340,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     setPoints([]);
     setResults(null);
     setSubmitError(null);
-    setQuery('');
+    setCityError(null);
     updateUrl(null);
   }
 
@@ -510,111 +383,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
         <div className="dd-panel-ruled p-5">
           {phase === 'picking-city' && (
             <div className="flex flex-col gap-3">
-              <label className="dd-kicker" style={{ color: 'var(--ink-2)' }}>
-                Choose a city
-              </label>
-
-              <div className="relative max-w-md">
-                <input
-                  type="text"
-                  placeholder="Search cities, or type a new one…"
-                  value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setPickerOpen(true);
-                  }}
-                  onFocus={() => setPickerOpen(true)}
-                  onBlur={() => setTimeout(() => setPickerOpen(false), 150)}
-                  className="dd-input w-full"
-                  disabled={cityLoading}
-                />
-
-                {pickerOpen && (
-                  <div
-                    className="absolute z-[1000] left-0 right-0 mt-1 max-h-64 overflow-auto shadow-lg"
-                    style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '4px' }}
-                  >
-                    {filteredCities.map((c) => (
-                      <button
-                        key={c.slug}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => loadCityBySlug(c.slug)}
-                        className="block w-full text-left px-3 py-2 text-sm font-semibold hover:bg-gray-50"
-                        style={{ color: 'var(--ink)' }}
-                      >
-                        {c.label}
-                      </button>
-                    ))}
-
-                    {/* Geocoder results — only after the user clicks "Add a city". */}
-                    {searchIsCurrent && (
-                      <>
-                        {searchLoading && (
-                          <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
-                            Searching…
-                          </p>
-                        )}
-                        {!searchLoading && searchError && (
-                          <p className="px-3 py-2 text-sm" style={{ color: 'var(--accent)' }}>
-                            Search is temporarily unavailable. Try again in a moment.
-                          </p>
-                        )}
-                        {!searchLoading && !searchError && newSuggestions.length > 0 && (
-                          <>
-                            <p
-                              className="px-3 pt-2 pb-1 text-xs font-bold uppercase tracking-wide"
-                              style={{ color: 'var(--ink-3)', borderTop: filteredCities.length ? '1px solid var(--line)' : 'none' }}
-                            >
-                              Add a city
-                            </p>
-                            {newSuggestions.map((s) => (
-                              <button
-                                key={s.key}
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => loadCity(s.query)}
-                                className="block w-full text-left px-3 py-2 text-sm font-semibold hover:bg-gray-50"
-                                style={{ color: 'var(--accent)' }}
-                              >
-                                + {s.label}
-                              </button>
-                            ))}
-                          </>
-                        )}
-                        {!searchLoading && !searchError && newSuggestions.length === 0 && (
-                          <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
-                            No city found for &ldquo;{query.trim()}&rdquo;.
-                          </p>
-                        )}
-                      </>
-                    )}
-
-                    {/* "Add a city" trigger — runs the geocoder only on click. */}
-                    {query.trim().length >= 3 && !searchIsCurrent && (
-                      <button
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={runCitySearch}
-                        className="block w-full text-left px-3 py-2 text-sm font-semibold hover:bg-gray-50"
-                        style={{ color: 'var(--accent)', borderTop: filteredCities.length ? '1px solid var(--line)' : 'none' }}
-                      >
-                        + Add a city matching &ldquo;{query.trim()}&rdquo;
-                      </button>
-                    )}
-
-                    {!filteredCities.length && query.trim().length > 0 && query.trim().length < 3 && (
-                      <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
-                        Keep typing…
-                      </p>
-                    )}
-
-                    {!filteredCities.length && !query.trim() && (
-                      <p className="px-3 py-2 text-sm" style={{ color: 'var(--ink-3)' }}>
-                        Start typing a city name.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
+              <CityPicker onCity={enterCity} />
               {cityLoading && (
                 <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
                   Loading…
@@ -623,6 +392,7 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
               {cityError && <p className="text-sm" style={{ color: 'var(--accent)' }}>{cityError}</p>}
             </div>
           )}
+
 
           {phase === 'drawing' && selectedCity && (
             <div className="flex flex-col gap-3">

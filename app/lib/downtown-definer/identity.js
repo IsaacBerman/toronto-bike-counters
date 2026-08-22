@@ -15,11 +15,16 @@ export const IDENTITY_COOKIE = 'dd_identity';
 // source of truth: the submissions route still enforces one-per-submitter and
 // re-sets this cookie on a 409, which covers cookie loss.
 export const SUBMITTED_CITIES_COOKIE = 'dd_submitted';
+// Same idea for "Where would you live?": its own list, so submitting there
+// never makes the downtown page think you've drawn a downtown (and vice versa).
+// The identity cookie above is deliberately shared — it's one anonymous
+// browser id, not a per-tool one.
+export const LIVE_SUBMITTED_CITIES_COOKIE = 'wl_submitted';
 const SUBMITTED_CITIES_MAX = 30;
 
-export function readSubmittedCities(request) {
+export function readSubmittedCitiesFor(request, cookieName) {
   const cookieHeader = request.headers.get('cookie') || '';
-  const match = cookieHeader.match(new RegExp(`${SUBMITTED_CITIES_COOKIE}=([^;]+)`));
+  const match = cookieHeader.match(new RegExp(`(?:^|; )${cookieName}=([^;]+)`));
   if (!match) return [];
   try {
     return decodeURIComponent(match[1]).split('|').filter(Boolean);
@@ -31,10 +36,18 @@ export function readSubmittedCities(request) {
 // Cookie value with `slug` appended, capped so the cookie can't grow without
 // bound. An evicted slug just means one extra status round-trip (and a 409
 // that restores it) if that city is ever revisited.
-export function withSubmittedCity(request, slug) {
-  const slugs = readSubmittedCities(request).filter((s) => s !== slug);
+export function withSubmittedCityFor(request, cookieName, slug) {
+  const slugs = readSubmittedCitiesFor(request, cookieName).filter((s) => s !== slug);
   slugs.push(slug);
   return slugs.slice(-SUBMITTED_CITIES_MAX).join('|');
+}
+
+export function readSubmittedCities(request) {
+  return readSubmittedCitiesFor(request, SUBMITTED_CITIES_COOKIE);
+}
+
+export function withSubmittedCity(request, slug) {
+  return withSubmittedCityFor(request, SUBMITTED_CITIES_COOKIE, slug);
 }
 
 function hashValue(value) {

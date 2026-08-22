@@ -69,6 +69,11 @@ export default function Home() {
             blurb="Map tool for drawing your definition of downtown, aggregated into a heatmap of all submissions."
           />
           <ProjectCard
+            href="/where-would-you-live"
+            title="Where Would You Live?"
+            blurb="Map tool for drawing the parts of a city you'd want to live in, filtered by whether people live inside the city or outside it."
+          />
+          <ProjectCard
             href="/video-counter"
             title="Video Traffic Counter"
             blurb="Upload a street video, draw a counting line, and tally the vehicles, bikes and pedestrians that cross it. Runs entirely in your browser."

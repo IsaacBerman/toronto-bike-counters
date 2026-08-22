@@ -18,7 +18,7 @@ function fitToFrame(map, frame, attempt = 0) {
   map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
 }
 
-export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapClick, onVertexMove, staticPoints, grid, className }) {
+export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, activeAreaIndex = 0, onMapClick, onVertexMove, onAreaVertexMove, staticPoints, staticAreas, grid, cellTooltip, zones, selectedZoneId, onZoneClick, className }) {
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
   const leafletRef = useRef(null);
@@ -26,6 +26,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
   const drawLayerRef = useRef(null);
   const staticLayerRef = useRef(null);
   const choroplethLayerRef = useRef(null);
+  const zoneLayerRef = useRef(null);
   const resizeObserverRef = useRef(null);
   const bboxRef = useRef(bbox);
   // Frame known at mount (results maps pass fitBbox), so the map can start
@@ -33,6 +34,11 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
   const initialFrameRef = useRef(fitBbox || bbox);
   const onMapClickRef = useRef(onMapClick);
   const onVertexMoveRef = useRef(onVertexMove);
+  const onAreaVertexMoveRef = useRef(onAreaVertexMove);
+  // What a hovered/tapped choropleth cell says. Held in a ref so passing an
+  // inline function doesn't tear down and rebuild the whole grid layer.
+  const cellTooltipRef = useRef(cellTooltip);
+  const onZoneClickRef = useRef(onZoneClick);
   // Leaflet loads asynchronously; flip this to true once the map exists so the
   // layer effects below re-run (a ref assignment alone wouldn't re-render).
   const [mapReady, setMapReady] = useState(false);
@@ -40,7 +46,10 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
   useEffect(() => {
     onMapClickRef.current = onMapClick;
     onVertexMoveRef.current = onVertexMove;
-  }, [onMapClick, onVertexMove]);
+    onAreaVertexMoveRef.current = onAreaVertexMove;
+    cellTooltipRef.current = cellTooltip;
+    onZoneClickRef.current = onZoneClick;
+  }, [onMapClick, onVertexMove, onAreaVertexMove, cellTooltip, onZoneClick]);
 
   // Init map once.
   useEffect(() => {
@@ -146,7 +155,10 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
 
   }, [boundary, bbox, fitBbox, mapReady]);
 
-  // Drawing layer (points + vertex markers).
+  // Drawing layer (points + vertex markers). One shape by default (`points`),
+  // or several (`areas`, for "Where would you live?") — then only the active
+  // area gets draggable vertices, and the rest render as quiet context so a
+  // click meant for the map isn't swallowed by an earlier shape.
   useEffect(() => {
     const L = leafletRef.current;
     const map = leafletMapRef.current;
@@ -157,48 +169,63 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       drawLayerRef.current = null;
     }
 
-    if (mode !== 'drawing' || !points || points.length === 0) return;
+    if (mode !== 'drawing') return;
+    const multi = Array.isArray(areas);
+    const shapes = multi ? areas : points ? [points] : [];
+    if (!shapes.some((shape) => shape && shape.length > 0)) return;
+    const activeIndex = multi ? activeAreaIndex : 0;
 
     const group = L.layerGroup();
-    const poly =
-      points.length >= 2
-        ? L.polygon(points, {
-            color: '#2563eb',
-            weight: 2,
-            fillOpacity: 0.15,
-            dashArray: points.length < 3 ? '6 4' : null,
-          }).addTo(group)
-        : null;
 
-    // Draggable vertices: markers (not circleMarkers) so they can be moved.
-    const markers = [];
-    points.forEach((point, index) => {
-      const isLast = index === points.length - 1;
-      const size = isLast ? 18 : 16;
-      const fill = isLast ? '#fbbf24' : '#3b82f6';
-      const icon = L.divIcon({
-        className: 'dd-vertex',
-        html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${fill};border:2px solid #fff;box-shadow:0 0 0 1px rgba(29,78,216,0.9);cursor:grab;"></div>`,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
+    shapes.forEach((shape, areaIndex) => {
+      if (!shape || shape.length === 0) return;
+      const isActive = areaIndex === activeIndex;
+
+      const poly =
+        shape.length >= 2
+          ? L.polygon(shape, {
+              color: isActive ? '#2563eb' : '#64748b',
+              weight: 2,
+              fillOpacity: isActive ? 0.15 : 0.12,
+              dashArray: shape.length < 3 ? '6 4' : null,
+              interactive: false,
+            }).addTo(group)
+          : null;
+
+      // Inactive areas are display-only; the active one carries the handles.
+      if (!isActive) return;
+
+      // Draggable vertices: markers (not circleMarkers) so they can be moved.
+      const markers = [];
+      shape.forEach((point, index) => {
+        const isLast = index === shape.length - 1;
+        const size = isLast ? 18 : 16;
+        const fill = isLast ? '#fbbf24' : '#3b82f6';
+        const icon = L.divIcon({
+          className: 'dd-vertex',
+          html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${fill};border:2px solid #fff;box-shadow:0 0 0 1px rgba(29,78,216,0.9);cursor:grab;"></div>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+        });
+        const marker = L.marker(point, { icon, draggable: true, autoPan: true, keyboard: false });
+        // Live-update the polygon outline while dragging (no React state churn).
+        marker.on('drag', () => {
+          if (poly) poly.setLatLngs(markers.map((mk) => mk.getLatLng()));
+        });
+        // Commit the moved vertex to state on release.
+        marker.on('dragend', () => {
+          const ll = marker.getLatLng();
+          if (multi) onAreaVertexMoveRef.current?.(areaIndex, index, [ll.lat, ll.lng]);
+          else onVertexMoveRef.current?.(index, [ll.lat, ll.lng]);
+        });
+        marker.addTo(group);
+        markers.push(marker);
       });
-      const marker = L.marker(point, { icon, draggable: true, autoPan: true, keyboard: false });
-      // Live-update the polygon outline while dragging (no React state churn).
-      marker.on('drag', () => {
-        if (poly) poly.setLatLngs(markers.map((mk) => mk.getLatLng()));
-      });
-      // Commit the moved vertex to state on release.
-      marker.on('dragend', () => {
-        const ll = marker.getLatLng();
-        onVertexMoveRef.current?.(index, [ll.lat, ll.lng]);
-      });
-      marker.addTo(group);
-      markers.push(marker);
     });
 
     group.addTo(map);
     drawLayerRef.current = group;
-  }, [mode, points, mapReady]);
+  }, [mode, points, areas, activeAreaIndex, mapReady]);
 
   // Static polygon layer (e.g. "your submission").
   useEffect(() => {
@@ -211,16 +238,125 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       staticLayerRef.current = null;
     }
 
-    if (mode !== 'static' || !staticPoints || staticPoints.length < 3) return;
+    if (mode !== 'static') return;
+    const shapes = (Array.isArray(staticAreas) ? staticAreas : staticPoints ? [staticPoints] : []).filter(
+      (shape) => Array.isArray(shape) && shape.length >= 3
+    );
+    if (shapes.length === 0) return;
 
-    staticLayerRef.current = L.polygon(staticPoints, {
-      color: '#2563eb',
-      weight: 2,
-      fillColor: '#3b82f6',
-      fillOpacity: 0.25,
-      interactive: false,
-    }).addTo(map);
-  }, [mode, staticPoints, mapReady]);
+    const group = L.layerGroup();
+    for (const shape of shapes) {
+      L.polygon(shape, {
+        color: '#2563eb',
+        weight: 2,
+        fillColor: '#3b82f6',
+        fillOpacity: 0.25,
+        interactive: false,
+      }).addTo(group);
+    }
+    group.addTo(map);
+    staticLayerRef.current = group;
+  }, [mode, staticPoints, staticAreas, mapReady]);
+
+  // Coarse zone layer: the handful of big squares people pick from ("which part
+  // of town do you live in?") and hover in the results. Drawn as real polygons
+  // rather than a picture of a grid, so what you see is exactly the granularity
+  // being recorded — there is no finer location behind it.
+  useEffect(() => {
+    const L = leafletRef.current;
+    const map = leafletMapRef.current;
+    if (!L || !map) return undefined;
+
+    if (zoneLayerRef.current) {
+      zoneLayerRef.current.remove();
+      zoneLayerRef.current = null;
+    }
+
+    if (!zones?.length) return undefined;
+
+    const group = L.layerGroup();
+    const tooltip = L.tooltip({ sticky: true, direction: 'top', offset: [0, -4], opacity: 1 });
+
+    // ONE highlight outline that moves to whichever zone is hovered, rather than
+    // restyling each polygon on mouseover/mouseout. Zones tile edge to edge, and
+    // the canvas renderer doesn't reliably fire mouseout when the pointer slides
+    // straight from one shape into its neighbour — restyling in place left a
+    // stuck outline on every zone the pointer crossed. A single overlay can't
+    // accumulate: each mouseover just moves it, so at most one is ever lit, and
+    // the map's own mouseout clears it on the way out. Same approach the
+    // choropleth below uses for its hovered cell.
+    let highlight = null;
+    let clearTimer = null;
+
+    function clearHighlight() {
+      if (clearTimer) {
+        clearTimeout(clearTimer);
+        clearTimer = null;
+      }
+      if (highlight) {
+        map.removeLayer(highlight);
+        highlight = null;
+      }
+      if (map.hasLayer(tooltip)) map.removeLayer(tooltip);
+    }
+
+    function highlightZone(zone, latlng) {
+      if (clearTimer) {
+        clearTimeout(clearTimer);
+        clearTimer = null;
+      }
+      if (highlight) map.removeLayer(highlight);
+      highlight = L.polygon(zone.ring, {
+        color: '#e8590c',
+        weight: 3,
+        opacity: 1,
+        fill: false,
+        interactive: false,
+      }).addTo(map);
+      if (zone.label) {
+        tooltip.setContent(zone.label);
+        tooltip.setLatLng(latlng);
+        if (!map.hasLayer(tooltip)) tooltip.addTo(map);
+      }
+    }
+
+    for (const zone of zones) {
+      const selected = zone.id === selectedZoneId;
+      const layer = L.polygon(zone.ring, {
+        color: selected ? '#e8590c' : '#475569',
+        weight: selected ? 3 : 1,
+        opacity: selected ? 1 : 0.45,
+        fillColor: zone.color || '#94a3b8',
+        fillOpacity: zone.fillOpacity ?? (selected ? 0.35 : 0.08),
+        interactive: true,
+      });
+
+      layer.on('mouseover', (e) => highlightZone(zone, e.latlng));
+      layer.on('mousemove', (e) => {
+        if (map.hasLayer(tooltip)) tooltip.setLatLng(e.latlng);
+      });
+      layer.on('mouseout', () => {
+        // Short grace period: moving between two zones fires mouseout before the
+        // neighbour's mouseover, and cancelling the timer there avoids a flicker.
+        clearTimer = setTimeout(clearHighlight, 60);
+      });
+      layer.on('click', (e) => {
+        L.DomEvent.stopPropagation(e); // don't also register as a map click
+        onZoneClickRef.current?.(zone.id);
+      });
+
+      layer.addTo(group);
+    }
+
+    group.addTo(map);
+    zoneLayerRef.current = group;
+    map.on('mouseout', clearHighlight);
+
+    return () => {
+      map.off('mouseout', clearHighlight);
+      clearHighlight();
+    };
+  }, [zones, selectedZoneId, mapReady]);
 
   // Choropleth grid layer.
   useEffect(() => {
@@ -457,7 +593,10 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, onMapCl
       if (blackLayer) map.removeLayer(blackLayer);
       blackLayer = L.polyline(ring, { color: '#000000', weight: 2.5, interactive: false }).addTo(map);
 
-      tooltip.setContent(`${pct}% of people agree this is in downtown`);
+      const describe = cellTooltipRef.current;
+      tooltip.setContent(
+        describe ? describe(pct) : `${pct}% of people agree this is in downtown`
+      );
       tooltip.setLatLng(latlng);
       if (!map.hasLayer(tooltip)) tooltip.addTo(map);
     }

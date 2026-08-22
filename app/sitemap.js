@@ -9,6 +9,7 @@ const ROUTES = [
   { path: '/bike-counters', priority: 0.9, changeFrequency: 'daily' },
   { path: '/transform-toronto', priority: 0.8, changeFrequency: 'monthly' },
   { path: '/downtown-definer', priority: 0.8, changeFrequency: 'weekly' },
+  { path: '/where-would-you-live', priority: 0.8, changeFrequency: 'weekly' },
   { path: '/video-counter', priority: 0.8, changeFrequency: 'monthly' },
   { path: '/about', priority: 0.4, changeFrequency: 'yearly' },
   { path: '/contact', priority: 0.4, changeFrequency: 'yearly' },

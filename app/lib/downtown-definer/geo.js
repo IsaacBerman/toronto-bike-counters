@@ -5,7 +5,6 @@ import {
   intersect,
   booleanPointInPolygon,
   area as turfArea,
-  convex,
 } from '@turf/turf';
 import {
   CELL_SIZE_METERS,
@@ -53,7 +52,7 @@ export function clipPolygonToBoundary(points, boundary) {
 }
 
 // [minLng, minLat, maxLng, maxLat] of a Polygon/MultiPolygon geometry.
-function geometryBbox(geometry) {
+export function geometryBbox(geometry) {
   let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
   const scan = (coords) => {
     for (const c of coords) {
@@ -71,16 +70,41 @@ function geometryBbox(geometry) {
   return [minLng, minLat, maxLng, maxLat];
 }
 
-// Convex hull of the boundary, projected to meters (open ring), or null.
+// Convex hull of the boundary's vertices, in projected meters (open ring), or
+// null. Monotone chain, done here rather than via turf's convex(): that pulls in
+// concaveman, which throws "RBush is not a constructor" once bundled, and the
+// catch below quietly turned every grid axis-aligned instead of city-aligned.
+// Hulling in projected space is equivalent — the projection is a linear scale,
+// so it preserves which points are on the hull — and skips a round trip.
 function hullPointsXY(boundary, proj) {
-  try {
-    const hull = convex({ type: 'Feature', properties: {}, geometry: boundary });
-    const ring = hull?.geometry?.coordinates?.[0];
-    if (!ring || ring.length < 4) return null;
-    return ring.slice(0, -1).map(([lng, lat]) => proj.toXY(lng, lat));
-  } catch {
-    return null;
+  const points = [];
+  const scan = (coords) => {
+    for (const c of coords) {
+      if (typeof c[0] === 'number') points.push(proj.toXY(c[0], c[1]));
+      else scan(c);
+    }
+  };
+  scan(boundary.coordinates);
+  if (points.length < 3) return null;
+
+  points.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+
+  const lower = [];
+  for (const p of points) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
   }
+  const upper = [];
+  for (let i = points.length - 1; i >= 0; i--) {
+    const p = points[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  lower.pop();
+  upper.pop();
+  const hull = lower.concat(upper);
+  return hull.length >= 3 ? hull : null;
 }
 
 // Orientation (radians) of the minimum-area bounding rectangle of a point set —
@@ -120,9 +144,11 @@ function minAreaRectAngle(points) {
 // { params, counts })
 export const HEATMAP_ALGO_VERSION = 5;
 
-// Grid parameters + inside/outside layout, from the boundary alone (no votes).
-// `counts` is length nx*ny: -1 = outside the city, 0 = inside with no votes yet.
-function buildGridSkeleton(boundary, bbox) {
+// The city's own frame: a local meter projection plus the rotation that aligns
+// with the boundary's minimum-area bounding rectangle, and the extent in that
+// rotated space. Both the hex heatmap grid and the coarse zone grid are laid
+// out in this frame, so they share an orientation and read as one system.
+export function computeRotatedFrame(boundary, bbox) {
   const [minLng, minLat, maxLng, maxLat] = bbox;
   const lng0 = (minLng + maxLng) / 2;
   const lat0 = (minLat + maxLat) / 2;
@@ -130,7 +156,6 @@ function buildGridSkeleton(boundary, bbox) {
 
   const hull = hullPointsXY(boundary, proj);
   const angle = hull && hull.length >= 3 ? minAreaRectAngle(hull) : 0;
-  const cosA = Math.cos(angle), sinA = Math.sin(angle);
   const cosI = Math.cos(-angle), sinI = Math.sin(-angle);
 
   const extentPts = hull || [
@@ -145,6 +170,16 @@ function buildGridSkeleton(boundary, bbox) {
     if (ry < rMinY) rMinY = ry;
     if (ry > rMaxY) rMaxY = ry;
   }
+  return { lng0, lat0, angle, rMinX, rMinY, rMaxX, rMaxY };
+}
+
+// Grid parameters + inside/outside layout, from the boundary alone (no votes).
+// `counts` is length nx*ny: -1 = outside the city, 0 = inside with no votes yet.
+export function buildGridSkeleton(boundary, bbox) {
+  const { lng0, lat0, angle, rMinX, rMinY, rMaxX, rMaxY } = computeRotatedFrame(boundary, bbox);
+  const proj = makeLocalProjector(lng0, lat0);
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+
   const width = rMaxX - rMinX;
   const height = rMaxY - rMinY;
   // Flat-top hex circumradius from the target spacing; coarsen if a huge city
