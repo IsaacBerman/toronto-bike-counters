@@ -186,6 +186,7 @@ export default function AdminPage() {
             <div className="dd-panel" style={{ padding: '14px', marginBottom: '18px', display: 'flex', gap: '24px', flexWrap: 'wrap', fontSize: '14px' }}>
               <span><strong>{data.stats.city_count}</strong> cities</span>
               <span><strong>{data.stats.submission_count}</strong> submissions</span>
+              <span><strong>{data.stats.live_submission_count ?? 0}</strong> live submissions</span>
               <span>DB <strong>{data.stats.database_mb} MB</strong></span>
               <span>submissions table <strong>{data.stats.submissions_mb} MB</strong></span>
             </div>
@@ -193,7 +194,7 @@ export default function AdminPage() {
             <IngestPanel ingest={data.ingest} cell={cell} />
 
             <div className="dd-panel" style={{ padding: '14px', marginBottom: '18px' }}>
-              <p className="dd-kicker" style={{ marginBottom: '8px' }}>Merge (moves submissions, deletes source)</p>
+              <p className="dd-kicker" style={{ marginBottom: '8px' }}>Merge (moves submissions from both tools, deletes source)</p>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 <input className="dd-input" placeholder="from slug" value={mergeFrom} onChange={(e) => setMergeFrom(e.target.value)} />
                 <span style={{ color: 'var(--ink-3)' }}>→</span>
@@ -228,6 +229,7 @@ export default function AdminPage() {
                     <th style={{ ...cell, fontWeight: 700 }}>Display name (shown to users)</th>
                     <th style={{ ...cell, fontWeight: 700 }}>Slug</th>
                     <th style={{ ...cell, fontWeight: 700 }}>Subs</th>
+                    <th style={{ ...cell, fontWeight: 700 }}>Live subs</th>
                     <th style={{ ...cell, fontWeight: 700 }}>Actions</th>
                   </tr>
                 </thead>
@@ -257,6 +259,7 @@ export default function AdminPage() {
                       </td>
                       <td style={{ ...cell, fontFamily: 'monospace', color: 'var(--ink-2)' }}>{c.slug}</td>
                       <td style={cell}>{c.submissions}</td>
+                      <td style={cell}>{c.live_submissions ?? 0}</td>
                       <td style={cell}>
                         <button
                           className="dd-btn dd-btn-ghost"
