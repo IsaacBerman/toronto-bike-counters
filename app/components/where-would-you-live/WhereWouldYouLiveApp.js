@@ -629,7 +629,7 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
               </div>
               {mapView === 'areas' ? (
                 <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
-                  Tap the map to place points. Drag any point to adjust it. Finished one area? Press
+                  Tap the map to place points. Place at least 3 points to form a boundary. Drag any point to adjust it. Finished one area? Press
                   &ldquo;New area&rdquo; to add another somewhere else.
                 </p>
               ) : (
