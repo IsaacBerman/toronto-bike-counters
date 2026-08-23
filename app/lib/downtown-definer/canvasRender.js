@@ -4,16 +4,19 @@
 // header. Basemap tiles come from CARTO Voyager, which shows major roads/labels
 // and sends CORS headers, so the canvas stays untainted and toBlob() works.
 
-const MARGIN = 44;
-const HEADER_H = 150;
-const FOOTER_H = 72;
-const GAP = 24;
+// The primitives below are exported so the "Where would you live?" share card
+// can compose the same look without duplicating the mercator/tile/choropleth
+// machinery. Only `export` was added — nothing here moved or changed.
+export const MARGIN = 44;
+export const HEADER_H = 150;
+export const FOOTER_H = 72;
+export const GAP = 24;
 
-const ACCENT = '#e8590c';
-const INK = '#16150f';
-const INK_2 = '#57554b';
-const PAPER = '#f3f2ec';
-const PANEL = '#ffffff';
+export const ACCENT = '#e8590c';
+export const INK = '#16150f';
+export const INK_2 = '#57554b';
+export const PAPER = '#f3f2ec';
+export const PANEL = '#ffffff';
 
 const TILE = 256;
 const TILE_SUBDOMAINS = ['a', 'b', 'c', 'd'];
@@ -30,7 +33,7 @@ function lngLatToWorld(lng, lat, z) {
 
 // Fit the city bbox into a rect, remembering mercator origin/scale/zoom so the
 // basemap tiles line up with the overlays.
-function setupMercator(bbox, rect) {
+export function setupMercator(bbox, rect) {
   const [minLng, minLat, maxLng, maxLat] = bbox;
 
   let z = 18;
@@ -69,7 +72,7 @@ function loadImage(url) {
   });
 }
 
-async function drawBasemap(ctx, m, rect) {
+export async function drawBasemap(ctx, m, rect) {
   const tileMinX = Math.floor(m.xTL / TILE);
   const tileMaxX = Math.floor(m.xBR / TILE);
   const tileMinY = Math.floor(m.yTL / TILE);
@@ -104,14 +107,14 @@ async function drawBasemap(ctx, m, rect) {
 
 // ---- Overlay drawing ----
 
-function polygonRings(geometry) {
+export function polygonRings(geometry) {
   if (!geometry) return [];
   if (geometry.type === 'Polygon') return [geometry.coordinates];
   if (geometry.type === 'MultiPolygon') return geometry.coordinates;
   return [];
 }
 
-function traceRings(ctx, project, rings) {
+export function traceRings(ctx, project, rings) {
   ctx.beginPath();
   for (const ring of rings) {
     ring.forEach(([lng, lat], index) => {
@@ -123,7 +126,7 @@ function traceRings(ctx, project, rings) {
   }
 }
 
-function drawBoundaryMask(ctx, m, rect, boundary) {
+export function drawBoundaryMask(ctx, m, rect, boundary) {
   ctx.save();
   ctx.beginPath();
   ctx.rect(rect.x, rect.y, rect.w, rect.h);
@@ -163,7 +166,7 @@ function drawUserPolygon(ctx, m, rect, points) {
   ctx.restore();
 }
 
-function drawChoropleth(ctx, m, rect, grid) {
+export function drawChoropleth(ctx, m, rect, grid) {
   ctx.save();
   ctx.beginPath();
   ctx.rect(rect.x, rect.y, rect.w, rect.h);
@@ -206,7 +209,7 @@ function drawChoropleth(ctx, m, rect, grid) {
   ctx.restore();
 }
 
-function drawPanelLabel(ctx, rect, label, color) {
+export function drawPanelLabel(ctx, rect, label, color) {
   ctx.font = "700 20px 'Libre Franklin', system-ui, sans-serif";
   ctx.textBaseline = 'middle';
   const text = label.toUpperCase();
@@ -237,7 +240,7 @@ async function drawPanel(ctx, rect, { bbox, boundary, points, grid, label, label
   drawPanelLabel(ctx, rect, label, labelColor);
 }
 
-function drawChrome(ctx, W, H, kicker, title, subtitle) {
+export function drawChrome(ctx, W, H, kicker, title, subtitle) {
   ctx.fillStyle = PANEL;
   ctx.fillRect(0, 0, W, HEADER_H);
   ctx.fillStyle = ACCENT;
@@ -268,7 +271,7 @@ function drawChrome(ctx, W, H, kicker, title, subtitle) {
   ctx.stroke();
 }
 
-async function createCanvas(W, H) {
+export async function createCanvas(W, H) {
   if (document.fonts?.ready) {
     try {
       await document.fonts.ready;

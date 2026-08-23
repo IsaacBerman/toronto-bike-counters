@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import CityMap from '../downtown-definer/CityMap';
 import CityPicker from '../city-picker/CityPicker';
+import ShareButton from './ShareButton';
 import { displayCityName, resolveCitySlug } from '../../lib/cities-client';
 import {
   expandCompactGrid,
@@ -11,7 +12,7 @@ import {
   opacityForIntensity,
   NO_DATA_COLOR,
 } from '../../lib/downtown-definer/heatmapGrid';
-import { expandZoneLayout } from '../../lib/where-would-you-live/zoneGrid';
+import { expandZoneLayout, zoneIdAt } from '../../lib/where-would-you-live/zoneGrid';
 
 // Mirrors identity.js's IDENTITY_COOKIE — duplicated as a literal here so this
 // client component never imports the server-only identity module.
@@ -147,8 +148,10 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
   // second map under the first pushed Submit off the bottom of the screen, so
   // the zone picker takes over the map that's already there instead.
   const [mapView, setMapView] = useState('areas'); // 'areas' | 'zones'
-  const [originZone, setOriginZone] = useState(null); // results: whose answers to show
-  const [zoneGrids, setZoneGrids] = useState({}); // zoneId -> expanded grid, fetched on demand
+  // Results: which zones' answers to show. Several can be selected by sweeping
+  // across the grid — nobody lives in two zones, so their grids simply add.
+  const [selectedZones, setSelectedZones] = useState([]);
+  const [zoneCounts, setZoneCounts] = useState({}); // zoneId -> raw count array
   const [zoneLoading, setZoneLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -289,8 +292,8 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
       viewOnly: !!viewOnly,
     });
     setFilter('all');
-    setOriginZone(null);
-    setZoneGrids({});
+    setSelectedZones([]);
+    setZoneCounts({});
     setPhase('results');
     setDevIdentity(readCookie(IDENTITY_COOKIE));
   }
@@ -339,7 +342,31 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
   }
 
   const allGrid = gridFor('all');
-  const grid = originZone != null ? zoneGrids[originZone] || null : gridFor(filter);
+  // Results: the zone squares double as a filter control, shaded by how many
+  // answers came from each.
+  const resultsLayout = results?.zoneLayout;
+  const zoneTotals = results?.zoneTotals || {};
+  const declaredCount = Object.values(zoneTotals).reduce((sum, n) => sum + n, 0);
+
+  // Selected zone grids add straight together: everyone declared exactly one
+  // zone, so no answer can appear in two of them and nothing is double counted.
+  const zoneGrid = useMemo(() => {
+    if (!selectedZones.length || !results?.compact?.params) return null;
+    const arrays = selectedZones.map((id) => zoneCounts[id]);
+    if (arrays.some((a) => !a)) return null; // still fetching
+    const total = selectedZones.reduce((sum, id) => sum + (zoneTotals[id] || 0), 0);
+    if (!total) return null;
+    const summed = arrays[0].map((value, i) => {
+      if (value < 0) return -1; // outside the city
+      let n = 0;
+      for (const a of arrays) n += a[i];
+      return n;
+    });
+    return expandCompactGrid({ params: results.compact.params, counts: summed }, total);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedZones, zoneCounts, results?.compact, results?.zoneTotals]);
+
+  const grid = selectedZones.length ? zoneGrid : gridFor(filter);
   const frame = useMemo(
     () => computeResultsFrame(allGrid, results?.yourAreas),
     [allGrid, results?.yourAreas]
@@ -355,12 +382,6 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
       label: zone.id === myZone ? 'You live around here' : 'Pick this area',
     }));
   }, [zoneLayout, myZone]);
-
-  // Results: the zone squares double as a filter control, shaded by how many
-  // answers came from each.
-  const resultsLayout = results?.zoneLayout;
-  const zoneTotals = results?.zoneTotals || {};
-  const declaredCount = Object.values(zoneTotals).reduce((sum, n) => sum + n, 0);
 
   const resultZones = useMemo(() => {
     if (!resultsLayout || !declaredCount) return [];
@@ -380,34 +401,79 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultsLayout, results?.zoneTotals, declaredCount]);
 
+  // How the share card describes the active filter, and the zone squares it
+  // should outline. A null label means no filter is on, so the card carries no
+  // filtered panel.
+  const zoneFilterOn = selectedZones.length > 0;
+  const activeFilterLabel = zoneFilterOn
+    ? `Responses just from people who live in the marked area${selectedZones.length === 1 ? '' : 's'}`
+    : filter === 'resident'
+      ? `Just people who live in ${selectedCity?.name || 'the city'}`
+      : filter === 'outside'
+        ? `Just people who live outside ${selectedCity?.name || 'the city'}`
+        : null;
+  const activeFilterCount = zoneFilterOn
+    ? selectedZones.reduce((sum, id) => sum + (zoneTotals[id] || 0), 0)
+    : filter === 'resident'
+      ? results?.residentCount || 0
+      : filter === 'outside'
+        ? results?.nonResidentCount || 0
+        : 0;
+  const selectedZoneRings = selectedZones
+    .map((id) => resultZones.find((zone) => zone.id === id)?.ring)
+    .filter(Boolean);
+
   // A zone's grid is one request the first time it's opened, then it's held for
-  // the rest of the session (and on the CDN for everybody else).
-  async function selectZone(id) {
-    if (id === originZone) {
-      setOriginZone(null);
-      return;
-    }
-    if (!(zoneTotals[id] > 0)) return;
-    setOriginZone(id);
-    if (zoneGrids[id] || !selectedCity) return;
+  // the rest of the session (and on the CDN for everybody else). Selecting
+  // several fetches only the ones not already in hand.
+  async function loadZoneCounts(ids) {
+    const missing = ids.filter((id) => !zoneCounts[id]);
+    if (!missing.length || !selectedCity) return;
     setZoneLoading(true);
     try {
-      const data = await fetch(
-        `/api/where-would-you-live/heatmap?city=${selectedCity.slug}&zone=${id}`
-      ).then((r) => r.json());
-      if (data?.grid?.rle) {
-        const grid = expandCompactGrid(
-          { params: data.grid.params, rle: data.grid.rle },
-          data.count || zoneTotals[id]
-        );
-        setZoneGrids((current) => ({ ...current, [id]: grid }));
-      }
-    } catch {
-      // Leave it unset — the view falls back to "couldn't load".
+      const fetched = await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const data = await fetch(
+              `/api/where-would-you-live/heatmap?city=${selectedCity.slug}&zone=${id}`
+            ).then((r) => r.json());
+            return data?.grid?.rle ? [id, decodeRLE(data.grid.rle)] : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      const next = {};
+      for (const entry of fetched) if (entry) next[entry[0]] = entry[1];
+      if (Object.keys(next).length) setZoneCounts((current) => ({ ...current, ...next }));
     } finally {
       setZoneLoading(false);
     }
   }
+
+  // A tap toggles one zone; a sweep replaces the selection with what it covered.
+  function handleZonePaint(ids, wasDrag) {
+    const usable = ids.filter((id) => (zoneTotals[id] || 0) > 0);
+    let next;
+    if (!wasDrag && ids.length === 1) {
+      const [id] = ids;
+      if (!(zoneTotals[id] > 0)) return;
+      next = selectedZones.includes(id)
+        ? selectedZones.filter((z) => z !== id)
+        : [...selectedZones, id];
+    } else {
+      if (!usable.length) return;
+      next = usable;
+    }
+    setSelectedZones(next);
+    loadZoneCounts(next);
+  }
+
+  // Which zone a point on the map falls in — index arithmetic, no hit-testing.
+  const zoneAt = useMemo(() => {
+    if (!resultsLayout) return null;
+    return (lat, lng) => zoneIdAt(resultsLayout, lng, lat);
+  }, [resultsLayout]);
 
   const validAreas = areas.filter((area) => area.length >= 3);
   const activePoints = areas[activeArea] || [];
@@ -599,7 +665,7 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                 onMapClick={mapView === 'areas' ? addPoint : undefined}
                 onAreaVertexMove={moveVertex}
                 zones={mapView === 'zones' ? pickerZones : null}
-                selectedZoneId={myZone}
+                selectedZoneIds={myZone == null ? [] : [myZone]}
                 onZoneClick={(id) => setMyZone((current) => (current === id ? null : id))}
                 className="h-96 lg:h-[34rem] w-full rounded-sm border border-gray-200"
               />
@@ -753,12 +819,12 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                     key={f.key}
                     onClick={() => {
                       setFilter(f.key);
-                      setOriginZone(null);
+                      setSelectedZones([]);
                     }}
                     className={
-                      originZone == null && filter === f.key ? 'dd-btn dd-btn-primary' : 'dd-btn dd-btn-ghost'
+                      !selectedZones.length && filter === f.key ? 'dd-btn dd-btn-primary' : 'dd-btn dd-btn-ghost'
                     }
-                    aria-pressed={originZone == null && filter === f.key}
+                    aria-pressed={!selectedZones.length && filter === f.key}
                   >
                     {f.label}
                     <span className="font-mono font-normal ml-1.5 opacity-70">{filterCount(f.key)}</span>
@@ -784,8 +850,8 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                 )}
                 <div>
                   <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>
-                    {originZone != null
-                      ? 'Where people who live in the highlighted area would live'
+                    {selectedZones.length
+                      ? `Where people who live in the highlighted area${selectedZones.length === 1 ? '' : 's'} would live`
                       : filter === 'resident'
                         ? `Where people who live in ${selectedCity.name} would live`
                         : filter === 'outside'
@@ -825,9 +891,9 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                     <p className="dd-kicker" style={{ color: 'var(--ink-2)' }}>
                       Filter by where people live
                     </p>
-                    {originZone != null && (
+                    {selectedZones.length > 0 && (
                       <button
-                        onClick={() => setOriginZone(null)}
+                        onClick={() => setSelectedZones([])}
                         className="dd-link-accent text-sm"
                       >
                         Clear this filter
@@ -836,18 +902,35 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                   </div>
                   <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
                     Click an area to filter the map above to just see response from the people who
-                    live in the selected area.
+                    live in the selected area. Drag across several to combine them.
                   </p>
                   <CityMap
                     mode="zones"
                     boundary={selectedCity.boundary}
                     bbox={selectedCity.bbox}
                     zones={resultZones}
-                    selectedZoneId={originZone}
-                    onZoneClick={selectZone}
+                    selectedZoneIds={selectedZones}
+                    zoneAt={zoneAt}
+                    onZonePaint={handleZonePaint}
                     className="h-72 lg:h-[26rem] w-full rounded-sm"
                   />
                 </div>
+              )}
+
+              {allGrid && (
+                <ShareButton
+                  cityName={selectedCity.name}
+                  citySlug={selectedCity.slug}
+                  boundary={selectedCity.boundary}
+                  bbox={selectedCity.bbox}
+                  yourAreas={results.yourAreas}
+                  allGrid={allGrid}
+                  filteredGrid={activeFilterLabel ? grid : null}
+                  filterLabel={activeFilterLabel}
+                  zoneRings={selectedZoneRings}
+                  totalCount={totalCount}
+                  filteredCount={activeFilterCount}
+                />
               )}
             </div>
           )}

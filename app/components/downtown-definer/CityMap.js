@@ -18,7 +18,7 @@ function fitToFrame(map, frame, attempt = 0) {
   map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
 }
 
-export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, activeAreaIndex = 0, onMapClick, onVertexMove, onAreaVertexMove, staticPoints, staticAreas, grid, cellTooltip, zones, selectedZoneId, onZoneClick, className }) {
+export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, activeAreaIndex = 0, onMapClick, onVertexMove, onAreaVertexMove, staticPoints, staticAreas, grid, cellTooltip, zones, selectedZoneIds, onZoneClick, zoneAt, onZonePaint, className }) {
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
   const leafletRef = useRef(null);
@@ -39,6 +39,8 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
   // inline function doesn't tear down and rebuild the whole grid layer.
   const cellTooltipRef = useRef(cellTooltip);
   const onZoneClickRef = useRef(onZoneClick);
+  const zoneAtRef = useRef(zoneAt);
+  const onZonePaintRef = useRef(onZonePaint);
   // Leaflet loads asynchronously; flip this to true once the map exists so the
   // layer effects below re-run (a ref assignment alone wouldn't re-render).
   const [mapReady, setMapReady] = useState(false);
@@ -49,7 +51,9 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
     onAreaVertexMoveRef.current = onAreaVertexMove;
     cellTooltipRef.current = cellTooltip;
     onZoneClickRef.current = onZoneClick;
-  }, [onMapClick, onVertexMove, onAreaVertexMove, cellTooltip, onZoneClick]);
+    zoneAtRef.current = zoneAt;
+    onZonePaintRef.current = onZonePaint;
+  }, [onMapClick, onVertexMove, onAreaVertexMove, cellTooltip, onZoneClick, zoneAt, onZonePaint]);
 
   // Init map once.
   useEffect(() => {
@@ -259,9 +263,15 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
   }, [mode, staticPoints, staticAreas, mapReady]);
 
   // Coarse zone layer: the handful of big squares people pick from ("which part
-  // of town do you live in?") and hover in the results. Drawn as real polygons
+  // of town do you live in?") and select in the results. Drawn as real polygons
   // rather than a picture of a grid, so what you see is exactly the granularity
   // being recorded — there is no finer location behind it.
+  //
+  // When `onZonePaint` is supplied the layer becomes a paint-select surface:
+  // press and sweep to gather several squares at once. That's driven by Pointer
+  // Events on the container rather than per-polygon mouseover, which is what
+  // makes it work identically under a finger — touch never fires mouseover, and
+  // the canvas renderer doesn't reliably fire mouseout between adjacent shapes.
   useEffect(() => {
     const L = leafletRef.current;
     const map = leafletMapRef.current;
@@ -274,17 +284,18 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
 
     if (!zones?.length) return undefined;
 
+    const selected = new Set(selectedZoneIds || []);
+    const painting = !!onZonePaint;
     const group = L.layerGroup();
     const tooltip = L.tooltip({ sticky: true, direction: 'top', offset: [0, -4], opacity: 1 });
+    const zoneById = new Map(zones.map((zone) => [zone.id, zone]));
 
     // ONE highlight outline that moves to whichever zone is hovered, rather than
     // restyling each polygon on mouseover/mouseout. Zones tile edge to edge, and
     // the canvas renderer doesn't reliably fire mouseout when the pointer slides
     // straight from one shape into its neighbour — restyling in place left a
     // stuck outline on every zone the pointer crossed. A single overlay can't
-    // accumulate: each mouseover just moves it, so at most one is ever lit, and
-    // the map's own mouseout clears it on the way out. Same approach the
-    // choropleth below uses for its hovered cell.
+    // accumulate: each mouseover just moves it, so at most one is ever lit.
     let highlight = null;
     let clearTimer = null;
 
@@ -321,13 +332,13 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
     }
 
     for (const zone of zones) {
-      const selected = zone.id === selectedZoneId;
+      const isSelected = selected.has(zone.id);
       const layer = L.polygon(zone.ring, {
-        color: selected ? '#e8590c' : '#475569',
-        weight: selected ? 3 : 1,
-        opacity: selected ? 1 : 0.45,
+        color: isSelected ? '#e8590c' : '#475569',
+        weight: isSelected ? 3 : 1,
+        opacity: isSelected ? 1 : 0.45,
         fillColor: zone.color || '#94a3b8',
-        fillOpacity: zone.fillOpacity ?? (selected ? 0.35 : 0.08),
+        fillOpacity: zone.fillOpacity ?? (isSelected ? 0.35 : 0.08),
         interactive: true,
       });
 
@@ -336,14 +347,16 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
         if (map.hasLayer(tooltip)) tooltip.setLatLng(e.latlng);
       });
       layer.on('mouseout', () => {
-        // Short grace period: moving between two zones fires mouseout before the
-        // neighbour's mouseover, and cancelling the timer there avoids a flicker.
         clearTimer = setTimeout(clearHighlight, 60);
       });
-      layer.on('click', (e) => {
-        L.DomEvent.stopPropagation(e); // don't also register as a map click
-        onZoneClickRef.current?.(zone.id);
-      });
+      // With painting on, selection comes from the pointer flow below so a tap
+      // isn't handled twice.
+      if (!painting) {
+        layer.on('click', (e) => {
+          L.DomEvent.stopPropagation(e); // don't also register as a map click
+          onZoneClickRef.current?.(zone.id);
+        });
+      }
 
       layer.addTo(group);
     }
@@ -352,11 +365,115 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
     zoneLayerRef.current = group;
     map.on('mouseout', clearHighlight);
 
+    if (!painting) {
+      return () => {
+        map.off('mouseout', clearHighlight);
+        clearHighlight();
+      };
+    }
+
+    // ---- paint-select ----
+    const container = map.getContainer();
+    const previousTouchAction = container.style.touchAction;
+    // One finger paints instead of panning. Leaflet still handles pinch itself,
+    // so zoom survives; the map is a whole-city overview, so panning it is no
+    // great loss.
+    map.dragging.disable();
+    container.style.touchAction = 'none';
+
+    let painted = null;
+    let paintLayer = null;
+    let pointerId = null;
+    let moved = false;
+
+    function zoneFromEvent(event) {
+      const rect = container.getBoundingClientRect();
+      const point = L.point(event.clientX - rect.left, event.clientY - rect.top);
+      const latlng = map.containerPointToLatLng(point);
+      // Pure index arithmetic on the grid — no polygon hit-testing, so this is
+      // cheap enough to run on every pointermove.
+      return zoneAtRef.current?.(latlng.lat, latlng.lng) ?? null;
+    }
+
+    function paint(id) {
+      if (id == null || !zoneById.has(id) || painted.has(id)) return;
+      painted.add(id);
+      L.polygon(zoneById.get(id).ring, {
+        color: '#e8590c',
+        weight: 3,
+        fillColor: '#e8590c',
+        fillOpacity: 0.28,
+        interactive: false,
+      }).addTo(paintLayer);
+    }
+
+    function endPaint(commit) {
+      if (paintLayer) {
+        map.removeLayer(paintLayer);
+        paintLayer = null;
+      }
+      const ids = painted ? [...painted] : [];
+      painted = null;
+      pointerId = null;
+      if (commit && ids.length) onZonePaintRef.current?.(ids, moved);
+      moved = false;
+    }
+
+    function onPointerDown(event) {
+      if (pointerId !== null) {
+        // A second finger means a pinch, not a sweep — hand the gesture back.
+        endPaint(false);
+        return;
+      }
+      const id = zoneFromEvent(event);
+      if (id == null || !zoneById.has(id)) return;
+      pointerId = event.pointerId;
+      moved = false;
+      painted = new Set();
+      paintLayer = L.layerGroup().addTo(map);
+      clearHighlight();
+      paint(id);
+      try {
+        container.setPointerCapture(event.pointerId);
+      } catch {
+        /* capture is a nicety, not a requirement */
+      }
+    }
+
+    function onPointerMove(event) {
+      if (pointerId === null || event.pointerId !== pointerId) return;
+      event.preventDefault();
+      const id = zoneFromEvent(event);
+      if (id != null && !painted.has(id)) moved = true;
+      paint(id);
+    }
+
+    function onPointerUp(event) {
+      if (pointerId === null || event.pointerId !== pointerId) return;
+      endPaint(true);
+    }
+
+    function onPointerCancel() {
+      endPaint(false);
+    }
+
+    container.addEventListener('pointerdown', onPointerDown);
+    container.addEventListener('pointermove', onPointerMove, { passive: false });
+    container.addEventListener('pointerup', onPointerUp);
+    container.addEventListener('pointercancel', onPointerCancel);
+
     return () => {
       map.off('mouseout', clearHighlight);
       clearHighlight();
+      endPaint(false);
+      container.removeEventListener('pointerdown', onPointerDown);
+      container.removeEventListener('pointermove', onPointerMove);
+      container.removeEventListener('pointerup', onPointerUp);
+      container.removeEventListener('pointercancel', onPointerCancel);
+      container.style.touchAction = previousTouchAction;
+      map.dragging.enable();
     };
-  }, [zones, selectedZoneId, mapReady]);
+  }, [zones, selectedZoneIds, onZonePaint, mapReady]);
 
   // Choropleth grid layer.
   useEffect(() => {
