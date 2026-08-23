@@ -581,7 +581,7 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
             Where Would You Live?
           </h1>
           <p className="text-base max-w-2xl leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            Draw the parts of the city you would live in.
+            Draw boundaries around the areas of the city you would be happy to live in.
           </p>
         </div>
 
