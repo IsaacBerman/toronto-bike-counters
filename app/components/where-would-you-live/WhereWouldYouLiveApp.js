@@ -476,6 +476,20 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
   }, [resultsLayout]);
 
   const validAreas = areas.filter((area) => area.length >= 3);
+  // Spelled out under the button whenever it's greyed out, so nobody has to
+  // guess which of the two requirements is still outstanding.
+  const submitBlockedReason = (() => {
+    if (submitting) return null;
+    const needsArea = validAreas.length === 0;
+    const needsResidency = resident === null;
+    if (needsArea && needsResidency) {
+      return 'Draw at least one area, and answer whether you live here, before submitting.';
+    }
+    if (needsArea) return 'Draw at least one area, tap the map to place at least 3 points.';
+    if (needsResidency) return `Answer whether you live within ${selectedCity?.name || 'the city'} to submit.`;
+    return null;
+  })();
+
   const activePoints = areas[activeArea] || [];
 
   function addPoint(point) {
@@ -795,6 +809,11 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                   {submitting ? 'Submitting…' : 'Submit'}
                 </button>
               </div>
+              {submitBlockedReason && (
+                <p className="text-sm text-right -mt-1" style={{ color: 'var(--accent)' }}>
+                  {submitBlockedReason}
+                </p>
+              )}
               {submitError && <p className="text-sm" style={{ color: 'var(--accent)' }}>{submitError}</p>}
             </div>
           )}
