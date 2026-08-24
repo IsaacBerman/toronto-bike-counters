@@ -153,6 +153,9 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
   const [selectedZones, setSelectedZones] = useState([]);
   const [zoneCounts, setZoneCounts] = useState({}); // zoneId -> raw count array
   const [zoneLoading, setZoneLoading] = useState(false);
+  // Sweeping has to take the drag gesture away from the map, so it's opt-in —
+  // by default the zone map pans like any other map and a tap still selects.
+  const [zonePaintMode, setZonePaintMode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [viewingResults, setViewingResults] = useState(false);
@@ -294,6 +297,7 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
     setFilter('all');
     setSelectedZones([]);
     setZoneCounts({});
+    setZonePaintMode(false);
     setPhase('results');
     setDevIdentity(readCookie(IDENTITY_COOKIE));
   }
@@ -921,8 +925,30 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                   </div>
                   <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
                     Click an area to filter the map above to just see response from the people who
-                    live in the selected area. Drag across several to combine them.
+                    live in the selected area. Switch to &ldquo;Drag to select&rdquo; to sweep across
+                    several and combine them.
                   </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setZonePaintMode(false)}
+                      className={!zonePaintMode ? 'dd-btn dd-btn-primary' : 'dd-btn dd-btn-ghost'}
+                      aria-pressed={!zonePaintMode}
+                    >
+                      Drag to pan
+                    </button>
+                    <button
+                      onClick={() => setZonePaintMode(true)}
+                      className={zonePaintMode ? 'dd-btn dd-btn-primary' : 'dd-btn dd-btn-ghost'}
+                      aria-pressed={zonePaintMode}
+                    >
+                      Drag to select
+                    </button>
+                    <span className="text-xs" style={{ color: 'var(--ink-3)' }}>
+                      {zonePaintMode
+                        ? 'Sweep across areas to combine them. Pinch or scroll still zooms.'
+                        : 'Tap an area to select it. Drag moves the map.'}
+                    </span>
+                  </div>
                   <CityMap
                     mode="zones"
                     boundary={selectedCity.boundary}
@@ -930,7 +956,9 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                     zones={resultZones}
                     selectedZoneIds={selectedZones}
                     zoneAt={zoneAt}
+                    onZoneClick={(id) => handleZonePaint([id], false)}
                     onZonePaint={handleZonePaint}
+                    zonePaintActive={zonePaintMode}
                     className="h-72 lg:h-[26rem] w-full rounded-sm"
                   />
                 </div>

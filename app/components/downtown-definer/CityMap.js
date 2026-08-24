@@ -18,7 +18,7 @@ function fitToFrame(map, frame, attempt = 0) {
   map.fitBounds([[minLat, minLng], [maxLat, maxLng]]);
 }
 
-export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, activeAreaIndex = 0, onMapClick, onVertexMove, onAreaVertexMove, staticPoints, staticAreas, grid, cellTooltip, zones, selectedZoneIds, onZoneClick, zoneAt, onZonePaint, className }) {
+export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, activeAreaIndex = 0, onMapClick, onVertexMove, onAreaVertexMove, staticPoints, staticAreas, grid, cellTooltip, zones, selectedZoneIds, onZoneClick, zoneAt, onZonePaint, zonePaintActive, className }) {
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
   const leafletRef = useRef(null);
@@ -267,11 +267,15 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
   // rather than a picture of a grid, so what you see is exactly the granularity
   // being recorded — there is no finer location behind it.
   //
-  // When `onZonePaint` is supplied the layer becomes a paint-select surface:
-  // press and sweep to gather several squares at once. That's driven by Pointer
-  // Events on the container rather than per-polygon mouseover, which is what
-  // makes it work identically under a finger — touch never fires mouseover, and
-  // the canvas renderer doesn't reliably fire mouseout between adjacent shapes.
+  // With `zonePaintActive` the layer becomes a paint-select surface: press and
+  // sweep to gather several squares at once. That's driven by Pointer Events on
+  // the container rather than per-polygon mouseover, which is what makes it work
+  // identically under a finger — touch never fires mouseover, and the canvas
+  // renderer doesn't reliably fire mouseout between adjacent shapes.
+  //
+  // It's opt-in because painting has to take the drag gesture away from Leaflet,
+  // and a map you can't pan is worse than one you can't sweep. Off (the default)
+  // the map drags normally and a tap still selects a single zone.
   useEffect(() => {
     const L = leafletRef.current;
     const map = leafletMapRef.current;
@@ -285,7 +289,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
     if (!zones?.length) return undefined;
 
     const selected = new Set(selectedZoneIds || []);
-    const painting = !!onZonePaint;
+    const painting = !!onZonePaint && !!zonePaintActive;
     const group = L.layerGroup();
     const tooltip = L.tooltip({ sticky: true, direction: 'top', offset: [0, -4], opacity: 1 });
     const zoneById = new Map(zones.map((zone) => [zone.id, zone]));
@@ -375,9 +379,9 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
     // ---- paint-select ----
     const container = map.getContainer();
     const previousTouchAction = container.style.touchAction;
-    // One finger paints instead of panning. Leaflet still handles pinch itself,
-    // so zoom survives; the map is a whole-city overview, so panning it is no
-    // great loss.
+    // While painting, one finger paints instead of panning — restored the moment
+    // the mode is switched off. Leaflet still handles pinch itself, so zoom
+    // survives either way.
     map.dragging.disable();
     container.style.touchAction = 'none';
 
@@ -473,7 +477,7 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
       container.style.touchAction = previousTouchAction;
       map.dragging.enable();
     };
-  }, [zones, selectedZoneIds, onZonePaint, mapReady]);
+  }, [zones, selectedZoneIds, onZonePaint, zonePaintActive, mapReady]);
 
   // Choropleth grid layer.
   useEffect(() => {
