@@ -17,6 +17,7 @@ import {
   LIVE_HEATMAP_ALGO_VERSION,
 } from '../../../lib/where-would-you-live/geo';
 import { cachedZoneLayout } from '../../../lib/where-would-you-live/zoneCache';
+import { liveCityView } from '../../../lib/where-would-you-live/cityView';
 import { zoneCenterLngLat, zoneLayoutSignature } from '../../../lib/where-would-you-live/zoneGrid';
 import {
   getSubmitterIdentity,
@@ -142,10 +143,11 @@ export async function POST(request) {
     );
   }
 
-  const city = await getCityBySlug(citySlug);
-  if (!city) {
+  const row = await getCityBySlug(citySlug);
+  if (!row) {
     return NextResponse.json({ error: 'City not found.' }, { status: 404 });
   }
+  const city = await liveCityView(row); // wider boundary where one is set
 
   const { raw, clipped } = clipAreasToBoundary(areas, city.boundary);
   if (clipped.length === 0) {

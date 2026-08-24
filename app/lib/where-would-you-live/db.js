@@ -30,6 +30,13 @@ function ensureTables() {
            counts JSONB NOT NULL,
            updated_at TIMESTAMPTZ DEFAULT now()
          );
+         CREATE TABLE IF NOT EXISTS live_city_boundaries (
+           city_id INTEGER PRIMARY KEY REFERENCES cities(id) ON DELETE CASCADE,
+           boundary JSONB NOT NULL,
+           bbox JSONB NOT NULL,
+           note TEXT,
+           updated_at TIMESTAMPTZ DEFAULT now()
+         );
          CREATE TABLE IF NOT EXISTS live_zone_grids (
            city_id INTEGER NOT NULL REFERENCES cities(id) ON DELETE CASCADE,
            zone_id INTEGER NOT NULL,
@@ -243,4 +250,44 @@ export async function getLiveSubmissionsForZone(cityId, zoneId) {
     console.error('Error loading zone submissions:', error);
     return [];
   }
+}
+
+// Some cities are stored in `cities` as the small central municipality, which is
+// the right answer for "where is downtown" and the wrong one for "where would
+// you live" — Melbourne's row is the 38 km2 City of Melbourne, not the metro.
+// An override here replaces the boundary for THIS tool only; the downtown tool
+// keeps reading `cities` untouched, so its existing submissions and cached grids
+// stay valid. Kept out of the `cities` row on purpose: these polygons are large
+// and would otherwise ride along in every shared city response.
+const boundaryCache = new Map(); // cityId -> { value, ts }
+const BOUNDARY_TTL_MS = 60 * 60 * 1000;
+
+export async function getLiveCityBoundary(cityId) {
+  const hit = boundaryCache.get(cityId);
+  if (hit && Date.now() - hit.ts < BOUNDARY_TTL_MS) return hit.value;
+  try {
+    await ensureTables();
+    const rows = await query(
+      'SELECT boundary, bbox FROM live_city_boundaries WHERE city_id = $1',
+      [cityId]
+    );
+    const value = rows[0] || null;
+    boundaryCache.set(cityId, { value, ts: Date.now() });
+    return value;
+  } catch (error) {
+    console.error('Error reading live city boundary:', error);
+    return hit?.value ?? null;
+  }
+}
+
+export async function setLiveCityBoundary(cityId, boundary, bbox, note) {
+  await ensureTables();
+  await query(
+    `INSERT INTO live_city_boundaries (city_id, boundary, bbox, note, updated_at)
+     VALUES ($1, $2, $3, $4, now())
+     ON CONFLICT (city_id) DO UPDATE
+       SET boundary = $2, bbox = $3, note = $4, updated_at = now()`,
+    [cityId, JSON.stringify(boundary), JSON.stringify(bbox), note || null]
+  );
+  boundaryCache.delete(cityId);
 }

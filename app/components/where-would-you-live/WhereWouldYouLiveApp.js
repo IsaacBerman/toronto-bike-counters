@@ -211,9 +211,28 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
     }
   }
 
+  // A few cities are stored as their small central municipality — right for
+  // "where is downtown", wrong for this question. Where a wider boundary has
+  // been set for this tool, swap it in before anything is drawn or measured.
+  // The answer is a few bytes for almost every city and cached for a week.
+  async function resolveLiveCity(city) {
+    try {
+      const data = await fetch(`/api/where-would-you-live/boundary?city=${city.slug}`).then((r) =>
+        r.json()
+      );
+      if (data?.override && data.boundary && data.bbox) {
+        return { ...city, boundary: data.boundary, bbox: data.bbox };
+      }
+    } catch {
+      // Fall back to the standard boundary — the map still works.
+    }
+    return city;
+  }
+
   // Once we have a city, reflect it in the URL and either show the results (if
   // this visitor already answered) or the drawing tools.
-  async function enterCity(city) {
+  async function enterCity(rawCity) {
+    const city = await resolveLiveCity(rawCity);
     setSelectedCity({ ...city, name: city.label || displayCityName(city.name) });
     updateUrl(city.slug);
 

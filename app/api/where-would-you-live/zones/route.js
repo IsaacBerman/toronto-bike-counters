@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCityBySlug } from '../../../lib/downtown-definer/db';
 import { cachedZoneLayout } from '../../../lib/where-would-you-live/zoneCache';
+import { liveCityView } from '../../../lib/where-would-you-live/cityView';
 
 // The zone layout is a pure function of the city boundary — it exists before
 // anyone has answered anything, and it never changes unless the boundary does.
@@ -14,10 +15,11 @@ export async function GET(request) {
     return NextResponse.json({ error: 'A city is required.' }, { status: 400 });
   }
 
-  const city = await getCityBySlug(citySlug); // served from the in-memory city cache
-  if (!city) {
+  const row = await getCityBySlug(citySlug); // served from the in-memory city cache
+  if (!row) {
     return NextResponse.json({ error: 'City not found.' }, { status: 404 });
   }
+  const city = await liveCityView(row); // wider boundary where one is set
 
   return NextResponse.json({ zoneLayout: cachedZoneLayout(city) }, { headers: EDGE_CACHE });
 }

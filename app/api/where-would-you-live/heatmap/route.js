@@ -15,6 +15,7 @@ import {
   LIVE_HEATMAP_ALGO_VERSION,
 } from '../../../lib/where-would-you-live/geo';
 import { cachedZoneLayout } from '../../../lib/where-would-you-live/zoneCache';
+import { liveCityView } from '../../../lib/where-would-you-live/cityView';
 import { zoneLayoutSignature } from '../../../lib/where-would-you-live/zoneGrid';
 
 // Same caching contract as the downtown heatmap: a day at the edge, a week
@@ -85,10 +86,13 @@ export async function GET(request) {
     return NextResponse.json({ error: 'A city is required.' }, { status: 400 });
   }
 
-  const city = await getCityBySlug(citySlug); // served from the in-memory city cache
-  if (!city) {
+  const row = await getCityBySlug(citySlug); // served from the in-memory city cache
+  if (!row) {
     return NextResponse.json({ error: 'City not found.' }, { status: 404 });
   }
+  // Wider boundary where one is set for this tool (Melbourne is stored as the
+  // 38 km2 City of Melbourne, which is the downtown answer, not this one).
+  const city = await liveCityView(row);
 
   // Filter totals + the per-zone tallies, in one small grouped query.
   const counts = await getLiveCounts(city.id);
