@@ -474,9 +474,15 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
                           <span className="dd-tip" style={{ color: 'var(--accent)' }}>
                             Score: {results.score}
                             <span className="dd-tip-bubble">
-                              {"Similarity of your drawing to the consensus downtown (>50%) regions, from 0 to 100. It&apos;s the overlapping area ÷ the combined area\
-                              (intersection over union) of the two shapes. 100 = same shape in the same\
-                              place; 0 = no overlap."}
+                              {
+                                // A JS string, not JSX text, so HTML entities are never decoded —
+                                // "&apos;" rendered literally. Real characters, and joined rather
+                                // than line-continued, which was baking the source indentation
+                                // into the sentence as runs of spaces.
+                                'Similarity of your drawing to the consensus downtown (>50%) regions, from 0 to 100. ' +
+                                'It\u2019s the overlapping area ÷ the combined area (intersection over union) of ' +
+                                'the two shapes. 100 = same shape in the same place; 0 = no overlap.'
+                              }
                             </span>
                           </span>
                         </>

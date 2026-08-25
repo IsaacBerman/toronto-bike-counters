@@ -52,12 +52,20 @@ export default function TravelExplorer() {
   const [cityBoundary, setCityBoundary] = useState(null);
   const [err, setErr] = useState(null);
 
-  const [tripSet, setTripSet] = useState('commute'); // 'all' | 'commute'
+  const [tripSet, setTripSet] = useState('commute'); // see meta.tripSets
   const [colorBy, setColorBy] = useState('sustainable');
   const [year, setYear] = useState(2022);
   const [bucket, setBucket] = useState('under5'); // default to the goal's distance band
+  const [ageGroup, setAgeGroup] = useState('all'); // school trips only
   const [ward, setWard] = useState('city'); // 'city' = whole city, or a ward number
   const [lastWard, setLastWard] = useState(13); // most recent ward focus (Toronto Centre default)
+
+  // Age and distance can't be crossed, so choosing a band releases the
+  // distance filter back to "All" before disabling it.
+  const selectAgeGroup = (g) => {
+    setAgeGroup(g);
+    if (g !== 'all') setBucket('all');
+  };
 
   // Selecting a ward remembers it, so un-checking "Entire City" can return to it.
   const selectWard = (w) => {
@@ -85,21 +93,46 @@ export default function TravelExplorer() {
   }, []);
 
   const meta = json?.meta;
-  const dataset = json?.datasets?.[tripSet];
   const commute = json?.datasets?.commute;
   const years = meta?.years ?? [];
   const buckets = meta?.buckets ?? [];
+  const ageGroups = meta?.ageGroups ?? [];
+  const tripSets = meta?.tripSets ?? [];
   const wardNames = meta?.wardNames ?? {};
-  const bucketLabel =
+  const trips = tripSets.find((t) => t.id === tripSet) ?? { filters: ['distance'], noun: 'Trips' };
+  // School is the one purpose with an age breakdown, and age lives in a
+  // cross-tab of its own that has no trip length — so picking a band switches
+  // datasets and takes the distance filter out of play (see build-tts.mjs).
+  const hasAge = (trips.filters ?? []).includes('age');
+  const ageActive = hasAge && ageGroup !== 'all';
+  const dataset = json?.datasets?.[ageActive ? trips.ageDataset : tripSet];
+  const ageDataset = hasAge ? json?.datasets?.[trips.ageDataset] : null;
+  // Every dataset is keyed data[year][ward][bucket][mode]; the bucket level is
+  // distance bands, or age groups on the age dataset. One selector reads both,
+  // and 'all' always means "sum every bucket".
+  const sel = ageActive ? ageGroup : bucket;
+  const distanceLabel =
     bucket === 'all'
       ? 'all distances'
       : bucket === 'under5'
         ? 'under 5 km'
         : buckets.find((b) => b.id === bucket)?.label ?? bucket;
+  const selLabel = ageActive
+    ? `${(ageGroups.find((g) => g.id === ageGroup)?.short ?? ageGroup).toLowerCase()}, all distances`
+    : distanceLabel;
   const isCommute = tripSet === 'commute';
+  const isPurpose = tripSet !== 'all'; // commute / work / school — the goal's trips
   const isCity = ward === 'city';
-  // The goal line is only meaningful for the < 5 km bands it's defined on.
-  const bucketIsShort = bucket === 'under5' || SHORT_BUCKETS.includes(bucket);
+  // The goal line is only meaningful for the < 5 km bands it's defined on, and
+  // only the commute set is broken out by distance.
+  const bucketIsShort =
+    !ageActive && (bucket === 'under5' || SHORT_BUCKETS.includes(bucket));
+  // The survey only covered ages 11+ before 2022, which cuts into the youngest
+  // school band — worth saying out loud when the age filter is on screen.
+  const minAges = meta?.minAgeSurveyed ?? {};
+  const lastYear = years[years.length - 1];
+  const earlyMinAge = Math.max(0, ...years.slice(0, -1).map((y) => minAges[y] ?? 0));
+  const lateMinAge = minAges[lastYear] ?? 0;
   // The "colour map by" selection is echoed as an outline on the matching
   // segment(s) of the over-time chart.
   const highlightGroups = colorBy === 'sustainable' ? SUSTAINABLE_GROUPS : [colorBy];
@@ -115,7 +148,7 @@ export default function TravelExplorer() {
     const styles = {};
     if (colorBy === 'sustainable') {
       for (const w of wardIds) {
-        const totals = wardGroupTotals(dataset, year, w, bucket);
+        const totals = wardGroupTotals(dataset, year, w, sel);
         const share = sustainableShareOf(totals);
         const t = Math.min(share / 0.8, 1); // absolute scale so colour ~ tracks 75%
         // The 2030 goal is a fixed property of the ward: sustainable share of
@@ -128,7 +161,7 @@ export default function TravelExplorer() {
           fillColor: groupSum(totals) > 0 ? mixHex(RAMP_BASE, SUSTAIN_COLOR, t) : '#e9e7de',
           strokeColor: atGoal ? NEON : undefined,
           strokeWeight: atGoal ? 3.5 : undefined,
-          label: `<b>${wardNames[w]}</b><br>${(share * 100).toFixed(0)}% sustainable (${bucketLabel})${
+          label: `<b>${wardNames[w]}</b><br>${(share * 100).toFixed(0)}% sustainable (${selLabel})${
             atGoal ? '<br>✓ meets 2030 goal' : ''
           }`,
         };
@@ -138,7 +171,7 @@ export default function TravelExplorer() {
       const shares = {};
       let max = 0;
       for (const w of wardIds) {
-        const s = groupShare(dataset, year, w, bucket, colorBy);
+        const s = groupShare(dataset, year, w, sel, colorBy);
         shares[w] = s;
         if (s > max) max = s;
       }
@@ -151,7 +184,7 @@ export default function TravelExplorer() {
       }
     }
     return styles;
-  }, [dataset, commute, geo, colorBy, year, bucket, bucketLabel, wardNames]);
+  }, [dataset, commute, geo, colorBy, year, sel, selLabel, wardNames]);
 
   // ---- TransformTO tracker (commute, under 5 km, selected year) ----
   const tracker = useMemo(() => {
@@ -175,11 +208,11 @@ export default function TravelExplorer() {
   const overTime = useMemo(() => {
     if (!dataset) return [];
     return years.map((y) => {
-      const p = groupPercents(totalsFor(dataset, y, ward, bucket));
+      const p = groupPercents(totalsFor(dataset, y, ward, sel));
       return { name: String(y), ...p };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataset, years, ward, bucket]);
+  }, [dataset, years, ward, sel]);
 
   const byDistance = useMemo(() => {
     if (!dataset) return [];
@@ -190,7 +223,16 @@ export default function TravelExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataset, buckets, year, ward]);
 
-  const subjectTotals = dataset ? totalsFor(dataset, year, ward, bucket) : null;
+  const byAge = useMemo(() => {
+    if (!ageDataset) return [];
+    return ageGroups.map((g) => {
+      const p = groupPercents(totalsFor(ageDataset, year, ward, g.id));
+      return { name: g.short, ...p };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ageDataset, ageGroups, year, ward]);
+
+  const subjectTotals = dataset ? totalsFor(dataset, year, ward, sel) : null;
   const subjectTripCount = subjectTotals ? groupSum(subjectTotals) : 0;
   // The subject's standing against the 2030 goal (under-5 km commute trips).
   const goalShare = commute ? sustainableShareOf(totalsFor(commute, year, ward, 'under5')) : 0;
@@ -233,10 +275,7 @@ export default function TravelExplorer() {
         <div className="dd-panel-ruled p-4 sm:p-5 mt-6 grid gap-5 md:grid-cols-2">
           <Control label="Trips">
             <Segmented
-              options={[
-                { id: 'all', label: 'All trips' },
-                { id: 'commute', label: 'Commute (work / school)' },
-              ]}
+              options={tripSets.map((t) => ({ id: t.id, label: t.label }))}
               value={tripSet}
               onChange={setTripSet}
             />
@@ -268,10 +307,33 @@ export default function TravelExplorer() {
                 { id: 'under5', label: '< 5 km ★' },
                 ...buckets.map((b) => ({ id: b.id, label: b.label })),
               ]}
-              value={bucket}
+              value={ageActive ? 'all' : bucket}
               onChange={setBucket}
+              disabled={ageActive}
             />
+            {ageActive && (
+              <p className="text-xs mt-2 leading-relaxed" style={{ color: INK3 }}>
+                Fixed at all distances: the survey&rsquo;s age breakdown and its trip-length
+                breakdown are separate cross-tabs, so a school stage can&rsquo;t be narrowed by
+                distance. Pick <b style={{ color: INK2 }}>All ages</b> to filter by distance again.
+              </p>
+            )}
           </Control>
+          {hasAge && (
+            <Control label="School stage">
+              <Segmented
+                options={[
+                  { id: 'all', label: 'All ages' },
+                  ...ageGroups.map((g) => ({ id: g.id, label: g.short })),
+                ]}
+                value={ageGroup}
+                onChange={selectAgeGroup}
+              />
+              <p className="text-xs mt-2" style={{ color: INK3 }}>
+                By age of the person travelling — {ageGroups.map(ageBand).join(', ')}.
+              </p>
+            </Control>
+          )}
         </div>
 
         {/* Map + detail */}
@@ -310,7 +372,7 @@ export default function TravelExplorer() {
                   : `Shaded by ${GROUP_BY_ID[colorBy].label.toLowerCase()} share (darkest = highest)`}
               </p>
               <p className="text-xs font-semibold" style={{ color: INK3 }}>
-                {year} · {bucketLabel}
+                {year} · {selLabel}
               </p>
             </div>
           </div>
@@ -326,18 +388,15 @@ export default function TravelExplorer() {
               </span>
             </div>
             <p className="text-xs mt-1 mb-4" style={{ color: INK3 }}>
-              {fmt.format(Math.round(subjectTripCount))} {isCommute ? 'work/school' : ''} trips ·{' '}
-              {year} · {bucketLabel}
+              {fmt.format(Math.round(subjectTripCount))} {trips.noun.toLowerCase()} · {year} ·{' '}
+              {selLabel}
             </p>
 
-            {isCommute && <WardGoalBadge share={goalShare} city={isCity} />}
+            {isPurpose && <WardGoalBadge share={goalShare} city={isCity} />}
 
             <Legend />
 
-            <ChartBlock
-              title={`Mode share over time`}
-              subtitle={`${isCommute ? 'Work & school trips' : 'All trips'} · ${bucketLabel}`}
-            >
+            <ChartBlock title={`Mode share over time`} subtitle={`${trips.noun} · ${selLabel}`}>
               <StackedShareChart
                 data={overTime}
                 goal={isCommute && bucketIsShort}
@@ -346,18 +405,32 @@ export default function TravelExplorer() {
               />
             </ChartBlock>
 
-            <ChartBlock
-              title="Mode share by trip distance"
-              subtitle={`${isCommute ? 'Work & school trips' : 'All trips'} · ${year}`}
-            >
-              <StackedShareChart
-                data={byDistance}
-                goal={false}
-                angledTicks
-                highlight={highlightGroups}
-                highlightColor={colorBy === 'sustainable' ? NEON : INK}
-              />
-            </ChartBlock>
+            {!ageActive && (
+              <ChartBlock title="Mode share by trip distance" subtitle={`${trips.noun} · ${year}`}>
+                <StackedShareChart
+                  data={byDistance}
+                  goal={false}
+                  angledTicks
+                  highlight={highlightGroups}
+                  highlightColor={colorBy === 'sustainable' ? NEON : INK}
+                />
+              </ChartBlock>
+            )}
+
+            {hasAge && (
+              <ChartBlock
+                title="Mode share by school stage"
+                subtitle={`${trips.noun} · ${year} · all distances`}
+              >
+                <StackedShareChart
+                  data={byAge}
+                  goal={false}
+                  angledTicks
+                  highlight={highlightGroups}
+                  highlightColor={colorBy === 'sustainable' ? NEON : INK}
+                />
+              </ChartBlock>
+            )}
           </div>
         </div>
 
@@ -366,11 +439,32 @@ export default function TravelExplorer() {
           Source: Transportation Tomorrow Survey (Data Management Group, University of Toronto),
           2001–2022. Wards use the current 25-ward model; 2001–2016 counts are apportioned from the
           former 44-ward model by area-weighted crosswalk, so pre-2022 ward figures are estimates.
-          &ldquo;Sustainable&rdquo; = walking, cycling (incl. e-mobility) and transit.
+          &ldquo;Sustainable&rdquo; = walking, cycling (incl. e-mobility) and transit. Work and
+          school are the same commute trips split by purpose; school stage comes from a separate
+          cross-tab that has no trip length, so the two can&rsquo;t be combined.
+          {hasAge && ageGroups.length > 0 && earlyMinAge > lateMinAge && (
+            <>
+              {' '}
+              Before {lastYear} the survey only recorded trips for people aged {earlyMinAge} and
+              up, while {lastYear} covers ages {lateMinAge} and up — so the{' '}
+              {ageGroups[0].short.toLowerCase()} band is not comparable across that break.
+            </>
+          )}
         </p>
       </div>
     </div>
   );
+}
+
+// "elementary 13 and under" — the age range behind a school-stage option.
+function ageBand(g) {
+  const range =
+    g.minAge && g.maxAge
+      ? `${g.minAge}–${g.maxAge}`
+      : g.maxAge
+        ? `${g.maxAge} and under`
+        : `${g.minAge} and over`;
+  return `${g.short.toLowerCase()} ${range}`;
 }
 
 /* ---------------- Sub-components ---------------- */
@@ -467,20 +561,26 @@ function Control({ label, children }) {
   );
 }
 
-function Segmented({ options, value, onChange }) {
+function Segmented({ options, value, onChange, disabled = false }) {
   return (
-    <div className="inline-flex flex-wrap gap-1 p-1 rounded" style={{ background: '#e9e7de' }}>
+    <div
+      className="inline-flex flex-wrap gap-1 p-1 rounded"
+      style={{ background: '#e9e7de', opacity: disabled ? 0.5 : 1 }}
+    >
       {options.map((o) => {
         const active = value === o.id;
         return (
           <button
             key={o.id}
             onClick={() => onChange(o.id)}
+            disabled={disabled}
+            aria-disabled={disabled}
             className="px-2.5 py-1.5 rounded text-xs font-bold transition-colors"
             style={{
               background: active ? 'var(--panel)' : 'transparent',
               color: active ? INK : INK2,
               boxShadow: active ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+              cursor: disabled ? 'not-allowed' : 'pointer',
             }}
           >
             {o.label}
