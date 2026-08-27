@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { cartoTileUrl, CARTO_ATTRIBUTION, CARTO_SUBDOMAINS } from '../../lib/basemapTiles';
 
 // Choropleth of Toronto's 25 wards. Each ward is filled by `wardStyles[ward]`
 // (a { fillColor, label } computed by the parent from the current mode / year /
@@ -35,9 +36,9 @@ export default function WardMap({
       import('leaflet/dist/leaflet.css');
       if (cancelled || !elRef.current || mapRef.current) return;
       const map = L.map(elRef.current, { zoomSnap: 0.25, scrollWheelZoom: false });
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap contributors © CARTO',
-        subdomains: 'abcd',
+      L.tileLayer(cartoTileUrl('rastertiles/voyager'), {
+        attribution: CARTO_ATTRIBUTION,
+        subdomains: CARTO_SUBDOMAINS,
         maxZoom: 20,
       }).addTo(map);
       LRef.current = L;

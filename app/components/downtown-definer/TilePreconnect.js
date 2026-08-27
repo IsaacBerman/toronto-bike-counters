@@ -1,3 +1,5 @@
+import { CARTO_HOST, CARTO_SUBDOMAINS } from '../../lib/basemapTiles';
+
 // Preconnect hints for the map tile CDN, rendered by the downtown-definer
 // pages so they land in the SSR <head> (React 19 hoists them). Warming
 // DNS/TLS before any Leaflet map mounts means tiles start downloading
@@ -6,8 +8,8 @@
 export default function TilePreconnect() {
   return (
     <>
-      {['a', 'b', 'c', 'd'].map((s) => (
-        <link key={s} rel="preconnect" href={`https://${s}.basemaps.cartocdn.com`} />
+      {CARTO_SUBDOMAINS.split('').map((s) => (
+        <link key={s} rel="preconnect" href={`https://${s}.${CARTO_HOST}`} />
       ))}
     </>
   );

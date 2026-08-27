@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { cartoTileUrl, CARTO_ATTRIBUTION, CARTO_SUBDOMAINS } from '../../lib/basemapTiles';
 
 // A single reusable Leaflet map for DowntownDefiner. It always shows the
 // city boundary, and layers one more thing on top depending on `mode`:
@@ -83,9 +84,9 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
       // Carto's CDN serves tiles far faster than OSM's donated servers, which
       // left the container grey while tiles trickled in. Voyager is Carto's
       // OSM-like style: beige land, blue water, colored roads, green parks.
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap contributors © CARTO',
-        subdomains: 'abcd',
+      L.tileLayer(cartoTileUrl('rastertiles/voyager'), {
+        attribution: CARTO_ATTRIBUTION,
+        subdomains: CARTO_SUBDOMAINS,
         maxZoom: 20,
       }).addTo(map);
 

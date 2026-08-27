@@ -4,6 +4,8 @@
 // header. Basemap tiles come from CARTO Voyager, which shows major roads/labels
 // and sends CORS headers, so the canvas stays untainted and toBlob() works.
 
+import { CARTO_HOST, CARTO_KEY_QUERY, CARTO_SUBDOMAINS } from '../basemapTiles';
+
 // The primitives below are exported so the "Where would you live?" share card
 // can compose the same look without duplicating the mercator/tile/choropleth
 // machinery. Only `export` was added — nothing here moved or changed.
@@ -19,7 +21,7 @@ export const PAPER = '#f3f2ec';
 export const PANEL = '#ffffff';
 
 const TILE = 256;
-const TILE_SUBDOMAINS = ['a', 'b', 'c', 'd'];
+const TILE_SUBDOMAINS = CARTO_SUBDOMAINS.split('');
 
 // ---- Web-mercator helpers ----
 
@@ -91,7 +93,7 @@ export async function drawBasemap(ctx, m, rect) {
   for (let tx = tileMinX; tx <= tileMaxX; tx++) {
     for (let ty = tileMinY; ty <= tileMaxY; ty++) {
       const subdomain = TILE_SUBDOMAINS[sub++ % TILE_SUBDOMAINS.length];
-      const url = `https://${subdomain}.basemaps.cartocdn.com/rastertiles/voyager/${m.z}/${tx}/${ty}@2x.png`;
+      const url = `https://${subdomain}.${CARTO_HOST}/rastertiles/voyager/${m.z}/${tx}/${ty}@2x.png${CARTO_KEY_QUERY}`;
       const dx = m.ox + (tx * TILE - m.xTL) * m.scale;
       const dy = m.oy + (ty * TILE - m.yTL) * m.scale;
       jobs.push(

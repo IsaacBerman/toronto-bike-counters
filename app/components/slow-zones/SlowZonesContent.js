@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { LINES, segmentsBetween, spanBetween, segmentLabel } from '../../lib/slow-zones/stations';
 import { VALUE_OF_TIME, zoneDailyRiders } from '../../lib/slow-zones/ridership';
+import { cartoTileUrl, CARTO_ATTRIBUTION, CARTO_SUBDOMAINS } from '../../lib/basemapTiles';
 
 const ACCENT = '#e8590c';
 const INK = '#16150f';
@@ -427,8 +428,9 @@ export default function SlowZonesContent() {
         L.latLngBounds(allStations.map(([, lat, lng]) => [lat, lng])),
         { padding: [20, 20] }
       );
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap contributors © CARTO',
+      L.tileLayer(cartoTileUrl('light_all'), {
+        attribution: CARTO_ATTRIBUTION,
+        subdomains: CARTO_SUBDOMAINS,
         maxZoom: 18,
       }).addTo(map);
       for (const line of Object.values(LINES)) {
