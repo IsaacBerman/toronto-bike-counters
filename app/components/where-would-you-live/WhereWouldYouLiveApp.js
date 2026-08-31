@@ -144,10 +144,6 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
   const [resident, setResident] = useState(null); // true = lives inside the city
   const [zoneLayout, setZoneLayout] = useState(null); // coarse squares for the picker
   const [myZone, setMyZone] = useState(null); // optional: the square they live in
-  // Which of the two things the ONE drawing-phase map is showing. Stacking a
-  // second map under the first pushed Submit off the bottom of the screen, so
-  // the zone picker takes over the map that's already there instead.
-  const [mapView, setMapView] = useState('areas'); // 'areas' | 'zones'
   // Results: which zones' answers to show. Several can be selected by sweeping
   // across the grid — nobody lives in two zones, so their grids simply add.
   const [selectedZones, setSelectedZones] = useState([]);
@@ -176,9 +172,12 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
 
   // The zone layout is a pure function of the boundary, so it's a few hundred
   // bytes off a week-long edge cache — and it's only fetched once someone says
-  // they live in the city, which is the only time the picker is shown.
+  // they live in the city, which is the only time the picker is shown. Fetching
+  // it while they're still drawing means the second step opens with its squares
+  // already in hand.
   useEffect(() => {
-    if (phase !== 'drawing' || resident !== true || zoneLayout || !selectedCity) return;
+    const wanted = phase === 'zone' || (phase === 'drawing' && resident === true);
+    if (!wanted || zoneLayout || !selectedCity) return;
     let cancelled = false;
     fetch(`/api/where-would-you-live/zones?city=${selectedCity.slug}`)
       .then((r) => r.json())
@@ -259,7 +258,6 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
       setActiveArea(0);
       setResident(null);
       setMyZone(null);
-      setMapView('areas');
       setPhase('drawing');
     }
   }
@@ -544,7 +542,9 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
     });
   }
 
-  async function handleSubmit() {
+  // Step one: the areas and the yes/no. Everything that matters is saved here,
+  // which is what lets the zone question be a separate, skippable step.
+  async function submitAreas() {
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -555,7 +555,6 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
           citySlug: selectedCity.slug,
           areas: validAreas,
           resident,
-          zoneId: resident ? myZone : null,
         }),
       });
       const data = await res.json();
@@ -571,9 +570,36 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
       }
 
       storeSubmitted(selectedCity.slug, validAreas, resident);
-      await goToResults(selectedCity, validAreas, true); // fresh: reflect the new answer
+      if (resident) {
+        // Only someone who lives here gets asked which part of it.
+        setMyZone(null);
+        setPhase('zone');
+      } else {
+        await goToResults(selectedCity, validAreas, true); // fresh: reflect the new answer
+      }
     } catch {
       setSubmitError('Something went wrong.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Step two, for residents only: amend the answer just saved with the part of
+  // town they live in, then show the results. Skipping is a first-class choice —
+  // and an amendment that fails to land is not worth holding the results back
+  // for, since the answer itself is already counted.
+  async function finishWithZone() {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      if (myZone != null) {
+        await fetch('/api/where-would-you-live/submissions', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ citySlug: selectedCity.slug, zoneId: myZone }),
+        }).catch(() => {});
+      }
+      await goToResults(selectedCity, validAreas, true); // fresh: reflect the new answer
     } finally {
       setSubmitting(false);
     }
@@ -587,8 +613,6 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
     setResident(null);
     setZoneLayout(null);
     setMyZone(null);
-    setMapView('areas');
-    setOriginZone(null);
     setResults(null);
     setSubmitError(null);
     setCityError(null);
@@ -664,112 +688,68 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                   </button>
                 </div>
               </div>
-              {mapView === 'areas' ? (
-                <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
-                  Tap the map to place points. Place at least 3 points to form a boundary. Drag any point to adjust it. Finished one area? Press
-                  &ldquo;New area&rdquo; to add another somewhere else.
-                </p>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-baseline justify-between flex-wrap gap-2">
-                    <p className="dd-kicker" style={{ color: 'var(--ink-2)' }}>
-                      Which part of {selectedCity.name} do you live in?{' '}
-                      <span className="font-normal normal-case" style={{ color: 'var(--ink-3)' }}>
-                        Optional
-                      </span>
-                    </p>
-                    <button onClick={() => setMapView('areas')} className="dd-link-accent text-sm">
-                      ← Back to the areas you drew
-                    </button>
-                  </div>
-                  <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
-                    These zones are a few kilometres across on purpose: nothing more precise than the
-                    square you click is ever asked for or stored. Skip it and your answer still counts
-                    everywhere else.
-                  </p>
-                </div>
-              )}
+              <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
+                Tap the map to place points. Place at least 3 points to form a boundary. Drag any point to adjust it. Finished one area? Press
+                &ldquo;New area&rdquo; to add another somewhere else.
+              </p>
 
-              {/* One map, two jobs. Rendered in a fixed position so React keeps
-                  the same Leaflet instance across the swap — no re-init, no
-                  second round of tile downloads. */}
               <CityMap
-                mode={mapView === 'areas' ? 'drawing' : 'zones'}
+                mode="drawing"
                 boundary={selectedCity.boundary}
                 bbox={selectedCity.bbox}
-                areas={mapView === 'areas' ? areas : null}
+                areas={areas}
                 activeAreaIndex={activeArea}
-                onMapClick={mapView === 'areas' ? addPoint : undefined}
+                onMapClick={addPoint}
                 onAreaVertexMove={moveVertex}
-                zones={mapView === 'zones' ? pickerZones : null}
-                selectedZoneIds={myZone == null ? [] : [myZone]}
-                onZoneClick={(id) => setMyZone((current) => (current === id ? null : id))}
                 className="h-96 lg:h-[34rem] w-full rounded-sm border border-gray-200"
               />
 
-              {mapView === 'areas' ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  {areas.map((_, index) => {
-                    const active = index === activeArea;
-                    // dd-btn so the chip matches "New area" / "Undo point"
-                    // exactly; the right padding is trimmed only when the remove
-                    // control is present, so the two stay the same height.
-                    return (
-                      <span
-                        key={index}
-                        className={active ? 'dd-btn dd-btn-primary' : 'dd-btn dd-btn-ghost'}
-                        style={areas.length > 1 ? { paddingRight: '0.5rem', gap: '0.35rem' } : undefined}
-                      >
-                        <button onClick={() => setActiveArea(index)} className="font-bold">
-                          Area {index + 1}
+              <div className="flex flex-wrap items-center gap-2">
+                {areas.map((_, index) => {
+                  const active = index === activeArea;
+                  // dd-btn so the chip matches "New area" / "Undo point"
+                  // exactly; the right padding is trimmed only when the remove
+                  // control is present, so the two stay the same height.
+                  return (
+                    <span
+                      key={index}
+                      className={active ? 'dd-btn dd-btn-primary' : 'dd-btn dd-btn-ghost'}
+                      style={areas.length > 1 ? { paddingRight: '0.5rem', gap: '0.35rem' } : undefined}
+                    >
+                      <button onClick={() => setActiveArea(index)} className="font-bold">
+                        Area {index + 1}
+                      </button>
+                      {areas.length > 1 && (
+                        <button
+                          onClick={() => removeArea(index)}
+                          aria-label={`Remove area ${index + 1}`}
+                          className="px-1 leading-none opacity-60 hover:opacity-100"
+                        >
+                          ×
                         </button>
-                        {areas.length > 1 && (
-                          <button
-                            onClick={() => removeArea(index)}
-                            aria-label={`Remove area ${index + 1}`}
-                            className="px-1 leading-none opacity-60 hover:opacity-100"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </span>
-                    );
-                  })}
-                  <button
-                    onClick={startNewArea}
-                    disabled={activePoints.length < 3 || areas.length >= MAX_AREAS}
-                    className="dd-btn dd-btn-ghost"
-                  >
-                    + New area
-                  </button>
-                  <button
-                    onClick={() =>
-                      setAreas((current) =>
-                        current.map((area, i) => (i === activeArea ? area.slice(0, -1) : area))
-                      )
-                    }
-                    disabled={activePoints.length === 0}
-                    className="dd-btn dd-btn-ghost"
-                  >
-                    ↶ Undo point
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <span className="text-sm" style={{ color: myZone == null ? 'var(--ink-3)' : 'var(--ink)' }}>
-                    {pickerZones.length === 0
-                      ? 'Loading zones…'
-                      : myZone == null
-                        ? 'No area picked yet'
-                        : 'You live around the highlighted square'}
-                  </span>
-                  {myZone != null && (
-                    <button onClick={() => setMyZone(null)} className="dd-link-accent text-sm">
-                      Clear
-                    </button>
-                  )}
-                </div>
-              )}
+                      )}
+                    </span>
+                  );
+                })}
+                <button
+                  onClick={startNewArea}
+                  disabled={activePoints.length < 3 || areas.length >= MAX_AREAS}
+                  className="dd-btn dd-btn-ghost"
+                >
+                  + New area
+                </button>
+                <button
+                  onClick={() =>
+                    setAreas((current) =>
+                      current.map((area, i) => (i === activeArea ? area.slice(0, -1) : area))
+                    )
+                  }
+                  disabled={activePoints.length === 0}
+                  className="dd-btn dd-btn-ghost"
+                >
+                  ↶ Undo point
+                </button>
+              </div>
 
               <div className="flex flex-col gap-2 pt-1" style={{ borderTop: '1px solid var(--line)' }}>
                 <p className="dd-kicker pt-3" style={{ color: 'var(--ink-2)' }}>
@@ -777,10 +757,7 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                 </p>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => {
-                      setResident(true);
-                      setMapView('zones'); // the map above becomes the zone picker
-                    }}
+                    onClick={() => setResident(true)}
                     className={resident === true ? 'dd-btn dd-btn-primary' : 'dd-btn dd-btn-ghost'}
                     aria-pressed={resident === true}
                   >
@@ -790,7 +767,6 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                     onClick={() => {
                       setResident(false);
                       setMyZone(null);
-                      setMapView('areas');
                     }}
                     className={resident === false ? 'dd-btn dd-btn-primary' : 'dd-btn dd-btn-ghost'}
                     aria-pressed={resident === false}
@@ -802,30 +778,11 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                   Results can be filtered by this answer, so people inside and outside the city can be
                   read apart.
                 </p>
-
-                {resident === true && mapView === 'areas' && (
-                  <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
-                    {myZone == null
-                      ? 'You can also say roughly which part of town you live in — '
-                      : 'Thanks — you picked the part of town you live in. '}
-                    <button onClick={() => setMapView('zones')} className="dd-link-accent">
-                      {myZone == null ? 'pick an area on the map' : 'Change it'}
-                    </button>
-                    {myZone != null && (
-                      <>
-                        {' · '}
-                        <button onClick={() => setMyZone(null)} className="dd-link-accent">
-                          Clear
-                        </button>
-                      </>
-                    )}
-                  </p>
-                )}
               </div>
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleSubmit}
+                  onClick={submitAreas}
                   disabled={validAreas.length === 0 || resident === null || submitting}
                   className="dd-btn dd-btn-primary ml-auto"
                 >
@@ -838,6 +795,64 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                 </p>
               )}
               {submitError && <p className="text-sm" style={{ color: 'var(--accent)' }}>{submitError}</p>}
+            </div>
+          )}
+
+          {phase === 'zone' && selectedCity && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-baseline justify-between flex-wrap gap-2">
+                <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>
+                  Which part of {selectedCity.name} do you live in?
+                </h2>
+                <span className="dd-kicker" style={{ color: 'var(--ink-3)' }}>
+                  Optional
+                </span>
+              </div>
+              <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
+                Your answer is already saved. Tap the square you live in and it will be added to it,
+                so the results can be read by where people live. These squares are a few kilometres
+                across on purpose: nothing more precise than the one you tap is ever asked for or
+                stored. Skip this and your answer still counts everywhere else.
+              </p>
+
+              <CityMap
+                mode="zones"
+                boundary={selectedCity.boundary}
+                bbox={selectedCity.bbox}
+                zones={pickerZones}
+                selectedZoneIds={myZone == null ? [] : [myZone]}
+                onZoneClick={(id) => setMyZone((current) => (current === id ? null : id))}
+                className="h-96 lg:h-[34rem] w-full rounded-sm border border-gray-200"
+              />
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <span className="text-sm" style={{ color: myZone == null ? 'var(--ink-3)' : 'var(--ink)' }}>
+                  {pickerZones.length === 0
+                    ? 'Loading zones…'
+                    : myZone == null
+                      ? 'No area picked yet'
+                      : 'You live around the highlighted square'}
+                </span>
+                {myZone != null && (
+                  <button onClick={() => setMyZone(null)} className="dd-link-accent text-sm">
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={finishWithZone}
+                  disabled={submitting}
+                  className="dd-btn dd-btn-primary ml-auto"
+                >
+                  {submitting
+                    ? 'Loading…'
+                    : myZone == null
+                      ? 'Skip and show results'
+                      : 'Submit and show results'}
+                </button>
+              </div>
             </div>
           )}
 

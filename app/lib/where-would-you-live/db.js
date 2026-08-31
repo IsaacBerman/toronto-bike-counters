@@ -89,6 +89,24 @@ export async function insertLiveSubmission({
   return rows.length > 0;
 }
 
+// The zone answer is asked for on a second step, after the areas have already
+// been saved, so it lands as an amendment to the row this browser just inserted.
+// Only an empty zone is filled: moving an answer from one zone to another would
+// leave the source zone's stored grid counting an answer it no longer holds.
+// Returns the row's clipped polygons so the caller can fold them into the zone's
+// grid, or null when there was nothing to amend.
+export async function setLiveSubmissionZone(cityId, submitterHash, zoneId, zoneCenter) {
+  await ensureTables();
+  const rows = await query(
+    `UPDATE live_submissions
+        SET zone_id = $3, zone_lng = $4, zone_lat = $5
+      WHERE city_id = $1 AND submitter_hash = $2 AND resident = true AND zone_id IS NULL
+      RETURNING clipped_polygons`,
+    [cityId, submitterHash, zoneId, zoneCenter?.[0] ?? null, zoneCenter?.[1] ?? null]
+  );
+  return rows[0]?.clipped_polygons ?? null;
+}
+
 // Submissions from this IP in the last 24h, for the per-IP rate limit. Fails
 // open (0): the limit is an abuse brake, not a gate worth breaking submits for.
 export async function countRecentLiveSubmissionsByIp(ipHash) {

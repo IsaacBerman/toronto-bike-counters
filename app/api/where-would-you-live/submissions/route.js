@@ -8,6 +8,7 @@ import {
   getLiveZoneGrid,
   saveLiveZoneGrid,
   getLiveSubmissionsForZone,
+  setLiveSubmissionZone,
 } from '../../../lib/where-would-you-live/db';
 import {
   clipAreasToBoundary,
@@ -219,4 +220,48 @@ export async function POST(request) {
     });
   }
   return response;
+}
+
+// The zone question is asked after the areas are already saved, so the answer
+// arrives here as an amendment to this browser's existing row rather than as
+// part of the insert. Nothing else about the submission can be changed, and a
+// zone that is already set stays put.
+export async function PATCH(request) {
+  const body = await request.json().catch(() => null);
+  const citySlug = body?.citySlug;
+  const requestedZoneId = Number.isInteger(body?.zoneId) ? body.zoneId : null;
+
+  if (!citySlug || requestedZoneId == null) {
+    return NextResponse.json({ error: 'A city and a zone are required.' }, { status: 400 });
+  }
+
+  const row = await getCityBySlug(citySlug);
+  if (!row) {
+    return NextResponse.json({ error: 'City not found.' }, { status: 404 });
+  }
+  const city = await liveCityView(row);
+
+  // Same rule as the insert: the client sends an id, the server resolves the
+  // square's own center from the authoritative layout.
+  const layout = cachedZoneLayout(city);
+  if (!layout.ids.includes(requestedZoneId)) {
+    return NextResponse.json({ error: 'Unknown area.' }, { status: 400 });
+  }
+
+  const { hash } = getSubmitterIdentity(request);
+  const clipped = await setLiveSubmissionZone(
+    city.id,
+    hash,
+    requestedZoneId,
+    zoneCenterLngLat(layout, requestedZoneId)
+  );
+  if (!clipped) {
+    // No row to amend (a lost identity cookie), or one that already carries a
+    // zone. Either way the areas that matter are saved, so this is not worth
+    // stopping the visitor over — the results are still what they asked for.
+    return NextResponse.json({ success: false }, { status: 200 });
+  }
+
+  await foldIntoZoneGrid(city, requestedZoneId, clipped);
+  return NextResponse.json({ success: true });
 }
