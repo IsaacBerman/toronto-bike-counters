@@ -7,6 +7,7 @@ const ROUTES = [
   { path: '', priority: 1, changeFrequency: 'weekly' },
   { path: '/slow-zones', priority: 0.9, changeFrequency: 'daily' },
   { path: '/bike-counters', priority: 0.9, changeFrequency: 'daily' },
+  { path: '/bike-share-wards', priority: 0.8, changeFrequency: 'weekly' },
   { path: '/transform-toronto', priority: 0.8, changeFrequency: 'monthly' },
   { path: '/downtown-definer', priority: 0.8, changeFrequency: 'weekly' },
   { path: '/where-would-you-live', priority: 0.8, changeFrequency: 'weekly' },
