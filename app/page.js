@@ -54,11 +54,6 @@ export default function Home() {
             blurb="Dashboard showing Toronto permanent bicycle counter data and Bike Share ridership."
           />
           <ProjectCard
-            href="/bike-share-wards"
-            title="Bike Share by Ward"
-            blurb="A profile of Bike Share Toronto in each of the 25 wards: stations and trips by month, the e-bike split, how far apart the docks sit, and how the network thins toward the suburbs."
-          />
-          <ProjectCard
             href="/transform-toronto"
             title="TransformTO Tracking"
             blurb="Toronto travel mode share by ward, trip distance and year, from the Transportation Tomorrow Survey."

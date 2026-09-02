@@ -100,7 +100,13 @@ const METRICS = [
   },
 ];
 
-export default function BikeShareWards() {
+/**
+ * The ward profile. Standalone it owns its own ?ward= param; embedded in the
+ * bike-counters page it is handed `ward` and `onSelectWard` instead, because
+ * that page already owns the query string and two writers would fight over it.
+ */
+export default function BikeShareWards({ embedded = false, ward: controlledWard, onSelectWard }) {
+  const controlled = typeof onSelectWard === 'function';
   const [geo, setGeo] = useState(null);
   const [cityBoundary, setCityBoundary] = useState(null);
   const [profiles, setProfiles] = useState(null);
@@ -109,23 +115,25 @@ export default function BikeShareWards() {
   const [metricId, setMetricId] = useState('density');
   const [year, setYear] = useState(null);
   const [grain, setGrain] = useState('year'); // 'year' | 'month'
-  const [ward, setWard] = useState('city');
+  const [internalWard, setInternalWard] = useState('city');
+  const ward = controlled ? (controlledWard ?? 'city') : internalWard;
   const [lastWard, setLastWard] = useState(13); // Toronto Centre, the densest ward
 
   // The selected ward lives in the URL as ?ward=13, so one ward's profile can be
   // linked to directly. Mount reads it, popstate follows the back button, and
   // selectWard pushes each change.
   useEffect(() => {
+    if (controlled) return undefined;
     const readUrl = () => wardFromSearch(window.location.search);
     const apply = (w) => {
-      setWard(w);
+      setInternalWard(w);
       if (w !== 'city') setLastWard(w);
     };
     apply(readUrl());
     const onPop = () => apply(readUrl());
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  }, [controlled]);
 
   useEffect(() => {
     let alive = true;
@@ -154,8 +162,12 @@ export default function BikeShareWards() {
   }, []);
 
   const selectWard = (w) => {
-    setWard(w);
     if (w !== 'city') setLastWard(w);
+    if (controlled) {
+      onSelectWard(w);
+      return;
+    }
+    setInternalWard(w);
     const url = new URL(window.location.href);
     if (w === 'city') url.searchParams.delete('ward');
     else url.searchParams.set('ward', String(w));
@@ -265,7 +277,7 @@ export default function BikeShareWards() {
 
   if (err)
     return (
-      <Shell>
+      <Shell embedded={embedded}>
         <div className="dd-panel-ruled p-5">
           <p className="text-sm" style={{ color: INK }}>
             <b>Could not load the ward data.</b>
@@ -281,7 +293,7 @@ export default function BikeShareWards() {
 
   if (!profiles || !geo || year == null)
     return (
-      <Shell>
+      <Shell embedded={embedded}>
         <p className="text-sm" style={{ color: INK2 }}>
           Loading Bike Share ward data…
         </p>
@@ -300,10 +312,12 @@ export default function BikeShareWards() {
   const hasModel = modelSeries.length > 0;
 
   return (
-    <Shell>
-      <h1 className="dd-title text-4xl sm:text-5xl mb-8" style={{ color: INK }}>
-        Bike Share by Ward
-      </h1>
+    <Shell embedded={embedded}>
+      {!embedded && (
+        <h1 className="dd-title text-4xl sm:text-5xl mb-8" style={{ color: INK }}>
+          Bike Share by Ward
+        </h1>
+      )}
 
       <div className="dd-panel-ruled p-4 sm:p-5 grid gap-4 sm:grid-cols-4">
         <Stat label="Stations placed" value={int(city.stations)} note="across all 25 wards" />
@@ -791,7 +805,8 @@ function yearRowCity(city, year) {
   return city.byYear.find((r) => r.year === year);
 }
 
-function Shell({ children }) {
+function Shell({ children, embedded }) {
+  if (embedded) return <>{children}</>;
   return (
     <div style={{ background: 'var(--paper)', minHeight: '70vh' }}>
       <div className="container mx-auto px-4 max-w-6xl pt-4 pb-8 sm:pb-12">{children}</div>

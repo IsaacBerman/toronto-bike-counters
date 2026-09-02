@@ -9,7 +9,6 @@ import { ChevronDown } from 'lucide-react';
 // underlined tab used to give.
 const PAGES = [
   { key: 'bike-counters', href: '/bike-counters', label: 'Bicycle Counters' },
-  { key: 'bike-share-wards', href: '/bike-share-wards', label: 'Bike Share by Ward' },
   { key: 'slow-zones', href: '/slow-zones', label: 'TTC Slow Zones' },
   { key: 'transform-toronto', href: '/transform-toronto', label: 'Transform Toronto' },
   { key: 'downtown-definer', href: '/downtown-definer', label: 'Where is Downtown?' },

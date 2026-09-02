@@ -2,12 +2,24 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime, bikeshareMonthlyBreakdown, USER_TYPES, BIKE_TYPES } from '../lib/dataUtils';
 import CounterChart from './counterChart';
 import HourlyBarChart from './hourlyBarChart';
 import StationMap from './stationMap';
 import StationDetail from './stationDetail';
 import TripTypeBreakdownChart from './tripTypeBreakdownChart';
+
+// Loaded only when the Ward breakdown tab is opened: it brings leaflet, turf
+// and a 150 KB ward file that the rest of this page never touches.
+const BikeShareWards = dynamic(() => import('./bike-share-wards/BikeShareWards'), {
+  ssr: false,
+  loading: () => (
+    <p className="p-6 text-sm" style={{ color: 'var(--ink-3)' }}>
+      Loading ward data…
+    </p>
+  ),
+});
 
 export default function BicycleCountersContent() {
   const [counters, setCounters] = useState([]);
@@ -24,7 +36,8 @@ export default function BicycleCountersContent() {
   const [rawBikeshare, setRawBikeshare] = useState([]);
   const [userType, setUserType] = useState('all');
   const [bikeType, setBikeType] = useState('all');
-  const [bikeshareTab, setBikeshareTab] = useState('trends'); // 'trends' | 'breakdown'
+  const [bikeshareTab, setBikeshareTab] = useState('trends'); // 'trends' | 'breakdown' | 'wards'
+  const [wardSel, setWardSel] = useState('city'); // ward number, or 'city'
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,6 +76,11 @@ export default function BicycleCountersContent() {
         setCounters(sortedCounters);
         setLoading(false);
         
+        const urlTab = searchParams.get('tab');
+        if (['trends', 'breakdown', 'wards'].includes(urlTab)) setBikeshareTab(urlTab);
+        const urlWard = Number(searchParams.get('ward'));
+        if (Number.isInteger(urlWard) && urlWard >= 1 && urlWard <= 25) setWardSel(urlWard);
+
         const urlCounter = searchParams.get('counter');
         const isValidCounter = sortedCounters.some(counter => counter.location === urlCounter);
         
@@ -96,9 +114,11 @@ export default function BicycleCountersContent() {
     if (selectedCounter && !loading) {
       const params = new URLSearchParams();
       params.set('counter', selectedCounter);
+      if (bikeshareTab !== 'trends') params.set('tab', bikeshareTab);
+      if (bikeshareTab === 'wards' && wardSel !== 'city') params.set('ward', String(wardSel));
       router.replace(`?${params.toString()}`, { scroll: false });
     }
-  }, [selectedCounter, loading, router]);
+  }, [selectedCounter, loading, router, bikeshareTab, wardSel]);
 
   // Re-derive the Bike Share series whenever the trip-type filters change.
   const filteredBikeshare = useMemo(() => {
@@ -311,7 +331,8 @@ export default function BicycleCountersContent() {
                 <div className="flex gap-1 border-b" style={{ borderColor: 'var(--line)' }} role="tablist">
                   {[
                     { id: 'trends', label: 'Daily trends' },
-                    { id: 'breakdown', label: 'Trip type breakdown' }
+                    { id: 'breakdown', label: 'Trip type breakdown' },
+                    { id: 'wards', label: 'Ward breakdown' }
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -420,7 +441,18 @@ export default function BicycleCountersContent() {
         </div>
 
         {/* Chart Display */}
-        {isBikeShare && bikeshareTab === 'breakdown' ? (
+        {isBikeShare && bikeshareTab === 'wards' ? (
+          <div className="dd-panel overflow-hidden">
+            <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
+              <h2 className="dd-title text-xl" style={{ color: 'var(--ink)' }}>
+                Bike Share Toronto — Ward breakdown
+              </h2>
+            </div>
+            <div className="p-4">
+              <BikeShareWards embedded ward={wardSel} onSelectWard={setWardSel} />
+            </div>
+          </div>
+        ) : isBikeShare && bikeshareTab === 'breakdown' ? (
           <div className="dd-panel overflow-hidden">
             <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
               <h2 className="dd-title text-xl" style={{ color: 'var(--ink)' }}>
