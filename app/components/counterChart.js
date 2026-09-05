@@ -3,12 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Scatter } from 'recharts';
+import useTapAwayDismiss from '../lib/useTapAwayDismiss';
 
 export default function CounterChart({ data, title, measureLabel }) {
   const [visibleYears, setVisibleYears] = useState({});
   const [isChartReady, setIsChartReady] = useState(false);
   const [showCumulative, setShowCumulative] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
+  const { chartRef, tooltipActive, restoreTooltip } = useTapAwayDismiss();
 
   useEffect(() => {
     // Reset chart ready state when data changes
@@ -207,6 +209,7 @@ export default function CounterChart({ data, title, measureLabel }) {
 
   // Handle tooltip visibility for mobile
   const handleChartMouseMove = (state) => {
+    restoreTooltip();
     if (state && state.isTooltipActive) {
       setActiveTooltip(true);
     } else if (activeTooltip) {
@@ -341,6 +344,7 @@ export default function CounterChart({ data, title, measureLabel }) {
 
   return (
     <div 
+      ref={chartRef}
       className="touch-pan-y relative"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -402,6 +406,7 @@ export default function CounterChart({ data, title, measureLabel }) {
               data={yearOverYearData} 
               margin={{ top: 20, right: 30, left: 48, bottom: 50 }}
               onMouseMove={handleChartMouseMove}
+              onTouchMove={restoreTooltip}
               onMouseLeave={handleChartMouseLeave}
             >
               <CartesianGrid strokeDasharray="3 3" />
@@ -418,6 +423,7 @@ export default function CounterChart({ data, title, measureLabel }) {
               />
               <Tooltip 
                 content={<CustomTooltip />} 
+                active={tooltipActive}
                 cursor={{ stroke: '#ccc', strokeWidth: 1 }}
               />
               

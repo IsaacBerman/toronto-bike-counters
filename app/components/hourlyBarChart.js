@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import useTapAwayDismiss from '../lib/useTapAwayDismiss';
 
 // Helper function to get current time in EST
 const getCurrentESTTime = () => {
@@ -52,6 +53,7 @@ export default function HourlyBarChart({ data }) {
   const [cumulativeData, setCumulativeData] = useState([]);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const [currentESTTime, setCurrentESTTime] = useState(null);
+  const { chartRef, tooltipActive, restoreTooltip } = useTapAwayDismiss();
 
   useEffect(() => {
     setIsChartReady(false);
@@ -198,6 +200,7 @@ export default function HourlyBarChart({ data }) {
 
   // Handle tooltip visibility for mobile
   const handleChartMouseMove = (state) => {
+    restoreTooltip();
     if (state && state.isTooltipActive) {
       setActiveTooltip(true);
     } else if (activeTooltip) {
@@ -321,7 +324,7 @@ export default function HourlyBarChart({ data }) {
   }
 
   return (
-    <div className="touch-pan-y relative">
+    <div ref={chartRef} className="touch-pan-y relative">
       <div className="flex items-center gap-2 px-4 pt-4">
         <label className="flex items-center gap-2 cursor-pointer select-none">
           <input
@@ -342,6 +345,7 @@ export default function HourlyBarChart({ data }) {
                 data={barChartData} 
                 margin={{ top: 20, right: 30, left: 30, bottom: 60 }}
                 onMouseMove={handleChartMouseMove}
+                onTouchMove={restoreTooltip}
                 onMouseLeave={handleChartMouseLeave}
               >
                 <CartesianGrid strokeDasharray="3 3" />
@@ -359,6 +363,7 @@ export default function HourlyBarChart({ data }) {
                 />
                 <Tooltip 
                   content={<BarTooltip />} 
+                  active={tooltipActive}
                   wrapperStyle={{ zIndex: 1000 }}
                   cursor={{ stroke: '#ccc', strokeWidth: 1 }}
                 />
@@ -402,6 +407,7 @@ export default function HourlyBarChart({ data }) {
                 data={cumulativeData} 
                 margin={{ top: 20, right: 30, left: 30, bottom: 60 }}
                 onMouseMove={handleChartMouseMove}
+                onTouchMove={restoreTooltip}
                 onMouseLeave={handleChartMouseLeave}
               >
                 <CartesianGrid strokeDasharray="3 3" />
@@ -419,6 +425,7 @@ export default function HourlyBarChart({ data }) {
                 />
                 <Tooltip 
                   content={<CumulativeTooltip />} 
+                  active={tooltipActive}
                   wrapperStyle={{ zIndex: 1000 }}
                   cursor={{ stroke: '#ccc', strokeWidth: 1 }}
                 />
