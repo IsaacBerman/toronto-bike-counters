@@ -256,10 +256,11 @@ export default function CounterChart({ data, title, measureLabel }) {
       return (
         // Positioned by Recharts, which flips it to whichever side of the
         // hovered point has room — on a phone as well as on a desktop. The
-        // phone box stays under half the plot width so there is a side for it
-        // to flip to, which is why the labels below shed everything the chart
-        // header already tells you.
-        <div className="bg-white p-2 md:p-3 border border-gray-300 rounded-lg shadow-lg font-sans max-w-[150px] md:max-w-[280px]" style={{zIndex: 9999}}>
+        // phone box has to stay under half the plot width for there to be a
+        // side to flip to, which is why the labels below shed everything the
+        // chart header already tells you; globals.css lends it the axis gutter
+        // for the points where even that is a squeeze.
+        <div className="bg-white p-2 md:p-3 border border-gray-300 rounded-lg shadow-lg font-sans max-w-[120px] md:max-w-[280px]" style={{zIndex: 9999}}>
           <p className="font-semibold text-gray-800 text-xs md:text-sm mb-1 md:mb-2">
             {label}
           </p>
@@ -346,7 +347,7 @@ export default function CounterChart({ data, title, measureLabel }) {
   return (
     <div 
       ref={chartRef}
-      className="touch-pan-y relative"
+      className="counter-chart touch-pan-y relative"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       style={{ touchAction: 'pan-y' }}

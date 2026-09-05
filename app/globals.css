@@ -195,3 +195,16 @@ body {
   opacity: 1;
   visibility: visible;
 }
+
+/* Recharts will only place a tooltip inside the plot area, so on a phone a
+   point near the middle of the counter chart leaves the box clamped against
+   the y-axis and covering the line it describes. The gutter holding the axis
+   is ~100px of otherwise empty space, so lend a left-placed box some of it and
+   the point stays visible. Recharts tags the box with -left only when it sat
+   it to the left of the point, so this never pushes one towards the point.
+   The breakpoint matches the `md:` one sizing the box in counterChart.js. */
+@media (max-width: 767px) {
+  .counter-chart .recharts-tooltip-wrapper-left {
+    margin-left: -26px;
+  }
+}
