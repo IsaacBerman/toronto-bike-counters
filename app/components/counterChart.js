@@ -228,8 +228,6 @@ export default function CounterChart({ data, title, measureLabel }) {
 
   // Custom tooltip formatter
   const CustomTooltip = ({ active, payload, label }) => {
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-
     if (active && payload && payload.length) {
       // Filter to get unique years with their values
       const yearData = [];
@@ -256,9 +254,9 @@ export default function CounterChart({ data, title, measureLabel }) {
       if (yearData.length === 0) return null;
       
       return (
-        <div className={`bg-white p-3 border border-gray-300 rounded-lg shadow-lg font-sans ${
-          isMobile ? 'max-w-[250px] mx-auto fixed bottom-4 left-1/2 transform -translate-x-1/2' : 'max-w-[280px]'
-        }`} style={{zIndex: 9999}}>
+        // Positioned by Recharts, which flips it to whichever side of the
+        // hovered point has room — on a phone as well as on a desktop.
+        <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg font-sans max-w-[250px] md:max-w-[280px]" style={{zIndex: 9999}}>
           <p className="font-semibold text-gray-800 text-sm mb-2">
             {label}
           </p>
