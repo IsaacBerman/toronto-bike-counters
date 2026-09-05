@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime, bikeshareMonthlyBreakdown, USER_TYPES, BIKE_TYPES } from '../lib/dataUtils';
@@ -42,6 +42,12 @@ export default function BicycleCountersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // The URL as it stood when the page opened. Held in a ref so the load below
+  // can read it without listing searchParams as a dependency: it used to, and
+  // the ?counter= this page writes for itself the moment it picks a default
+  // then kicked off a second full load — archive, live API and all.
+  const initialSearchParams = useRef(searchParams);
+
   useEffect(() => {
     // Get current EST time on mount
     setCurrentEST(getCurrentESTTime());
@@ -76,12 +82,14 @@ export default function BicycleCountersContent() {
         setCounters(sortedCounters);
         setLoading(false);
         
-        const urlTab = searchParams.get('tab');
+        const params = initialSearchParams.current;
+
+        const urlTab = params.get('tab');
         if (['trends', 'breakdown', 'wards'].includes(urlTab)) setBikeshareTab(urlTab);
-        const urlWard = Number(searchParams.get('ward'));
+        const urlWard = Number(params.get('ward'));
         if (Number.isInteger(urlWard) && urlWard >= 1 && urlWard <= 25) setWardSel(urlWard);
 
-        const urlCounter = searchParams.get('counter');
+        const urlCounter = params.get('counter');
         const isValidCounter = sortedCounters.some(counter => counter.location === urlCounter);
         
         if (urlCounter && isValidCounter) {
@@ -97,7 +105,24 @@ export default function BicycleCountersContent() {
     }
 
     fetchData();
-  }, [searchParams]);
+  }, []);
+
+  // Later URL changes — the back and forward buttons — still move the page,
+  // they just no longer reload anything.
+  useEffect(() => {
+    if (counters.length === 0) return;
+
+    const urlTab = searchParams.get('tab');
+    if (['trends', 'breakdown', 'wards'].includes(urlTab)) setBikeshareTab(urlTab);
+
+    const urlWard = Number(searchParams.get('ward'));
+    if (Number.isInteger(urlWard) && urlWard >= 1 && urlWard <= 25) setWardSel(urlWard);
+
+    const urlCounter = searchParams.get('counter');
+    if (urlCounter && counters.some(counter => counter.location === urlCounter)) {
+      setSelectedCounter(urlCounter);
+    }
+  }, [counters, searchParams]);
 
   useEffect(() => {
     async function fetchHourlyData() {

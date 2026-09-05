@@ -1,9 +1,69 @@
 // counterChart.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Scatter } from 'recharts';
 import useTapAwayDismiss from '../lib/useTapAwayDismiss';
+
+// One formatter for the ~366 x-axis labels. Calling toLocaleDateString per row
+// rebuilds this internally each time, which cost more than the rest of the
+// chart's data pipeline put together.
+const AXIS_DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric'
+});
+
+// Kept out of the component so the memo that calls them can hold a stable
+// dependency list rather than rebuilding on every render.
+const indexByDateKey = (points) => new Map(points.map(point => [point.dateKey, point]));
+
+const calculateRollingAverageForYear = (yearData) => {
+  if (!yearData || yearData.length === 0) return [];
+
+  const sortedData = [...yearData].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  const result = [];
+
+  for (let i = 0; i < sortedData.length; i++) {
+    const startIndex = Math.max(0, i - 13);
+
+    // Summed in place rather than through slice/filter/map/reduce: same
+    // fourteen days in the same order, without four throwaway arrays per day.
+    let sum = 0;
+    let count = 0;
+    for (let j = startIndex; j <= i; j++) {
+      const volume = sortedData[j].volume;
+      if (volume > 0) {
+        sum += volume;
+        count++;
+      }
+    }
+
+    result.push({
+      ...sortedData[i],
+      rollingAverage: count > 0 ? Math.round(sum / count) : 0
+    });
+  }
+
+  return result;
+};
+
+const calculateCumulativeForYear = (yearData) => {
+  if (!yearData || yearData.length === 0) return [];
+
+  const sortedData = [...yearData].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  let cumulativeSum = 0;
+  const result = [];
+
+  for (let i = 0; i < sortedData.length; i++) {
+    cumulativeSum += sortedData[i].volume;
+    result.push({
+      ...sortedData[i],
+      cumulativeVolume: cumulativeSum
+    });
+  }
+
+  return result;
+};
 
 export default function CounterChart({ data, title, measureLabel }) {
   const [visibleYears, setVisibleYears] = useState({});
@@ -24,6 +84,95 @@ export default function CounterChart({ data, title, measureLabel }) {
     return () => clearTimeout(timer);
   }, [data]);
 
+  const availableYears = useMemo(() => {
+    const years = new Set();
+    (data ?? []).forEach(point => {
+      years.add(parseInt(point.date.split('-')[0]));
+    });
+    return Array.from(years).sort();
+  }, [data]);
+
+  // The chart's one heavy computation. It used to run on every render — every
+  // hover included — and each row scanned every year's points for a matching
+  // day, so the work grew with years x days. Now it is keyed by dateKey and
+  // only rebuilds when the series or the cumulative toggle actually changes.
+  const yearOverYearData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+
+    const allDates = new Set();
+    const pointsByYear = {};
+    const dailyByYear = {};
+    const rollingByYear = {};
+    const cumulativeByYear = {};
+
+    availableYears.forEach(year => {
+      pointsByYear[year] = [];
+    });
+
+    // Group data by year and date - work directly with date strings
+    data.forEach(point => {
+      // Split the date string directly (no timezone conversion)
+      const dateParts = point.date.split('-');
+      const year = parseInt(dateParts[0]);
+      const month = dateParts[1];
+      const day = dateParts[2];
+
+      // Create dateKey with reference year 2024 for consistent X-axis
+      const dateKey = `2024-${month}-${day}`;
+
+      if (pointsByYear[year]) {
+        pointsByYear[year].push({
+          dateKey: dateKey,
+          volume: point.volume,
+          date: point.date,
+          year: year,
+          month: parseInt(month),
+          day: parseInt(day)
+        });
+        allDates.add(dateKey);
+      }
+    });
+
+    // Calculate rolling averages and cumulative totals for each year
+    availableYears.forEach(year => {
+      const points = pointsByYear[year];
+      dailyByYear[year] = indexByDateKey(points);
+      rollingByYear[year] = indexByDateKey(calculateRollingAverageForYear(points));
+      cumulativeByYear[year] = indexByDateKey(calculateCumulativeForYear(points));
+    });
+
+    // Create array of all dates in order
+    const sortedDates = Array.from(allDates).sort();
+
+    // Build the dataset for the chart
+    return sortedDates.map(dateKey => {
+      // Extract month and day from dateKey for display
+      const parts = dateKey.split('-');
+      const month = parseInt(parts[1]);
+      const day = parseInt(parts[2]);
+
+      const dataPoint = {
+        dateKey: dateKey,
+        displayDate: AXIS_DATE_FORMAT.format(new Date(2024, month - 1, day))
+      };
+
+      // Add data for each year
+      availableYears.forEach(year => {
+        if (showCumulative) {
+          const cumulativePoint = cumulativeByYear[year].get(dateKey);
+          dataPoint[`cumulative_${year}`] = cumulativePoint ? cumulativePoint.cumulativeVolume : null;
+        } else {
+          const dailyPoint = dailyByYear[year].get(dateKey);
+          dataPoint[`daily_${year}`] = dailyPoint ? dailyPoint.volume : null;
+          const rollingPoint = rollingByYear[year].get(dateKey);
+          dataPoint[`rolling_${year}`] = rollingPoint ? rollingPoint.rollingAverage : null;
+        }
+      });
+
+      return dataPoint;
+    });
+  }, [data, availableYears, showCumulative]);
+
   if (!data || data.length === 0) {
     return <div className="text-center p-8 text-gray-500">No data available for this counter</div>;
   }
@@ -37,19 +186,6 @@ export default function CounterChart({ data, title, measureLabel }) {
     e.preventDefault();
   };
 
-  // Get all available years from the data
-  const getAvailableYears = () => {
-    const years = new Set();
-    data.forEach(point => {
-      const year = parseInt(point.date.split('-')[0]);
-      years.add(year);
-    });
-    return Array.from(years).sort();
-  };
-
-  // Initialize visible years (all true by default)
-  const availableYears = getAvailableYears();
-  
   // Initialize visibility state if not already set
   if (Object.keys(visibleYears).length === 0 && availableYears.length > 0) {
     const initialVisibility = {};
@@ -76,135 +212,6 @@ export default function CounterChart({ data, title, measureLabel }) {
       newVisibility[year] = !allVisible;
     });
     setVisibleYears(newVisibility);
-  };
-
-  const calculateRollingAverageForYear = (yearData) => {
-    if (!yearData || yearData.length === 0) return [];
-    
-    const sortedData = [...yearData].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
-    const result = [];
-    
-    for (let i = 0; i < sortedData.length; i++) {
-      const startIndex = Math.max(0, i - 13);
-      const windowData = sortedData.slice(startIndex, i + 1);
-      const validVolumes = windowData.filter(point => point.volume > 0).map(point => point.volume);
-      
-      if (validVolumes.length > 0) {
-        const average = validVolumes.reduce((sum, vol) => sum + vol, 0) / validVolumes.length;
-        result.push({
-          ...sortedData[i],
-          rollingAverage: Math.round(average)
-        });
-      } else {
-        result.push({
-          ...sortedData[i],
-          rollingAverage: 0
-        });
-      }
-    }
-    
-    return result;
-  };
-
-  const calculateCumulativeForYear = (yearData) => {
-    if (!yearData || yearData.length === 0) return [];
-    
-    const sortedData = [...yearData].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
-    let cumulativeSum = 0;
-    const result = [];
-    
-    for (let i = 0; i < sortedData.length; i++) {
-      cumulativeSum += sortedData[i].volume;
-      result.push({
-        ...sortedData[i],
-        cumulativeVolume: cumulativeSum
-      });
-    }
-    
-    return result;
-  };
-
-  const getYearOverYearData = () => {
-    const years = availableYears;
-    const allDates = new Set();
-    const yearsData = {};
-    const yearsRollingAvg = {};
-    const yearsCumulative = {};
-
-    // Initialize data structure for each year
-    years.forEach(year => {
-      yearsData[year] = [];
-    });
-
-    // Group data by year and date - work directly with date strings
-    data.forEach(point => {
-      // Split the date string directly (no timezone conversion)
-      const dateParts = point.date.split('-');
-      const year = parseInt(dateParts[0]);
-      const month = dateParts[1];
-      const day = dateParts[2];
-      
-      // Create dateKey with reference year 2024 for consistent X-axis
-      const dateKey = `2024-${month}-${day}`;
-      
-      if (yearsData[year]) {
-        yearsData[year].push({
-          dateKey: dateKey,
-          volume: point.volume,
-          date: point.date,
-          year: year,
-          month: parseInt(month),
-          day: parseInt(day)
-        });
-        allDates.add(dateKey);
-      }
-    });
-
-    // Calculate rolling averages and cumulative totals for each year
-    years.forEach(year => {
-      if (yearsData[year] && yearsData[year].length > 0) {
-        yearsRollingAvg[year] = calculateRollingAverageForYear(yearsData[year]);
-        yearsCumulative[year] = calculateCumulativeForYear(yearsData[year]);
-      } else {
-        yearsRollingAvg[year] = [];
-        yearsCumulative[year] = [];
-      }
-    });
-
-    // Create array of all dates in order
-    const sortedDates = Array.from(allDates).sort();
-
-    // Build the dataset for the chart
-    return sortedDates.map(dateKey => {
-      // Extract month and day from dateKey for display
-      const parts = dateKey.split('-');
-      const month = parseInt(parts[1]);
-      const day = parseInt(parts[2]);
-      
-      const dataPoint = { 
-        dateKey: dateKey,
-        displayDate: new Date(2024, month - 1, day).toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric'
-        })
-      };
-      
-      // Add data for each year
-      years.forEach(year => {
-        const dailyPoint = yearsData[year]?.find(p => p.dateKey === dateKey);
-        
-        if (showCumulative) {
-          const cumulativePoint = yearsCumulative[year]?.find(p => p.dateKey === dateKey);
-          dataPoint[`cumulative_${year}`] = cumulativePoint ? cumulativePoint.cumulativeVolume : null;
-        } else {
-          dataPoint[`daily_${year}`] = dailyPoint ? dailyPoint.volume : null;
-          const rollingPoint = yearsRollingAvg[year]?.find(p => p.dateKey === dateKey);
-          dataPoint[`rolling_${year}`] = rollingPoint ? rollingPoint.rollingAverage : null;
-        }
-      });
-      
-      return dataPoint;
-    });
   };
 
   // Handle tooltip visibility for mobile
@@ -321,7 +328,6 @@ export default function CounterChart({ data, title, measureLabel }) {
     return `hsl(${hue}, 70%, 50%)`;
   };
 
-  const yearOverYearData = getYearOverYearData();
   
   // Calculate if any years are visible
   const hasVisibleYears = Object.values(visibleYears).some(v => v === true);
