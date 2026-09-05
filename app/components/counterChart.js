@@ -255,24 +255,27 @@ export default function CounterChart({ data, title, measureLabel }) {
       
       return (
         // Positioned by Recharts, which flips it to whichever side of the
-        // hovered point has room — on a phone as well as on a desktop.
-        <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg font-sans max-w-[250px] md:max-w-[280px]" style={{zIndex: 9999}}>
-          <p className="font-semibold text-gray-800 text-sm mb-2">
+        // hovered point has room — on a phone as well as on a desktop. The
+        // phone box stays under half the plot width so there is a side for it
+        // to flip to, which is why the labels below shed everything the chart
+        // header already tells you.
+        <div className="bg-white p-2 md:p-3 border border-gray-300 rounded-lg shadow-lg font-sans max-w-[150px] md:max-w-[280px]" style={{zIndex: 9999}}>
+          <p className="font-semibold text-gray-800 text-xs md:text-sm mb-1 md:mb-2">
             {label}
           </p>
           {yearData.map(({year, value, dailyValue}) => (
             <div key={year} className="mb-1">
-              <p className="text-sm" style={{ color: getYearColor(year) }}>
+              <p className="text-[11px] md:text-sm" style={{ color: getYearColor(year) }}>
                 <span className="font-semibold">{year}:</span>
-                <span className="ml-2">
+                <span className="ml-1 md:ml-2">
                   {showCumulative ? (
-                    <>Cumulative: <span className="font-semibold">{value.toLocaleString()}</span></>
+                    <><span className="hidden md:inline">Cumulative: </span><span className="font-semibold">{value.toLocaleString()}</span></>
                   ) : (
-                    <>14-day avg: <span className="font-semibold">{value.toLocaleString()}</span></>
+                    <><span className="hidden md:inline">14-day </span>avg: <span className="font-semibold">{value.toLocaleString()}</span></>
                   )}
                 </span>
                 {!showCumulative && dailyValue && dailyValue > 0 && (
-                  <span className="ml-2 text-gray-600">(daily: {dailyValue.toLocaleString()})</span>
+                  <span className="ml-1 md:ml-2 text-gray-600">(daily: {dailyValue.toLocaleString()})</span>
                 )}
               </p>
             </div>
