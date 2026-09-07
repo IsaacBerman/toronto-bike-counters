@@ -302,7 +302,10 @@ export default function BikeShareWards({ embedded = false, ward: controlledWard,
 
   const city = profiles.city;
   const source = isCity ? city : selected;
-  const series = grain === 'year' ? source.byYear : source.monthly;
+  // Per-month charts drop the month still in progress: a bar or an area point
+  // covering a few days sits beside full months and reads as a collapse. Year
+  // totals keep it — that is the point of fetching it.
+  const series = grain === 'year' ? source.byYear : source.monthly.filter((r) => !r.partial);
   const yearRow = source.byYear.find((r) => r.year === year);
   // Only the rows where a bike model was recorded, with the e-bike share
   // precomputed so the bar labels don't recompute it per render.
@@ -329,13 +332,7 @@ export default function BikeShareWards({ embedded = false, ward: controlledWard,
         <Stat
           label={`Trips started, ${year}`}
           value={compact(yearRowCity(city, year)?.trips ?? 0)}
-          note={
-            yearRowCity(city, year)?.estimatedMonths > 0
-              ? `${yearRowCity(city, year).estimatedMonths} of ${yearRowCity(city, year).months} months estimated`
-              : yearRowCity(city, year)?.partial
-                ? 'year still in progress'
-                : 'full year'
-          }
+          note={coverageNote(yearRowCity(city, year))}
         />
         <Stat
           label="Density range"
@@ -430,7 +427,11 @@ export default function BikeShareWards({ embedded = false, ward: controlledWard,
           <p className="text-xs mt-1 mb-4" style={{ color: INK3 }}>
             {int(yearRow?.stations ?? 0)} stations · {int(yearRow?.trips ?? 0)} trips started ·{' '}
             {year}
-            {yearRow?.partial ? ` (${yearRow.months} months)` : ''}
+            {yearRow?.partial
+              ? yearRow.through
+                ? ` (through ${monthDay(yearRow.through)})`
+                : ` (${yearRow.months} months)`
+              : ''}
             {yearRow?.estimatedMonths > 0 && (
               <>
                 {' · '}
@@ -797,6 +798,30 @@ export default function BikeShareWards({ embedded = false, ward: controlledWard,
       </p>
     </Shell>
   );
+}
+
+// What a year's total actually covers. A year in progress used to say only
+// that it was unfinished, which left the reader to guess whether it ran to
+// yesterday or stopped weeks back at the last whole month — and the two differ
+// by the better part of a month of riding.
+function coverageNote(row) {
+  if (!row) return '';
+  const estimated = row.estimatedMonths > 0 ? `${row.estimatedMonths} months estimated` : null;
+  if (!row.partial) return estimated ? `full year · ${estimated}` : 'full year';
+  // A year still running names the day it reaches; a short year at the start of
+  // the record just says how much of it the archive holds.
+  const span = row.through ? `through ${monthDay(row.through)}` : `${row.months} months`;
+  return [span, estimated].filter(Boolean).join(' · ');
+}
+
+// '2026-09-06' -> 'Sep 6'
+function monthDay(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-CA', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
 }
 
 // City rows carry no `year` key collision with ward rows, but the city series is

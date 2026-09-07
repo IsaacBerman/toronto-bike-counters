@@ -64,17 +64,20 @@ const lastDayOf = (m) => {
   return new Date(Date.UTC(y, mo, 0)).getUTCDate();
 };
 
-// The last month that has actually finished, in Toronto. The current month is
-// still accruing, and a part-month plotted beside full ones reads as a crash.
-function lastCompleteMonth() {
+// The last day that has actually finished, in Toronto — 'YYYY-MM-DD'. Today is
+// still accruing, so a count that included it would be a fraction of a real
+// day. This is the same boundary the daily trip series stops at, which is what
+// lets the two agree on how much of the year they cover.
+function lastCompleteDay() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Toronto',
     year: 'numeric',
     month: '2-digit',
+    day: '2-digit',
   }).formatToParts(new Date());
-  const y = parts.find((p) => p.type === 'year').value;
-  const mo = parts.find((p) => p.type === 'month').value;
-  return addMonth(`${y}-${mo}`, -1);
+  const at = (t) => Number(parts.find((p) => p.type === t).value);
+  const d = new Date(Date.UTC(at('year'), at('month') - 1, at('day') - 1));
+  return d.toISOString().slice(0, 10);
 }
 
 /**
@@ -90,24 +93,40 @@ function lastCompleteMonth() {
  * into a single row per station, and the same range asked for daily is ~3.7 MB
  * a month rather than ~170 KB.
  *
+ * The month in progress is fetched too, cut off at the last finished day, and
+ * comes back flagged `partial`. A part-month belongs in a year's running total
+ * — leaving it out is what made the year read as ending weeks ago — but not in
+ * a chart of months, where a half-height last bar reads as a collapse. The
+ * flag is what lets each consumer decide.
+ *
  * A failure here is not fatal — the archive still renders on its own.
  */
 export async function fetchLiveMonths(cutoff) {
-  const through = lastCompleteMonth();
+  const throughDay = lastCompleteDay();
+  const through = throughDay.slice(0, 7);
   const wanted = [];
   for (let m = addMonth(cutoff, 1); m <= through; m = addMonth(m, 1)) wanted.push(m);
   if (!wanted.length) return [];
 
   const one = async (month) => {
     const stamp = month.replace('-', '');
+    // Whole months run to their last day; only the month in progress stops
+    // short, at the last day that has actually finished.
+    const end = month === through ? Number(throughDay.slice(8)) : lastDayOf(month);
     const url =
       `https://api.raccoon.bike/activity?system=bike_share_toronto&feed=station&station=all` +
-      `&start=${stamp}0100&end=${stamp}${String(lastDayOf(month)).padStart(2, '0')}23` +
+      `&start=${stamp}0100&end=${stamp}${String(end).padStart(2, '0')}23` +
       `&frequency=y&key=${RACCOON_KEY}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`bikeraccoon ${res.status} for ${month}`);
     const json = await res.json();
-    return { month, rows: json.data ?? [] };
+    return {
+      month,
+      rows: json.data ?? [],
+      days: end,
+      partial: end < lastDayOf(month),
+      through: `${month}-${String(end).padStart(2, '0')}`,
+    };
   };
 
   const settled = await Promise.allSettled(wanted.map(one));
@@ -164,9 +183,15 @@ export function buildWardProfiles({ data, geo, live = [] }) {
   // consumer below stays indifferent to where a month came from; `estimated`
   // is what tells them apart.
   const rosterWard = new Map(data.roster.map((s) => [String(s.id), s.w]));
-  const liveMonths = live.map((l) => l.month).filter((m) => m > data.cutoff);
+  const past = live.filter((l) => l.month > data.cutoff);
+  const liveMonths = past.map((l) => l.month);
+  // The month still in progress, if bikeraccoon returned one. It counts toward
+  // a year's total and is kept out of any chart drawn per month.
+  const partialMonths = new Set(past.filter((l) => l.partial).map((l) => l.month));
+  // The last day any live month actually covers, order-independent.
+  const throughDay = past.map((l) => l.through).filter(Boolean).sort().pop() ?? null;
   const liveByMonth = new Map(
-    live.map(({ month, rows }) => {
+    past.map(({ month, rows }) => {
       const trips = new Map();
       const docks = new Map();
       let placedTrips = 0;
@@ -225,8 +250,12 @@ export function buildWardProfiles({ data, geo, live = [] }) {
   const slotsByYear = new Map(years.map((y) => [y, []]));
   months.forEach((m, i) => slotsByYear.get(Number(m.slice(0, 4))).push(i));
   // The last year the archive covers in full; the current one stops at cutoff.
+  // Twelve months is not enough on its own — a December still in progress would
+  // otherwise pass as a complete year on its last few days.
   const monthsIn = (y) => slotsByYear.get(y).length;
-  const lastFullYear = [...years].reverse().find((y) => monthsIn(y) === 12) ?? years[0];
+  const wholeYear = (y) =>
+    monthsIn(y) === 12 && !slotsByYear.get(y).some((i) => partialMonths.has(months[i]));
+  const lastFullYear = [...years].reverse().find(wholeYear) ?? years[0];
 
   const wardMeta = new Map(
     geo.features.map((f) => {
@@ -281,6 +310,7 @@ export function buildWardProfiles({ data, geo, live = [] }) {
       electric: joint('member_electric', 'casual_electric', i),
       placed: data.placed[i],
       estimated: estimated.has(m),
+      partial: partialMonths.has(m),
     }));
 
     const byYear = years.map((y) => {
@@ -303,10 +333,15 @@ export function buildWardProfiles({ data, geo, live = [] }) {
             ? null
             : sumOver(data.member_electric[key], slots) + sumOver(data.casual_electric[key], slots),
         months: slots.length,
-        partial: slots.length < 12,
+        partial: !wholeYear(y),
         // How many of the year's months came from the live feed rather than
         // the City's count, so a mixed year can be labelled as one.
         estimatedMonths: slots.filter((i) => estimated.has(months[i])).length,
+        // The last day counted, set only for the year actually running now — so
+        // it can say how far it reaches rather than just that it is unfinished.
+        // A short year at the other end of the record (2016 starts in July) is
+        // incomplete without being in progress, and has no such day.
+        through: slots.some((i) => partialMonths.has(months[i])) ? throughDay : null,
       };
     });
 
@@ -365,6 +400,7 @@ export function buildWardProfiles({ data, geo, live = [] }) {
     electric: total((r) => r.monthly[i].electric),
     placed: data.placed[i],
     estimated: estimated.has(m),
+    partial: partialMonths.has(m),
   }));
 
   const cityByYear = years.map((y, k) => ({
@@ -374,8 +410,9 @@ export function buildWardProfiles({ data, geo, live = [] }) {
     classic: total((r) => r.byYear[k].classic),
     electric: total((r) => r.byYear[k].electric),
     months: slotsByYear.get(y).length,
-    partial: slotsByYear.get(y).length < 12,
+    partial: !wholeYear(y),
     estimatedMonths: slotsByYear.get(y).filter((i) => estimated.has(months[i])).length,
+    through: rows[0]?.byYear[k]?.through ?? null,
     // Weighted by the month's own volume, so a thin January doesn't pull the
     // year's placement rate around as much as a busy July.
     placed:
@@ -392,6 +429,9 @@ export function buildWardProfiles({ data, geo, live = [] }) {
     cutoff: data.cutoff,
     archiveCutoff: data.cutoff,
     estimatedMonths: liveMonths,
+    // The month still accruing, and the last finished day it is counted to.
+    partialMonths: [...partialMonths],
+    throughDay,
     generated: data.generated,
     wards: rows,
     byWard: new Map(rows.map((r) => [r.ward, r])),
