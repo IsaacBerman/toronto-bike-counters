@@ -737,7 +737,7 @@ export default function SlowZonesContent() {
               {chartTab === 'cost' && (
                 <ChartBlock
                   title="Estimated cost of slow zones"
-                  subtitle={`Daily and cumulative rider time cost at $${VALUE_OF_TIME}/hr — days the TTC didn't update carry the last figure forward; see method below`}
+                  subtitle={`Daily and cumulative rider time cost at $${VALUE_OF_TIME}/hr`}
                 >
                   <ResponsiveContainer width="100%" height={260}>
                     <ComposedChart data={perDay} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
