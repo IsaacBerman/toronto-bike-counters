@@ -208,3 +208,15 @@ body {
     margin-left: -26px;
   }
 }
+
+/* The vertical half of a chart tooltip's placement (see chartTooltipFrame.js).
+   Recharts eases the wrapper's own transform over 400ms, so match it or the box
+   would glide sideways and jump vertically at the same time. */
+.chart-tooltip-frame {
+  transition: transform 400ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-tooltip-frame {
+    transition: none;
+  }
+}

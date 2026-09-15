@@ -4,6 +4,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Scatter } from 'recharts';
 import useTapAwayDismiss from '../lib/useTapAwayDismiss';
+import ChartTooltipFrame from './chartTooltipFrame';
+
+// Pins the tooltip wrapper vertically so ChartTooltipFrame can place the box
+// itself; x is left to Recharts. Hoisted so the box's memo is not defeated by a
+// fresh object on every render.
+const TOOLTIP_POSITION = { y: 0 };
+
 
 // One formatter for the ~366 x-axis labels. Calling toLocaleDateString per row
 // rebuilds this internally each time, which cost more than the rest of the
@@ -234,7 +241,7 @@ export default function CounterChart({ data, title, measureLabel }) {
   };
 
   // Custom tooltip formatter
-  const CustomTooltip = ({ active, payload, label }) => {
+  const CustomTooltip = ({ active, payload, label, coordinate }) => {
     if (active && payload && payload.length) {
       // Filter to get unique years with their values
       const yearData = [];
@@ -261,34 +268,38 @@ export default function CounterChart({ data, title, measureLabel }) {
       if (yearData.length === 0) return null;
       
       return (
-        // Positioned by Recharts, which flips it to whichever side of the
-        // hovered point has room — on a phone as well as on a desktop. The
-        // phone box has to stay under half the plot width for there to be a
-        // side to flip to, which is why the labels below shed everything the
-        // chart header already tells you; globals.css lends it the axis gutter
-        // for the points where even that is a squeeze.
-        <div className="bg-white p-2 md:p-3 border border-gray-300 rounded-lg shadow-lg font-sans max-w-[120px] md:max-w-[280px]" style={{zIndex: 9999}}>
-          <p className="font-semibold text-gray-800 text-xs md:text-sm mb-1 md:mb-2">
-            {label}
-          </p>
-          {yearData.map(({year, value, dailyValue}) => (
-            <div key={year} className="mb-1">
-              <p className="text-[11px] md:text-sm" style={{ color: getYearColor(year) }}>
-                <span className="font-semibold">{year}:</span>
-                <span className="ml-1 md:ml-2">
-                  {showCumulative ? (
-                    <><span className="hidden md:inline">Cumulative: </span><span className="font-semibold">{value.toLocaleString()}</span></>
-                  ) : (
-                    <><span className="hidden md:inline">14-day </span>avg: <span className="font-semibold">{value.toLocaleString()}</span></>
+        // Recharts flips it to whichever side of the hovered point has room —
+        // on a phone as well as on a desktop. The phone box has to stay under
+        // half the plot width for there to be a side to flip to, which is why
+        // the labels below shed everything the chart header already tells you;
+        // globals.css lends it the axis gutter for the points where even that
+        // is a squeeze. Vertically it is ChartTooltipFrame that places it, so
+        // that a year-heavy box rests on the bottom axis instead of running off
+        // the bottom of the chart.
+        <ChartTooltipFrame coordinate={coordinate}>
+          <div className="bg-white p-2 md:p-3 border border-gray-300 rounded-lg shadow-lg font-sans max-w-[120px] md:max-w-[280px]" style={{zIndex: 9999}}>
+            <p className="font-semibold text-gray-800 text-xs md:text-sm mb-1 md:mb-2">
+              {label}
+            </p>
+            {yearData.map(({year, value, dailyValue}) => (
+              <div key={year} className="mb-1">
+                <p className="text-[11px] md:text-sm" style={{ color: getYearColor(year) }}>
+                  <span className="font-semibold">{year}:</span>
+                  <span className="ml-1 md:ml-2">
+                    {showCumulative ? (
+                      <><span className="hidden md:inline">Cumulative: </span><span className="font-semibold">{value.toLocaleString()}</span></>
+                    ) : (
+                      <><span className="hidden md:inline">14-day </span>avg: <span className="font-semibold">{value.toLocaleString()}</span></>
+                    )}
+                  </span>
+                  {!showCumulative && dailyValue && dailyValue > 0 && (
+                    <span className="ml-1 md:ml-2 text-gray-600">(daily: {dailyValue.toLocaleString()})</span>
                   )}
-                </span>
-                {!showCumulative && dailyValue && dailyValue > 0 && (
-                  <span className="ml-1 md:ml-2 text-gray-600">(daily: {dailyValue.toLocaleString()})</span>
-                )}
-              </p>
-            </div>
-          ))}
-        </div>
+                </p>
+              </div>
+            ))}
+          </div>
+        </ChartTooltipFrame>
       );
     }
     return null;
@@ -432,6 +443,7 @@ export default function CounterChart({ data, title, measureLabel }) {
               <Tooltip 
                 content={<CustomTooltip />} 
                 active={tooltipActive}
+                position={TOOLTIP_POSITION}
                 cursor={{ stroke: '#ccc', strokeWidth: 1 }}
               />
               
