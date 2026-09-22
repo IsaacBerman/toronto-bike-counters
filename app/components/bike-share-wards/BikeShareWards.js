@@ -362,17 +362,6 @@ export default function BikeShareWards({ embedded = false, ward: controlledWard,
             value={year}
             onChange={setYear}
           />
-          <p className="text-xs mt-2 leading-relaxed" style={{ color: INK3 }}>
-            {metric.year ? (
-              <>Shading follows the selected year.</>
-            ) : (
-              <>
-                <b style={{ color: INK2 }}>{metric.label}</b> describes the network as it stands
-                today, so the year does not change the map — it still drives the charts below.
-              </>
-            )}{' '}
-            The archive ends at {profiles.cutoff}.
-          </p>
         </Control>
       </div>
 
