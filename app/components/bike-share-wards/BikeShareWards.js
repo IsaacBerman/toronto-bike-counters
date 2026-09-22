@@ -22,6 +22,7 @@ import {
   DOWNTOWN,
   WARD_COUNT,
   buildWardProfiles,
+  fetchCityDaily,
   fetchLiveMonths,
   fetchWardData,
 } from '../../lib/bikeshareWards';
@@ -141,19 +142,20 @@ export default function BikeShareWards({ embedded = false, ward: controlledWard,
       fetch('/tts/wards25.geojson').then((r) => r.json()),
       fetch('/tts/city-boundary.geojson').then((r) => r.json()),
       fetchWardData(),
+      fetchCityDaily(),
     ])
-      .then(async ([g, cb, data]) => {
+      .then(async ([g, cb, data, daily]) => {
         if (!alive) return;
         setGeo(g);
         setCityBoundary(cb);
         // Render the archive immediately, then top it up: the live tail is a
         // handful of extra requests and shouldn't hold the page hostage.
-        const archiveOnly = buildWardProfiles({ data, geo: g });
+        const archiveOnly = buildWardProfiles({ data, geo: g, daily });
         setProfiles(archiveOnly);
         setYear(archiveOnly.lastFullYear);
         const live = await fetchLiveMonths(data.cutoff).catch(() => []);
         if (!alive || !live.length) return;
-        setProfiles(buildWardProfiles({ data, geo: g, live }));
+        setProfiles(buildWardProfiles({ data, geo: g, live, daily }));
       })
       .catch((e) => alive && setErr(String(e.message ?? e)));
     return () => {

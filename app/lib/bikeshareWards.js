@@ -48,6 +48,27 @@ export async function fetchWardData() {
   return res.json();
 }
 
+// The same archive, pre-reduced to one row per day with no per-station detail
+// (see build_bikeshare_daily.py in the dash.raccoon.bike repo). Every trip
+// lands here whether or not its dock was ever caught in a station snapshot,
+// so it's the true citywide count — a few percent above what summing the
+// per-ward totals gives, since those can only count trips placed to a ward.
+export async function fetchCityDaily() {
+  const res = await fetch('/bikeshare-daily.json');
+  if (!res.ok) throw new Error('Could not load /bikeshare-daily.json');
+  const d = await res.json();
+  const monthly = new Map();
+  const yearly = new Map();
+  for (let i = 0; i < d.dates.length; i++) {
+    const trips = d.trips[i] ?? 0;
+    const month = d.dates[i].slice(0, 7);
+    const year = Number(d.dates[i].slice(0, 4));
+    monthly.set(month, (monthly.get(month) ?? 0) + trips);
+    yearly.set(year, (yearly.get(year) ?? 0) + trips);
+  }
+  return { monthly, yearly, cutoff: d.cutoff };
+}
+
 // --------------------------------------------------------------------------
 // The tail the City hasn't published yet
 // --------------------------------------------------------------------------
@@ -177,7 +198,7 @@ function sumOver(series, indices) {
  * another across the ward line is well served; measuring only within the ward
  * would score it as isolated.
  */
-export function buildWardProfiles({ data, geo, live = [] }) {
+export function buildWardProfiles({ data, geo, live = [], daily = null }) {
   // The archive's own months, then whatever bikeraccoon could add past the
   // cutoff. Live months are folded into the same columnar arrays so every
   // consumer below stays indifferent to where a month came from; `estimated`
@@ -208,7 +229,7 @@ export function buildWardProfiles({ data, geo, live = [] }) {
           docks.get(w).add(String(r.station_id));
         }
       }
-      return [month, { trips, docks, placed: allTrips ? placedTrips / allTrips : 1 }];
+      return [month, { trips, docks, allTrips, placed: allTrips ? placedTrips / allTrips : 1 }];
     })
   );
 
@@ -391,9 +412,18 @@ export function buildWardProfiles({ data, geo, live = [] }) {
     return seen ? sum : null;
   };
 
+  // The true citywide count for a month: every trip, not just ones whose dock
+  // could be placed to a ward. Archive months come from the daily archive
+  // (station detail isn't needed to count a trip); live months come from
+  // bikeraccoon's own station total, before ward-placement drops any of it.
+  // Falls back to the ward-summed total — which undercounts by the unplaced
+  // share — only if neither source covers the month.
+  const trueTrips = (m, i) =>
+    daily?.monthly.get(m) ?? liveByMonth.get(m)?.allTrips ?? rows.reduce((a, r) => a + r.monthly[i].trips, 0);
+
   const cityMonthly = months.map((m, i) => ({
     month: m,
-    trips: rows.reduce((a, r) => a + r.monthly[i].trips, 0),
+    trips: trueTrips(m, i),
     returns: rows.reduce((a, r) => a + r.monthly[i].returns, 0),
     stations: rows.reduce((a, r) => a + r.monthly[i].stations, 0),
     classic: total((r) => r.monthly[i].classic),
@@ -405,7 +435,7 @@ export function buildWardProfiles({ data, geo, live = [] }) {
 
   const cityByYear = years.map((y, k) => ({
     year: y,
-    trips: rows.reduce((a, r) => a + r.byYear[k].trips, 0),
+    trips: slotsByYear.get(y).reduce((a, i) => a + cityMonthly[i].trips, 0),
     stations: rows.reduce((a, r) => a + r.byYear[k].stations, 0),
     classic: total((r) => r.byYear[k].classic),
     electric: total((r) => r.byYear[k].electric),
