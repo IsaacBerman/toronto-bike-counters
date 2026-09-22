@@ -347,20 +347,14 @@ export default function BikeShareWards({ embedded = false, ward: controlledWard,
 
       <div className="dd-panel-ruled p-4 sm:p-5 mt-6 grid gap-5 md:grid-cols-2">
         <Control label="Colour map by">
-          <div className="flex flex-wrap gap-1.5">
-            {METRICS.map((m) => (
-              <Swatch
-                key={m.id}
-                active={metricId === m.id}
-                color={m.color}
-                label={m.label}
-                onClick={() => setMetricId(m.id)}
-              />
-            ))}
-          </div>
+          <Dropdown
+            options={METRICS.map((m) => ({ id: m.id, label: m.label }))}
+            value={metricId}
+            onChange={setMetricId}
+          />
         </Control>
         <Control label="Year">
-          <Segmented
+          <Dropdown
             options={profiles.years.map((y) => ({
               id: y,
               label: y === profiles.currentYear ? `${y}*` : String(y),
@@ -909,20 +903,26 @@ function Segmented({ options, value, onChange }) {
   );
 }
 
-function Swatch({ active, color, label, onClick }) {
+// Native <select> keeps each option's original type (year is a number, metric
+// ids are strings) by matching the changed value back against the option
+// list rather than trusting the string DOM events hand back.
+function Dropdown({ options, value, onChange, disabled = false }) {
   return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-bold transition-all"
-      style={{
-        background: active ? 'var(--panel)' : '#e9e7de',
-        color: active ? INK : INK2,
-        border: `1.5px solid ${active ? color : 'transparent'}`,
+    <select
+      className="dd-select"
+      value={String(value)}
+      disabled={disabled}
+      onChange={(e) => {
+        const opt = options.find((o) => String(o.id) === e.target.value);
+        if (opt) onChange(opt.id);
       }}
     >
-      <span className="inline-block h-3 w-3 rounded-sm" style={{ background: color }} />
-      {label}
-    </button>
+      {options.map((o) => (
+        <option key={o.id} value={String(o.id)}>
+          {o.label}
+        </option>
+      ))}
+    </select>
   );
 }
 

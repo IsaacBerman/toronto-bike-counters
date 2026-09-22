@@ -274,34 +274,28 @@ export default function TravelExplorer() {
         {/* Controls */}
         <div className="dd-panel-ruled p-4 sm:p-5 mt-6 grid gap-5 md:grid-cols-2">
           <Control label="Trips">
-            <Segmented
+            <Dropdown
               options={tripSets.map((t) => ({ id: t.id, label: t.label }))}
               value={tripSet}
               onChange={setTripSet}
             />
           </Control>
           <Control label="Survey year">
-            <Segmented
+            <Dropdown
               options={years.map((y) => ({ id: y, label: String(y) }))}
               value={year}
               onChange={setYear}
             />
           </Control>
           <Control label="Colour map by">
-            <div className="flex flex-wrap gap-1.5">
-              {COLOR_OPTIONS.map((o) => (
-                <Swatch
-                  key={o.id}
-                  active={colorBy === o.id}
-                  color={o.color}
-                  label={o.label}
-                  onClick={() => setColorBy(o.id)}
-                />
-              ))}
-            </div>
+            <Dropdown
+              options={COLOR_OPTIONS.map((o) => ({ id: o.id, label: o.label }))}
+              value={colorBy}
+              onChange={setColorBy}
+            />
           </Control>
           <Control label="Trip distance">
-            <Segmented
+            <Dropdown
               options={[
                 { id: 'all', label: 'All' },
                 { id: 'under5', label: '< 5 km ★' },
@@ -321,7 +315,7 @@ export default function TravelExplorer() {
           </Control>
           {hasAge && (
             <Control label="School stage">
-              <Segmented
+              <Dropdown
                 options={[
                   { id: 'all', label: 'All ages' },
                   ...ageGroups.map((g) => ({ id: g.id, label: g.short })),
@@ -561,50 +555,26 @@ function Control({ label, children }) {
   );
 }
 
-function Segmented({ options, value, onChange, disabled = false }) {
+// Native <select> keeps each option's original type (year is a number, mode
+// ids are strings) by matching the changed value back against the option
+// list rather than trusting the string DOM events hand back.
+function Dropdown({ options, value, onChange, disabled = false }) {
   return (
-    <div
-      className="inline-flex flex-wrap gap-1 p-1 rounded"
-      style={{ background: '#e9e7de', opacity: disabled ? 0.5 : 1 }}
-    >
-      {options.map((o) => {
-        const active = value === o.id;
-        return (
-          <button
-            key={o.id}
-            onClick={() => onChange(o.id)}
-            disabled={disabled}
-            aria-disabled={disabled}
-            className="px-2.5 py-1.5 rounded text-xs font-bold transition-colors"
-            style={{
-              background: active ? 'var(--panel)' : 'transparent',
-              color: active ? INK : INK2,
-              boxShadow: active ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-              cursor: disabled ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function Swatch({ active, color, label, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-bold transition-all"
-      style={{
-        background: active ? 'var(--panel)' : '#e9e7de',
-        color: active ? INK : INK2,
-        border: `1.5px solid ${active ? color : 'transparent'}`,
+    <select
+      className="dd-select"
+      value={String(value)}
+      disabled={disabled}
+      onChange={(e) => {
+        const opt = options.find((o) => String(o.id) === e.target.value);
+        if (opt) onChange(opt.id);
       }}
     >
-      <span className="inline-block h-3 w-3 rounded-sm" style={{ background: color }} />
-      {label}
-    </button>
+      {options.map((o) => (
+        <option key={o.id} value={String(o.id)}>
+          {o.label}
+        </option>
+      ))}
+    </select>
   );
 }
 
