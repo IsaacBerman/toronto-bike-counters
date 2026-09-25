@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 
-// Five tools no longer fit on one line, so the nav collapses into a menu. The
+// The tools no longer fit on one line, so the nav collapses into a menu. The
 // trigger shows the page you're on, which keeps the "you are here" cue the
 // underlined tab used to give.
 const PAGES = [
   { key: 'bike-counters', href: '/bike-counters', label: 'Bicycle Counters' },
+  { key: 'intersection-counts', href: '/intersection-counts', label: 'Intersection Counts' },
   { key: 'slow-zones', href: '/slow-zones', label: 'TTC Slow Zones' },
   { key: 'transform-toronto', href: '/transform-toronto', label: 'Transform Toronto' },
   { key: 'downtown-definer', href: '/downtown-definer', label: 'Where is Downtown?' },

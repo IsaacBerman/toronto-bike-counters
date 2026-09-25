@@ -111,26 +111,51 @@ export function processBikeshareHourlyData(rawData, yearType = 'current', estTim
   return dataPoints;
 }
 
-export async function loadCSVData() {
-  try {
-    // Pre-extracted, direction-summed daily counts (see scripts/build-cycling.mjs).
-    // Expanded back into the per-location-per-day row shape processCounterData
-    // expects, so that function is unchanged.
-    const response = await fetch('/cycling-counts.json');
-    const { counters } = await response.json();
+// Pre-extracted, direction-summed daily counts (see scripts/build-cycling.mjs).
+// Held as a single in-flight promise because both the chart and the counter map
+// want this file: the second caller joins the first rather than paying to parse
+// half a megabyte of JSON twice.
+let cyclingCountsPromise = null;
 
-    const rows = [];
-    for (const counter of counters) {
-      const { location, dates, volumes } = counter;
-      for (let i = 0; i < dates.length; i++) {
-        rows.push({ location_name: location, dt: dates[i], daily_volume: volumes[i] });
-      }
-    }
-    return rows;
-  } catch (error) {
-    console.error('Error loading cycling counts:', error);
-    return [];
+function loadCyclingCounts() {
+  if (!cyclingCountsPromise) {
+    cyclingCountsPromise = fetch('/cycling-counts.json')
+      .then((r) => r.json())
+      .then((d) => d.counters)
+      .catch((error) => {
+        console.error('Error loading cycling counts:', error);
+        cyclingCountsPromise = null; // let a later caller retry
+        return [];
+      });
   }
+  return cyclingCountsPromise;
+}
+
+export async function loadCSVData() {
+  // Expanded back into the per-location-per-day row shape processCounterData
+  // expects, so that function is unchanged.
+  const counters = await loadCyclingCounts();
+
+  const rows = [];
+  for (const counter of counters) {
+    const { location, dates, volumes } = counter;
+    for (let i = 0; i < dates.length; i++) {
+      rows.push({ location_name: location, dt: dates[i], daily_volume: volumes[i] });
+    }
+  }
+  return rows;
+}
+
+/**
+ * Where each permanent counter sits, for the map under the chart. Counters the
+ * City's locations export has no coordinates for are dropped rather than
+ * guessed at, so this can be shorter than the counter list itself.
+ */
+export async function loadCounterSites() {
+  const counters = await loadCyclingCounts();
+  return counters
+    .filter((c) => Number.isFinite(c.lat) && Number.isFinite(c.lon))
+    .map(({ location, lat, lon }) => ({ location, lat, lon }));
 }
 
 export function processCounterData(rawData) {

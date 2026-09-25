@@ -10,6 +10,15 @@ import StationMap from './stationMap';
 import StationDetail from './stationDetail';
 import TripTypeBreakdownChart from './tripTypeBreakdownChart';
 
+// Leaflet and the counter coordinates are only needed once a permanent counter
+// is selected, which is never the case on the default Bike Share view.
+const CounterMap = dynamic(() => import('./counterMap'), {
+  ssr: false,
+  loading: () => (
+    <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Loading map…</p>
+  ),
+});
+
 // Loaded only when the Ward breakdown tab is opened: it brings leaflet, turf
 // and a 150 KB ward file that the rest of this page never touches.
 const BikeShareWards = dynamic(() => import('./bike-share-wards/BikeShareWards'), {
@@ -155,6 +164,25 @@ export default function BicycleCountersContent() {
     () => bikeshareMonthlyBreakdown(rawBikeshare),
     [rawBikeshare]
   );
+
+  // Every counter except Bike Share, which is a city-wide total and has no one
+  // place to sit on a map.
+  const permanentCounters = useMemo(
+    () => counters.filter((c) => c.location !== 'Bike Share Toronto'),
+    [counters]
+  );
+
+  // The year the map totals up. Read off the data rather than the clock, so a
+  // late-arriving export shows the last year that actually has counts instead
+  // of an empty map every January.
+  const latestYear = useMemo(() => {
+    let max = 0;
+    for (const counter of permanentCounters) {
+      const last = counter.data[counter.data.length - 1];
+      if (last) max = Math.max(max, Number(last.date.slice(0, 4)));
+    }
+    return max || new Date().getFullYear();
+  }, [permanentCounters]);
 
   const handleCounterChange = (counterLocation) => {
     setSelectedCounter(counterLocation);
@@ -537,6 +565,28 @@ export default function BicycleCountersContent() {
             )}
           </div>
         ) : null}
+
+        {/* Counter map — the permanent counters' equivalent of the Bike Share
+            station map above, sitting under the chart it drives. */}
+        {!isBikeShare && selectedCounterData && (
+          <div className="mt-6">
+            <div className="dd-panel-ruled p-6">
+              <h3 className="dd-title text-lg mb-1" style={{ color: 'var(--ink)' }}>
+                Permanent Counter Map
+              </h3>
+              <p className="text-sm mb-4" style={{ color: 'var(--ink-2)' }}>
+                Circle size and shade show how many bikes each counter has recorded so far
+                in {latestYear}. Click one to chart it above.
+              </p>
+              <CounterMap
+                counters={permanentCounters}
+                selected={selectedCounter}
+                onSelect={handleCounterChange}
+                year={latestYear}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Station Map - Only shown for Bike Share Toronto when in daily view and not showing station detail */}
         {isBikeShare && bikeshareTab === 'trends' && viewMode === 'daily' && showMap && !showStationDetail && (

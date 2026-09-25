@@ -54,6 +54,11 @@ export default function Home() {
             blurb="Dashboard showing Toronto permanent bicycle counter data and Bike Share ridership."
           />
           <ProjectCard
+            href="/intersection-counts"
+            title="Toronto Intersection Counts"
+            blurb="Every intersection the City has counted, mapped by how its traffic splits between cars, trucks, buses, walking and cycling."
+          />
+          <ProjectCard
             href="/transform-toronto"
             title="TransformTO Tracking"
             blurb="Toronto travel mode share by ward, trip distance and year, from the Transportation Tomorrow Survey."
