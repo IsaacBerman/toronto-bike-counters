@@ -97,7 +97,7 @@ export default function IntersectionModeChart({
 
   const data = useMemo(() => {
     // The file stores newest first; a time axis reads the other way.
-    return [...intersection.counts].reverse().map((count) => {
+    return [...intersection.counts].reverse().map((count, index) => {
       const raw = win === 'full' ? fullTotals(count) : peakTotals(count);
       // Shares are always out of everything counted, filtered or not: "bikes
       // were 4% of this intersection" is the number that carries, and a
@@ -115,6 +115,14 @@ export default function IntersectionModeChart({
       );
       return {
         date: count[0],
+        // The x axis keys off this, and it has to be unique per bar. A quarter
+        // of these intersections were counted more than once in the same year,
+        // and a category axis with repeated values collapses them: the band
+        // scale dedupes its domain, so every bar sharing a year resolved to one
+        // row and the tooltip showed that row's date and numbers for all of
+        // them. Thirteen intersections were even counted twice on one date, so
+        // the index goes in too. The tick formatter puts the year back.
+        key: `${count[0]}#${index}`,
         year: count[0].slice(0, 4),
         hours: count[1],
         total,
@@ -149,7 +157,8 @@ export default function IntersectionModeChart({
         <BarChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
           <CartesianGrid stroke={GRID} strokeWidth={1} vertical={false} />
           <XAxis
-            dataKey="year"
+            dataKey="key"
+            tickFormatter={(value) => String(value).slice(0, 4)}
             tick={{ fill: INK3, fontSize: angled ? 10 : 12 }}
             stroke={GRID}
             interval={0}
