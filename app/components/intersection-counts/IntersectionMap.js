@@ -309,7 +309,7 @@ export default function IntersectionMap({
 
   const filtering = pickedModes.length > 0;
   const caption = filtering
-    ? `Circles show ${describeModes(pickedModes)} only — bigger means more counted. Scaled to what's shown, so the sizes change as you filter.`
+    ? `Circles show ${describeModes(pickedModes)} only, circle size corresponds to number counted. Scaled to what's shown, so the sizes change as you filter.`
     : 'Each pie is sliced by mode; bigger means more traffic counted.';
 
   return (
