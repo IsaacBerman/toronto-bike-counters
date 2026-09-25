@@ -2,18 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { cartoTileUrl, CARTO_ATTRIBUTION, CARTO_SUBDOMAINS } from '../../lib/basemapTiles';
-import { MODES, peakTotals, sum, fmt, fmtDate } from './modes';
-
-// 95th percentile of a latest count's peak-window volume. Circles are area-
-// proportional up to this and flat above it, so the handful of enormous
-// suburban arterials don't shrink everything downtown to a dot.
-const REF_VOLUME = 13000;
+import { MODES, peakTotals, sum, fmt, fmtDate, isModeOn, describeModes } from './modes';
 
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
-// Pie radius in CSS pixels at zoom 12, before the zoom factor below.
-function baseRadius(total) {
-  return 2.2 + 6.5 * Math.sqrt(Math.min(total, REF_VOLUME) / REF_VOLUME);
+// Pie radius in CSS pixels at zoom 12, before the zoom factor below. Circles
+// are area-proportional up to `ref` and flat above it, so the handful of
+// enormous suburban arterials don't shrink everything downtown to a dot.
+function baseRadius(total, ref) {
+  return 2.2 + 6.5 * Math.sqrt(Math.min(total, ref) / ref);
 }
 
 // Pies grow as you zoom in. Counted intersections sit about ten pixels apart at
@@ -36,7 +33,21 @@ function definePieMarker(L) {
       const r = this._radius;
       const { slices, total, active } = this.options;
 
-      if (total > 0) {
+      if (total <= 0) {
+        // Counted, but nothing of what's being shown passed through. A faint
+        // disc keeps it on the map as a place that was surveyed.
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(138,136,124,0.35)';
+        ctx.fill();
+      } else {
+        // A lone slice is a whole circle, and stroking its wedge would draw a
+        // seam from the centre out to 12 o'clock — a separator between a slice
+        // and itself. Only separate once there is something to separate.
+        let drawn = 0;
+        for (let i = 0; i < slices.length; i++) if (slices[i]) drawn++;
+        const separate = r >= 9 && drawn > 1;
+
         let start = -Math.PI / 2; // 12 o'clock
         for (let i = 0; i < slices.length; i++) {
           if (!slices[i]) continue;
@@ -49,7 +60,7 @@ function definePieMarker(L) {
           ctx.fill();
           // The gap between slices, in the basemap's stead — only once the pie
           // is big enough that a 1px separator costs less than it buys.
-          if (r >= 9) {
+          if (separate) {
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 1;
             ctx.stroke();
@@ -67,13 +78,17 @@ function definePieMarker(L) {
   });
 }
 
-function tooltipHtml(intersection) {
+function tooltipHtml(intersection, picked) {
   const latest = intersection.counts[0];
   const values = peakTotals(latest);
   const total = sum(values);
   const rows = MODES.map((mode, i) => {
     const share = total ? Math.round((values[i] / total) * 100) : 0;
-    return `<tr>
+    // Shares stay out of the whole count's total however the map is filtered —
+    // "2% of everything here" is the number worth reading, not "100% of the
+    // one mode still on screen".
+    const dim = isModeOn(picked, mode.key) ? '' : 'opacity:0.4;';
+    return `<tr style="${dim}">
       <td style="padding-right:6px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${mode.color}"></span></td>
       <td style="padding-right:8px">${mode.label}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums">${fmt(values[i])}</td>
@@ -90,11 +105,65 @@ function tooltipHtml(intersection) {
   </div>`;
 }
 
+// The legend doubles as the mode filter: a pill per mode, plus the button that
+// clears them all back to the default.
+function ModeFilter({ picked, onToggle, onShowAll }) {
+  const filtering = picked.length > 0;
+  const pill = (on) => ({
+    borderColor: on ? 'var(--ink)' : 'var(--line)',
+    background: on ? 'var(--paper)' : 'transparent',
+    color: on ? 'var(--ink)' : 'var(--ink-3)',
+    opacity: filtering && !on ? 0.55 : 1,
+    borderWidth: 1,
+    borderStyle: 'solid',
+  });
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="dd-kicker mr-1" style={{ color: 'var(--ink-2)' }}>Show</span>
+      <button
+        type="button"
+        onClick={onShowAll}
+        aria-pressed={!filtering}
+        className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+        style={pill(!filtering)}
+      >
+        All modes
+      </button>
+      {MODES.map((mode) => {
+        const on = filtering && picked.includes(mode.key);
+        return (
+          <button
+            key={mode.key}
+            type="button"
+            onClick={() => onToggle(mode.key)}
+            aria-pressed={on}
+            className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors"
+            style={pill(on)}
+          >
+            <span
+              className="inline-block rounded-full shrink-0"
+              style={{ width: 10, height: 10, background: mode.color }}
+            />
+            {mode.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
  * Every counted intersection as a pie of its most recent count's modal split.
  * Clicking one calls onSelect with its id.
  */
-export default function IntersectionMap({ intersections, selectedId, onSelect }) {
+export default function IntersectionMap({
+  intersections,
+  selectedId,
+  onSelect,
+  pickedModes,
+  onToggleMode,
+  onShowAllModes,
+}) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
   const LRef = useRef(null);
@@ -107,15 +176,21 @@ export default function IntersectionMap({ intersections, selectedId, onSelect })
 
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
 
-  // Precomputed once per filter change: the slice values and the untruncated
-  // total each pie is drawn from.
-  const pies = useMemo(
-    () => intersections.map((i) => {
-      const slices = peakTotals(i.counts[0]);
+  // Precomputed once per filter change: the slice values each pie is drawn
+  // from, and the scale they are drawn against.
+  const { rows, ref } = useMemo(() => {
+    const built = intersections.map((i) => {
+      const all = peakTotals(i.counts[0]);
+      const slices = MODES.map((m, idx) => (isModeOn(pickedModes, m.key) ? all[idx] : 0));
       return { intersection: i, slices, total: sum(slices) };
-    }),
-    [intersections]
-  );
+    });
+    // The scale follows the filter. Sizing bikes against the all-modes 95th
+    // percentile would collapse every circle to the floor, since bikes are
+    // about 2% of what moves through a Toronto intersection.
+    const sorted = built.map((r) => r.total).sort((a, b) => a - b);
+    const p95 = sorted[Math.floor(0.95 * (sorted.length - 1))] || 0;
+    return { rows: built, ref: Math.max(p95, 1) };
+  }, [intersections, pickedModes]);
 
   // Init the map once.
   useEffect(() => {
@@ -164,9 +239,9 @@ export default function IntersectionMap({ intersections, selectedId, onSelect })
     const byId = byIdRef.current;
     byId.clear();
     const factor = zoomFactor(map.getZoom());
-    const markers = pies.map(({ intersection, slices, total }) => {
+    const markers = rows.map(({ intersection, slices, total }) => {
       const marker = new PieMarker([intersection.lat, intersection.lon], {
-        radius: baseRadius(total) * factor,
+        radius: baseRadius(total, ref) * factor,
         renderer: rendererRef.current,
         slices,
         total,
@@ -189,7 +264,7 @@ export default function IntersectionMap({ intersections, selectedId, onSelect })
     });
     // Leaflet hands a group's tooltip the child layer the pointer is actually
     // over, so one tooltip covers every pie.
-    group.bindTooltip((layer) => tooltipHtml(layer.options.intersection), {
+    group.bindTooltip((layer) => tooltipHtml(layer.options.intersection, pickedModes), {
       sticky: true,
       direction: 'top',
       opacity: 1,
@@ -200,7 +275,7 @@ export default function IntersectionMap({ intersections, selectedId, onSelect })
     const onZoom = () => {
       const f = zoomFactor(map.getZoom());
       for (let i = 0; i < markers.length; i++) {
-        markers[i].setRadius(baseRadius(pies[i].total) * f);
+        markers[i].setRadius(baseRadius(rows[i].total, ref) * f);
       }
     };
     map.on('zoomend', onZoom);
@@ -211,7 +286,7 @@ export default function IntersectionMap({ intersections, selectedId, onSelect })
       byId.clear();
       groupRef.current = null;
     };
-  }, [pies, ready]);
+  }, [rows, ref, pickedModes, ready]);
 
   // Outline the selected pie without rebuilding the layer.
   const prevSelected = useRef(null);
@@ -230,23 +305,19 @@ export default function IntersectionMap({ intersections, selectedId, onSelect })
       mark.redraw();
     }
     prevSelected.current = selectedId;
-  }, [selectedId, pies, ready]);
+  }, [selectedId, rows, ready]);
+
+  const filtering = pickedModes.length > 0;
+  const caption = filtering
+    ? `Circles show ${describeModes(pickedModes)} only — bigger means more counted. Scaled to what's shown, so the sizes change as you filter.`
+    : 'Each pie is sliced by mode; bigger means more traffic counted.';
 
   return (
     <div>
       <div ref={elRef} className="w-full rounded" style={{ height: 560, background: 'var(--paper)' }} />
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs" style={{ color: 'var(--ink-2)' }}>
-        <span className="font-semibold">Share of traffic</span>
-        {MODES.map((mode) => (
-          <span key={mode.key} className="flex items-center gap-1.5">
-            <span
-              className="inline-block rounded-full shrink-0"
-              style={{ width: 10, height: 10, background: mode.color }}
-            />
-            <span>{mode.label}</span>
-          </span>
-        ))}
-        <span style={{ color: 'var(--ink-3)' }}>Bigger pie = more traffic counted.</span>
+      <div className="mt-3">
+        <ModeFilter picked={pickedModes} onToggle={onToggleMode} onShowAll={onShowAllModes} />
+        <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>{caption}</p>
       </div>
     </div>
   );

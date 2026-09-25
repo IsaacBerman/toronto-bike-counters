@@ -35,3 +35,17 @@ export function fmtDate(iso) {
     timeZone: 'UTC',
   });
 }
+
+// The mode filter is held as the list of picked modes, with the empty list
+// meaning "all of them" rather than "none" — so the unfiltered map is the
+// natural default state and clearing the picks restores it.
+export const isModeOn = (picked, key) => picked.length === 0 || picked.includes(key);
+
+export const visibleModes = (picked) => MODES.filter((m) => isModeOn(picked, m.key));
+
+// "Bikes", "Bikes and pedestrians", "Cars, buses and bikes".
+export function describeModes(picked) {
+  const labels = visibleModes(picked).map((m) => m.label.toLowerCase());
+  if (labels.length <= 1) return labels[0] ?? '';
+  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+}

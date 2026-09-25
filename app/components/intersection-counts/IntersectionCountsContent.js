@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import IntersectionModeChart from './IntersectionModeChart';
-import { MODES, peakTotals, fullTotals, sum, fmt, fmtDate } from './modes';
+import { MODES, peakTotals, fullTotals, sum, fmt, fmtDate, isModeOn, describeModes } from './modes';
 
 // Leaflet plus six thousand pies is the heaviest thing on the page; keep it out
 // of the bundle until the browser is actually drawing it.
@@ -30,6 +30,9 @@ export default function IntersectionCountsContent() {
   const [since, setSince] = useState(2020);
   const [metric, setMetric] = useState('volume'); // 'volume' | 'share'
   const [win, setWin] = useState('peak'); // 'peak' | 'full'
+  // Which modes the map and chart are showing. Empty means all of them — see
+  // isModeOn — so the default state needs no special case.
+  const [pickedModes, setPickedModes] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
 
   const router = useRouter();
@@ -76,6 +79,17 @@ export default function IntersectionCountsContent() {
     scrollOnNextSelect.current = true;
     setSelectedId(id);
   }, []);
+
+  // Turning off the last picked mode lands back on the empty list, which is the
+  // show-everything state — so a reader can never filter the map down to
+  // nothing at all.
+  const handleToggleMode = useCallback((key) => {
+    setPickedModes((picked) =>
+      picked.includes(key) ? picked.filter((k) => k !== key) : [...picked, key]
+    );
+  }, []);
+
+  const handleShowAllModes = useCallback(() => setPickedModes([]), []);
 
   useEffect(() => {
     if (!scrollOnNextSelect.current || !selected) return;
@@ -139,6 +153,9 @@ export default function IntersectionCountsContent() {
             intersections={shown}
             selectedId={selectedId}
             onSelect={handleSelect}
+            pickedModes={pickedModes}
+            onToggleMode={handleToggleMode}
+            onShowAllModes={handleShowAllModes}
           />
         </div>
 
@@ -189,8 +206,14 @@ export default function IntersectionCountsContent() {
               </div>
 
               <div className="p-4">
-                <IntersectionModeChart intersection={selected} metric={metric} window={win} />
-                <LatestSplit intersection={selected} win={win} />
+                <IntersectionModeChart
+                  intersection={selected}
+                  metric={metric}
+                  window={win}
+                  pickedModes={pickedModes}
+                  onToggleMode={handleToggleMode}
+                />
+                <LatestSplit intersection={selected} win={win} picked={pickedModes} />
                 <p className="text-xs mt-4 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
                   {win === 'peak' ? (
                     <>
@@ -209,6 +232,12 @@ export default function IntersectionCountsContent() {
                   )}{' '}
                   Pedestrians and cyclists are counted per approach; cars, trucks and buses per
                   turning movement.
+                  {pickedModes.length > 0 && (
+                    <>
+                      {' '}Showing {describeModes(pickedModes)} only — shares stay out of
+                      everything counted, so they will not add up to 100%.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -242,7 +271,7 @@ export default function IntersectionCountsContent() {
 
 // The most recent count as plain numbers under the chart — the reader who wants
 // the value rather than the bar, and the table view the colour encoding owes.
-function LatestSplit({ intersection, win }) {
+function LatestSplit({ intersection, win, picked }) {
   const latest = intersection.counts[0];
   const values = win === 'full' ? fullTotals(latest) : peakTotals(latest);
   const total = sum(values);
@@ -253,7 +282,11 @@ function LatestSplit({ intersection, win }) {
       </p>
       <div className="flex flex-wrap gap-x-8 gap-y-3">
         {MODES.map((mode, i) => (
-          <div key={mode.key} className="flex items-center gap-2">
+          <div
+            key={mode.key}
+            className="flex items-center gap-2"
+            style={{ opacity: isModeOn(picked, mode.key) ? 1 : 0.45 }}
+          >
             <span
               className="inline-block rounded-full shrink-0"
               style={{ width: 10, height: 10, background: mode.color }}

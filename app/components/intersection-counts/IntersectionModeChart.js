@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { MODES, peakTotals, fullTotals, sum, fmt, fmtDate } from './modes';
+import { MODES, peakTotals, fullTotals, sum, fmt, fmtDate, isModeOn, visibleModes } from './modes';
 
 const INK = '#16150f';
 const INK3 = '#8a887c';
@@ -40,7 +40,7 @@ function StackSegment(props) {
   );
 }
 
-function CountTooltip({ active, payload, metric }) {
+function CountTooltip({ active, payload, metric, picked }) {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload;
   if (!row) return null;
@@ -56,7 +56,7 @@ function CountTooltip({ active, payload, metric }) {
       <table style={{ borderCollapse: 'collapse' }}>
         <tbody>
           {[...MODES].reverse().map((mode) => (
-            <tr key={mode.key}>
+            <tr key={mode.key} style={{ opacity: isModeOn(picked, mode.key) ? 1 : 0.4 }}>
               <td style={{ paddingRight: 6 }}>
                 <span
                   className="inline-block rounded-full"
@@ -86,17 +86,29 @@ function CountTooltip({ active, payload, metric }) {
  * date order. Counts are charted over the four-hour window every count in the
  * City's export shares, so bars from different years are comparable.
  */
-export default function IntersectionModeChart({ intersection, metric, window: win }) {
+export default function IntersectionModeChart({
+  intersection,
+  metric,
+  window: win,
+  pickedModes,
+  onToggleMode,
+}) {
+  const shown = useMemo(() => visibleModes(pickedModes), [pickedModes]);
+
   const data = useMemo(() => {
     // The file stores newest first; a time axis reads the other way.
     return [...intersection.counts].reverse().map((count) => {
       const raw = win === 'full' ? fullTotals(count) : peakTotals(count);
+      // Shares are always out of everything counted, filtered or not: "bikes
+      // were 4% of this intersection" is the number that carries, and a
+      // bikes-only chart denominated by bikes would read 100% every year.
       const total = sum(raw);
       const values = Object.fromEntries(MODES.map((m, i) => [m.key, raw[i]]));
-      // Topmost non-empty segment, so only that one gets the rounded cap.
+      // Topmost non-empty segment *of what's plotted*, so the rounded cap lands
+      // on the bar's actual top rather than a hidden mode.
       let topKey = null;
       for (let i = MODES.length - 1; i >= 0; i--) {
-        if (raw[i] > 0) { topKey = MODES[i].key; break; }
+        if (raw[i] > 0 && isModeOn(pickedModes, MODES[i].key)) { topKey = MODES[i].key; break; }
       }
       const plotted = Object.fromEntries(
         MODES.map((m, i) => [m.key, metric === 'share' && total ? (raw[i] / total) * 100 : raw[i]])
@@ -111,33 +123,39 @@ export default function IntersectionModeChart({ intersection, metric, window: wi
         ...plotted,
       };
     });
-  }, [intersection, metric, win]);
+  }, [intersection, metric, win, pickedModes]);
 
-  // Aim for roughly a dozen year labels however many counts there are; a dozen
-  // counts or fewer get one each.
-  const interval = Math.max(0, Math.ceil(data.length / 12) - 1);
+  // Every bar carries its year. Past about a dozen counts they stop fitting
+  // upright, so they tilt — thinning them out instead would leave bars with no
+  // label, and an intersection counted three times in one year needs all three
+  // years showing to read as three separate counts.
+  const angled = data.length > 12;
 
   // Recharts orders the legend for itself, which here came out alphabetical.
   // Stating it keeps the keys in stacking order, top of the bar downwards, so
-  // the legend reads the way the bar does.
+  // the legend reads the way the bar does. Every mode stays listed whatever the
+  // filter, because the legend is also how you change the filter.
   const legendPayload = [...MODES].reverse().map((mode) => ({
     value: mode.label,
     id: mode.key,
     type: 'circle',
     color: mode.color,
+    inactive: !isModeOn(pickedModes, mode.key),
   }));
 
   return (
     <div>
       <ResponsiveContainer width="100%" height={380}>
-        <BarChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 28 }}>
+        <BarChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
           <CartesianGrid stroke={GRID} strokeWidth={1} vertical={false} />
           <XAxis
             dataKey="year"
-            tick={{ fill: INK3, fontSize: 12 }}
+            tick={{ fill: INK3, fontSize: angled ? 10 : 12 }}
             stroke={GRID}
-            interval={interval}
-            height={28}
+            interval={0}
+            angle={angled ? -45 : 0}
+            textAnchor={angled ? 'end' : 'middle'}
+            height={angled ? 52 : 28}
           />
           <YAxis
             tick={{ fill: INK3, fontSize: 12 }}
@@ -158,17 +176,27 @@ export default function IntersectionModeChart({ intersection, metric, window: wi
               style: { textAnchor: 'middle', fill: INK3, fontSize: 12 },
             }}
           />
-          <Tooltip content={<CountTooltip metric={metric} />} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
+          <Tooltip
+            content={<CountTooltip metric={metric} picked={pickedModes} />}
+            cursor={{ fill: 'rgba(0,0,0,0.04)' }}
+          />
           <Legend
             verticalAlign="top"
             height={30}
             iconSize={9}
             payload={legendPayload}
+            // The chart's legend is the same filter the map's legend is, so a
+            // reader who is looking at the bars can change modes without
+            // scrolling back up.
+            onClick={(entry) => onToggleMode?.(entry.id)}
+            wrapperStyle={{ cursor: onToggleMode ? 'pointer' : undefined }}
             // The swatch carries the identity; the label stays in ink, which is
             // legible where a light series hue would not be.
-            formatter={(value) => <span style={{ color: INK }}>{value}</span>}
+            formatter={(value, entry) => (
+              <span style={{ color: INK, opacity: entry?.inactive ? 0.45 : 1 }}>{value}</span>
+            )}
           />
-          {MODES.map((mode) => (
+          {shown.map((mode) => (
             <Bar
               key={mode.key}
               dataKey={mode.key}
