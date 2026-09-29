@@ -525,7 +525,10 @@ export default function BicycleCountersContent() {
                 {selectedCounterData.location} — Hourly Comparison (Last 2 Weeks)
               </h2>
               <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-                Data shown in Eastern Time (EST/EDT)
+                Data shown in Eastern Time (EST/EDT). Last year&rsquo;s hours are counted from
+                the City&rsquo;s trip-level ridership files; today and the two-week average come
+                from bikeraccoon&rsquo;s polling of the live feed, which runs a few percent off
+                the City&rsquo;s own count.
               </p>
             </div>
             <HourlyBarChart data={hourlyData} />

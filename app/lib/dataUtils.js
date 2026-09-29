@@ -31,25 +31,23 @@ export function getCurrentESTTime() {
 export async function loadBikeshareHourlyData() {
   try {
     const estTime = getCurrentESTTime();
-    
+
     // Calculate date range for last 2 weeks in EST
     const endDate = estTime.date;
     const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - 14); // 2 weeks ago
-    
+
     const currentYearData = await loadBikeshareHourlyDataForDateRange(startDate, endDate);
-    
+
     // Calculate same period last year
     const lastYearStartDate = new Date(startDate);
     const lastYearEndDate = new Date(endDate);
     lastYearStartDate.setFullYear(lastYearStartDate.getFullYear() - 1);
     lastYearEndDate.setFullYear(lastYearEndDate.getFullYear() - 1);
-    
-    const lastYearData = await loadBikeshareHourlyDataForDateRange(lastYearStartDate, lastYearEndDate);
-    // Process both datasets
+
     const processedCurrentYear = processBikeshareHourlyData(currentYearData, 'current', estTime);
-    const processedLastYear = processBikeshareHourlyData(lastYearData, 'lastYear', estTime);
-    
+    const processedLastYear = await loadLastYearHourly(lastYearStartDate, lastYearEndDate, estTime);
+
     return {
       currentYear: processedCurrentYear,
       lastYear: processedLastYear
@@ -58,6 +56,107 @@ export async function loadBikeshareHourlyData() {
     console.error('Error loading hourly bikeshare data:', error);
     return { currentYear: [], lastYear: [] };
   }
+}
+
+// Pre-extracted hourly trip counts from the City's trip-level ridership
+// archives (see scripts/build-bikeshare-hourly.mjs). Same in-flight-promise
+// shape as loadCyclingCounts below, for the same reason.
+let bikeshareHourlyPromise = null;
+
+function loadBikeshareHourlyArchive() {
+  if (!bikeshareHourlyPromise) {
+    bikeshareHourlyPromise = fetch('/bikeshare-hourly.json')
+      .then((r) => r.json())
+      .catch((error) => {
+        console.error('Error loading hourly bikeshare archive:', error);
+        bikeshareHourlyPromise = null; // let a later caller retry
+        return null;
+      });
+  }
+  return bikeshareHourlyPromise;
+}
+
+/**
+ * The year-ago hourly series, from the City's archive rather than bikeraccoon.
+ *
+ * bikeraccoon infers trips by polling the public feed, and its Toronto history
+ * has holes — a 35-day one running from 2025-09-15T12:00 to 2025-10-20T18:00.
+ * An hour inside a hole comes back as no rows, which the chart can only render
+ * as zero, so through September 2026 the year-ago bars read as a collapse to
+ * nothing every afternoon. The City's own files have no gap there.
+ *
+ * The archive is published about a quarter in arrears, so it cannot serve the
+ * current two weeks — those stay on bikeraccoon — but the window a year back
+ * sits well inside it. Days past its end (it needs a rebuild each quarter) fall
+ * back to bikeraccoon, which is worse but not wrong.
+ */
+async function loadLastYearHourly(startDate, endDate, estTime) {
+  const archive = await loadBikeshareHourlyArchive();
+  const inArchive = (date) => archive && date >= archive.start && date <= archive.end;
+  const wanted = eachDate(startDate, endDate);
+
+  // The archive is 24 cells a day from its start date, so a date's block is
+  // just how many days it sits past that start.
+  const dayIndex = (date) =>
+    Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${archive.start}T00:00:00Z`)) / 86400000);
+
+  const points = [];
+  for (const date of wanted.filter(inArchive)) {
+    const base = dayIndex(date) * 24;
+    for (let hour = 0; hour < 24; hour++) {
+      const trips = archive.hours[base + hour];
+      // null marks an hour the archive cannot speak to (the two DST transition
+      // hours a year); leaving the point out keeps it from being averaged in
+      // as a zero.
+      if (typeof trips !== 'number') continue;
+      points.push(hourlyPoint(date, hour, trips));
+    }
+  }
+
+  // Anything the archive does not reach yet still comes from bikeraccoon.
+  const uncovered = new Set(wanted.filter((date) => !inArchive(date)));
+  if (uncovered.size) {
+    const raw = await loadBikeshareHourlyDataForDateRange(startDate, endDate);
+    for (const point of processBikeshareHourlyData(raw, 'lastYear', estTime)) {
+      if (uncovered.has(point.date)) points.push(point);
+    }
+  }
+
+  return points.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+// Matches what processBikeshareHourlyData emits, so the chart does not care
+// which source a year-ago point came from. A year-ago point is never the
+// current day, so the isCurrentDay/isFutureHour pair is always false.
+function hourlyPoint(date, hour, trips) {
+  const datetime = `${date}T${String(hour).padStart(2, '0')}:00:00`;
+  return {
+    datetime,
+    date,
+    hour,
+    volume: trips,
+    timestamp: new Date(datetime).getTime(),
+    displayLabel: `${date} ${hour}:00`,
+    isCurrentDay: false,
+    isFutureHour: false,
+    yearType: 'lastYear',
+    volumeForAverage: trips
+  };
+}
+
+// Local YYYY-MM-DD for every day in an inclusive range. Built off the local
+// date parts rather than toISOString, to match how the window itself is
+// constructed from getCurrentESTTime.
+function eachDate(startDate, endDate) {
+  const dates = [];
+  const day = new Date(startDate);
+  while (day <= endDate) {
+    dates.push(
+      `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+    );
+    day.setDate(day.getDate() + 1);
+  }
+  return dates;
 }
 
 // Update processBikeshareHourlyData to accept EST time
