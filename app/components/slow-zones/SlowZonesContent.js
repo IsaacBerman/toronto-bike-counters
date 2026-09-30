@@ -609,11 +609,6 @@ export default function SlowZonesContent() {
         <h1 className="dd-title text-4xl sm:text-5xl mb-3" style={{ color: INK }}>
           TTC Reduced Speed Zones
         </h1>
-        <p className="mb-6 max-w-3xl text-sm leading-relaxed" style={{ color: INK2 }}>
-          Every reduced speed zone on the TTC subway, captured daily from the TTC&apos;s own list.
-          These slow zones are stretches of track where trains are held below normal speed, and
-          each one adds time to every trip through it.
-        </p>
         {!history ? (
           <p className="dd-title text-xl py-20 text-center" style={{ color: INK2 }}>
             Loading…
