@@ -51,12 +51,12 @@ export default function Home() {
           <ProjectCard
             href="/bike-counters"
             title="Toronto Bicycle Counters"
-            blurb="Dashboard showing Toronto permanent bicycle counter data and Bike Share ridership."
+            blurb="Dashboard Toronto permanent bicycle counter data and Bike Share ridership."
           />
           <ProjectCard
             href="/intersection-counts"
             title="Toronto Intersection Counts"
-            blurb="Every intersection the City has counted, mapped by how its traffic splits between cars, trucks, buses, walking and cycling."
+            blurb="Map of all intersections in Toronto that have ever had a modal count taken, and charts showing splits over time. "
           />
           <ProjectCard
             href="/transform-toronto"
@@ -81,7 +81,7 @@ export default function Home() {
           <ProjectCard
             href="/video-counter"
             title="Video Traffic Counter"
-            blurb="Upload a street video, draw a counting line, and tally the vehicles, bikes and pedestrians that cross it. Runs entirely in your browser."
+            blurb="Upload a street video, draw a counting line, and tally the vehicles, bikes and pedestrians that cross it."
           />
         </div>
       </div>
