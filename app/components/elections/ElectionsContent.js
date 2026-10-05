@@ -427,10 +427,10 @@ function PollCard({ data, poll, onClose }) {
     <div className="dd-panel">
       <div className="p-4 flex items-start justify-between gap-3" style={{ borderBottom: '1px solid var(--line)' }}>
         <div>
-          <p className="dd-kicker">Poll {pollLabel(poll.w, poll.s)}</p>
-          <h2 className="dd-title text-lg mt-1" style={{ color: 'var(--ink)' }}>
+          <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>Poll {pollLabel(poll.w, poll.s)}</h2>
+          <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
             {poll.ltc ? 'Care home' : `${fmt(sum(votes))} election-day votes`}
-          </h2>
+          </p>
         </div>
         <button type="button" onClick={onClose} className="text-sm" style={{ color: 'var(--ink-3)' }} aria-label="Close poll">✕</button>
       </div>
@@ -456,8 +456,7 @@ function WardCard({ data, ward: w }) {
   return (
     <div className="dd-panel">
       <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
-        <p className="dd-kicker">Ward {w}</p>
-        <h2 className="dd-title text-lg mt-1" style={{ color: 'var(--ink)' }}>{ward.name}</h2>
+        <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{ward.name}</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
           {data.meta.isMayor ? 'Mayoral votes cast in this ward' : 'Council race result'} · {fmt(ward.allVotes)} votes
         </p>
@@ -495,8 +494,7 @@ function CityCard({ data }) {
   return (
     <div className="dd-panel">
       <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
-        <p className="dd-kicker">Citywide</p>
-        <h2 className="dd-title text-lg mt-1" style={{ color: 'var(--ink)' }}>{data.title}</h2>
+        <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{data.title}</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>{fmt(allVotes)} votes, {data.candidates.length} candidates</p>
       </div>
       <div className="p-4">
@@ -511,8 +509,8 @@ function WardList({ data, onPick }) {
   return (
     <div className="dd-panel">
       <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
-        <p className="dd-kicker">Ward winners</p>
-        <h2 className="dd-title text-lg mt-1" style={{ color: 'var(--ink)' }}>{data.title}</h2>
+        <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{data.title}</h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>Ward winners</p>
       </div>
       <ul className="divide-y" style={{ borderColor: 'var(--line)' }}>
         {Object.entries(data.wards).map(([w, ward]) => (
