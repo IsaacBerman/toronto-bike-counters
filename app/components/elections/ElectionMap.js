@@ -13,25 +13,38 @@ const pollKey = (p) => `${p.w}-${p.s}`;
  * Every voting subdivision in a race, filled by `styleFor(properties)`. The
  * layer is built once per race and restyled in place when the view changes;
  * clicking a poll calls onSelectPoll with its properties.
+ *
+ * With `byWard` set the polls make way for the 25 wards, filled by
+ * `wardStyleFor(ward)` — for the votes the City only reports by ward.
  */
-export default function ElectionMap({ data, styleFor, tooltipFor, selectedPoll, selectedWard, focusWard, onSelectPoll }) {
+export default function ElectionMap({
+  data, styleFor, tooltipFor, selectedPoll, selectedWard, focusWard, onSelectPoll,
+  byWard, wardStyleFor, wardTooltipFor, onSelectWard,
+}) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
   const LRef = useRef(null);
   const rendererRef = useRef(null);
   const pollsRef = useRef(null);
   const wardsRef = useRef(null);
+  const wardFillsRef = useRef(null);
   const byKeyRef = useRef(new Map());
   const wardBoundsRef = useRef(new Map());
   const styleRef = useRef(styleFor);
   const tooltipRef = useRef(tooltipFor);
   const onSelectRef = useRef(onSelectPoll);
+  const wardStyleRef = useRef(wardStyleFor);
+  const wardTooltipRef = useRef(wardTooltipFor);
+  const onSelectWardRef = useRef(onSelectWard);
   const selectedRef = useRef(selectedPoll);
   const [ready, setReady] = useState(false);
 
   useEffect(() => { styleRef.current = styleFor; }, [styleFor]);
   useEffect(() => { tooltipRef.current = tooltipFor; }, [tooltipFor]);
   useEffect(() => { onSelectRef.current = onSelectPoll; }, [onSelectPoll]);
+  useEffect(() => { wardStyleRef.current = wardStyleFor; }, [wardStyleFor]);
+  useEffect(() => { wardTooltipRef.current = wardTooltipFor; }, [wardTooltipFor]);
+  useEffect(() => { onSelectWardRef.current = onSelectWard; }, [onSelectWard]);
 
   // Init the map once.
   useEffect(() => {
@@ -99,7 +112,7 @@ export default function ElectionMap({ data, styleFor, tooltipFor, selectedPoll, 
       renderer: rendererRef.current,
       style: (f) => styleOf(f.properties),
       onEachFeature: (f, layer) => byKey.set(pollKey(f.properties), layer),
-    }).addTo(map);
+    });
     // Bound on the group, so one handler and one tooltip cover every poll.
     polls.bindTooltip((layer) => tooltipRef.current(layer.feature.properties), {
       sticky: true,
@@ -110,6 +123,23 @@ export default function ElectionMap({ data, styleFor, tooltipFor, selectedPoll, 
     polls.on('mouseover', (e) => e.layer.setStyle(HOVER_STROKE));
     polls.on('mouseout', (e) => e.layer.setStyle(styleOf(e.layer.feature.properties)));
     pollsRef.current = polls;
+
+    // Ward fills sit in their own layer, swapped in for the polls. The
+    // outlines below stay separate so they draw on top of either.
+    const wardStyleOf = (w) => ({ ...wardStyleRef.current(w), ...BASE_STROKE, weight: 0 });
+    const wardFills = L.geoJSON(data.wardOutlines, {
+      renderer: rendererRef.current,
+      style: (f) => wardStyleOf(f.properties.w),
+    });
+    wardFills.bindTooltip((layer) => wardTooltipRef.current(layer.feature.properties.w), {
+      sticky: true,
+      direction: 'top',
+      opacity: 1,
+    });
+    wardFills.on('click', (e) => onSelectWardRef.current?.(e.layer.feature.properties.w));
+    wardFills.on('mouseover', (e) => e.layer.setStyle({ fillOpacity: Math.min(1, wardStyleOf(e.layer.feature.properties.w).fillOpacity + 0.12) }));
+    wardFills.on('mouseout', (e) => e.layer.setStyle(wardStyleOf(e.layer.feature.properties.w)));
+    wardFillsRef.current = wardFills;
 
     const wardBounds = wardBoundsRef.current;
     wardBounds.clear();
@@ -123,13 +153,37 @@ export default function ElectionMap({ data, styleFor, tooltipFor, selectedPoll, 
 
     return () => {
       polls.remove();
+      wardFills.remove();
       wards.remove();
       byKey.clear();
       wardBounds.clear();
       pollsRef.current = null;
+      wardFillsRef.current = null;
       wardsRef.current = null;
     };
   }, [data, ready]);
+
+  // Swap polls for ward fills, keeping the outlines on top.
+  useEffect(() => {
+    const map = mapRef.current;
+    const polls = pollsRef.current;
+    const wardFills = wardFillsRef.current;
+    if (!map || !polls || !wardFills) return;
+    if (byWard) {
+      polls.remove();
+      wardFills.addTo(map);
+    } else {
+      wardFills.remove();
+      polls.addTo(map);
+    }
+    wardsRef.current?.bringToFront();
+  }, [byWard, data, ready]);
+
+  useEffect(() => {
+    const wardFills = wardFillsRef.current;
+    if (!wardFills || !wardStyleFor) return;
+    wardFills.eachLayer((layer) => layer.setStyle({ ...wardStyleFor(layer.feature.properties.w), ...BASE_STROKE, weight: 0 }));
+  }, [wardStyleFor, data, ready]);
 
   // Restyle in place when the view changes.
   useEffect(() => {

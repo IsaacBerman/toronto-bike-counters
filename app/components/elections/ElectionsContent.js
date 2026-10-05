@@ -20,6 +20,25 @@ const ElectionMap = dynamic(() => import('./ElectionMap'), {
 const RANK_LABELS = ['Ward winner', 'Runner-up', 'Third place'];
 const SPECIAL_LABELS = { advance: 'Advance polls', mail: 'Mail-in', ltc: 'Care-home polls' };
 
+// Election-day votes are reported poll by poll; the rest only by ward.
+const VOTE_TYPES = [
+  { value: 'day', label: 'Election day' },
+  { value: 'advance', label: 'Advance' },
+  { value: 'mail', label: 'Mail-in' },
+  { value: 'all', label: 'All votes' },
+];
+const VOTE_NOUN = { day: 'election-day votes', advance: 'advance votes', mail: 'mail-in votes', all: 'votes' };
+
+// A ward's votes of one type, aligned to its ranked candidates.
+function wardVotes(ward, type) {
+  if (type === 'all') return ward.totals;
+  if (type === 'day') {
+    const special = Object.values(ward.special);
+    return ward.totals.map((t, i) => t - sum(special.map((v) => v[i])));
+  }
+  return ward.special[type] ?? ward.totals.map(() => 0);
+}
+
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
 // Everything derived once per race: who gets which colour, citywide totals for
@@ -54,11 +73,14 @@ export default function ElectionsContent() {
   const searchParams = useSearchParams();
   const initialRace = RACES.some((r) => r.id === searchParams.get('race')) ? searchParams.get('race') : RACES[0].id;
   const initialWard = Number(searchParams.get('ward'));
+  const initialVotes = VOTE_TYPES.some((t) => t.value === searchParams.get('votes')) ? searchParams.get('votes') : 'day';
 
   const [raceId, setRaceId] = useState(initialRace);
   const [cache, setCache] = useState({});
   const [error, setError] = useState(null);
   const [view, setView] = useState('leader'); // 'leader' | 'share'
+  const [votes, setVotes] = useState(initialVotes);
+  const byWard = votes !== 'day';
   // Mayor: a candidate index. Council: a finishing position in each ward.
   const [shareTarget, setShareTarget] = useState({ mayor: null, council: 0 });
   const [selectedWard, setSelectedWard] = useState(Number.isInteger(initialWard) && initialWard >= 1 && initialWard <= 25 ? initialWard : null);
@@ -86,9 +108,10 @@ export default function ElectionsContent() {
 
   useEffect(() => {
     const q = new URLSearchParams({ race: raceId });
+    if (byWard) q.set('votes', votes);
     if (selectedWard) q.set('ward', String(selectedWard));
     router.replace(`?${q.toString()}`, { scroll: false });
-  }, [raceId, selectedWard, router]);
+  }, [raceId, selectedWard, votes, byWard, router]);
 
   const meta = data?.meta;
   const isMayor = raceId.startsWith('mayor');
@@ -101,32 +124,61 @@ export default function ElectionsContent() {
     [data, isMayor, target]
   );
 
+  // Share-view breaks come from whatever is on the map: polls, or wards.
   const breaks = useMemo(() => {
     if (!data || view !== 'share') return null;
+    const units = byWard
+      ? Object.entries(data.wards).map(([w, ward]) => [Number(w), wardVotes(ward, votes)])
+      : data.polls.features.filter((f) => !f.properties.ltc).map((f) => [f.properties.w, f.properties.v]);
     const shares = [];
-    for (const f of data.polls.features) {
-      const p = f.properties;
-      if (p.ltc) continue;
-      const total = sum(p.v);
-      const pos = targetPos(p.w);
-      if (total) shares.push(pos >= 0 ? (p.v[pos] ?? 0) / total : 0);
+    for (const [w, v] of units) {
+      const total = sum(v);
+      const pos = targetPos(w);
+      if (total) shares.push(pos >= 0 ? (v[pos] ?? 0) / total : 0);
     }
     return shareBreaks(shares);
-  }, [data, view, targetPos]);
+  }, [data, view, targetPos, byWard, votes]);
 
-  const styleFor = useCallback((p) => {
-    if (p.ltc) return { fillColor: NO_RESULT_COLOR, fillOpacity: 0.35 };
-    const total = sum(p.v);
+  // The fill for a set of votes (a poll's, or a ward's of one type) in ward `w`.
+  const fillFor = useCallback((w, v) => {
+    const total = sum(v);
     if (!total) return { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
     if (view === 'share') {
-      const pos = targetPos(p.w);
-      const share = pos >= 0 ? (p.v[pos] ?? 0) / total : 0;
+      const pos = targetPos(w);
+      const share = pos >= 0 ? (v[pos] ?? 0) / total : 0;
       return { fillColor: shareColor(share, breaks), fillOpacity: 0.85 };
     }
-    const lead = pollLeader(p.v);
+    const lead = pollLeader(v);
     if (lead < 0) return { fillColor: OTHER_COLOR, fillOpacity: 0.25 };
-    return { fillColor: colorOfSlot(meta.slotOf(p.w, lead)), fillOpacity: marginOpacity(p.v[lead] / total) };
+    return { fillColor: colorOfSlot(meta.slotOf(w, lead)), fillOpacity: marginOpacity(v[lead] / total) };
   }, [view, targetPos, breaks, meta]);
+
+  const styleFor = useCallback(
+    (p) => (p.ltc ? { fillColor: NO_RESULT_COLOR, fillOpacity: 0.35 } : fillFor(p.w, p.v)),
+    [fillFor]
+  );
+
+  const wardStyleFor = useCallback(
+    (w) => fillFor(w, wardVotes(data.wards[w], votes)),
+    [fillFor, data, votes]
+  );
+
+  // Top three in a set of votes, plus the share view's candidate if they're
+  // further down.
+  const resultRows = useCallback((w, v) => {
+    const ward = data.wards[w];
+    const total = sum(v);
+    const shown = v.map((_, i) => i).sort((a, b) => v[b] - v[a]).slice(0, 3);
+    const pos = view === 'share' ? targetPos(w) : -1;
+    if (pos >= 0 && !shown.includes(pos)) shown.push(pos);
+    const rows = shown.map((i) => `<tr style="${i === pos ? 'font-weight:700;' : ''}">
+        <td style="padding-right:6px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorOfSlot(meta.slotOf(w, i))}"></span></td>
+        <td style="padding-right:8px">${escapeHtml(data.candidates[ward.cand[i]])}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums">${fmt(v[i] ?? 0)}</td>
+        <td style="text-align:right;padding-left:8px;opacity:0.65;font-variant-numeric:tabular-nums">${pct(v[i] ?? 0, total)}</td>
+      </tr>`).join('');
+    return total ? `<table style="border-collapse:collapse">${rows}</table>` : '';
+  }, [data, meta, view, targetPos]);
 
   const tooltipFor = useCallback((p) => {
     const ward = data.wards[p.w];
@@ -135,26 +187,27 @@ export default function ElectionsContent() {
     if (p.ltc) {
       return `<div style="font-size:12px;max-width:240px;white-space:normal">${head}Long-term care or retirement home. Its votes were pooled with the ward's other care homes, so there's no result for this building alone.</div>`;
     }
-    const total = sum(p.v);
-    const order = p.v.map((v, i) => i).sort((a, b) => p.v[b] - p.v[a]);
-    const shown = order.slice(0, 3);
-    if (view === 'share') {
-      const pos = targetPos(p.w);
-      if (pos >= 0 && !shown.includes(pos)) shown.push(pos);
-    }
-    const rows = shown.map((i) => {
-      const highlight = view === 'share' && i === targetPos(p.w) ? 'font-weight:700;' : '';
-      return `<tr style="${highlight}">
-        <td style="padding-right:6px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorOfSlot(meta.slotOf(p.w, i))}"></span></td>
-        <td style="padding-right:8px">${escapeHtml(data.candidates[ward.cand[i]])}</td>
-        <td style="text-align:right;font-variant-numeric:tabular-nums">${fmt(p.v[i] ?? 0)}</td>
-        <td style="text-align:right;padding-left:8px;opacity:0.65;font-variant-numeric:tabular-nums">${pct(p.v[i] ?? 0, total)}</td>
-      </tr>`;
-    }).join('');
-    return `<div style="font-size:12px">${head}
-      ${total ? `<table style="border-collapse:collapse">${rows}</table>` : ''}
-      <div style="margin-top:4px;opacity:0.7">${fmt(total)} election-day votes</div></div>`;
-  }, [data, meta, view, targetPos]);
+    return `<div style="font-size:12px">${head}${resultRows(p.w, p.v)}
+      <div style="margin-top:4px;opacity:0.7">${fmt(sum(p.v))} election-day votes</div></div>`;
+  }, [data, resultRows]);
+
+  const wardTooltipFor = useCallback((w) => {
+    const v = wardVotes(data.wards[w], votes);
+    return `<div style="font-size:12px">
+      <div style="font-weight:700;margin-bottom:4px">${escapeHtml(data.wards[w].name)}</div>
+      ${resultRows(w, v)}
+      <div style="margin-top:4px;opacity:0.7">${fmt(sum(v))} ${VOTE_NOUN[votes]}</div></div>`;
+  }, [data, votes, resultRows]);
+
+  const handleSelectWard = useCallback((w) => {
+    setSelectedWard(w);
+    setSelectedPoll(null);
+  }, []);
+
+  const switchVotes = (type) => {
+    setVotes(type);
+    if (type !== 'day') setSelectedPoll(null);
+  };
 
   const handleSelectPoll = useCallback((p) => {
     setSelectedPoll(p);
@@ -210,6 +263,7 @@ export default function ElectionsContent() {
             options={[{ value: 'leader', label: 'Who led' }, { value: 'share', label: 'Vote share' }]}
             onChange={setView}
           />
+          <Segmented label="Votes" value={votes} options={VOTE_TYPES} onChange={switchVotes} />
           {view === 'share' && meta && (
             <div className="flex items-center gap-2">
               <label htmlFor="shareTarget" className="dd-kicker" style={{ color: 'var(--ink-2)' }}>For</label>
@@ -263,6 +317,10 @@ export default function ElectionsContent() {
                 selectedWard={selectedWard}
                 focusWard={focusWard}
                 onSelectPoll={handleSelectPoll}
+                byWard={byWard}
+                wardStyleFor={wardStyleFor}
+                wardTooltipFor={wardTooltipFor}
+                onSelectWard={handleSelectWard}
               />
             ) : (
               <div className="w-full rounded flex items-center justify-center" style={{ height: 'min(72vh, 640px)', minHeight: 420, background: 'var(--paper)' }}>
@@ -272,6 +330,7 @@ export default function ElectionsContent() {
             {data && (
               <Legend
                 view={view}
+                votes={votes}
                 isMayor={isMayor}
                 data={data}
                 breaks={breaks}
@@ -284,16 +343,18 @@ export default function ElectionsContent() {
             {data && selectedPoll && (
               <PollCard data={data} poll={selectedPoll} onClose={() => setSelectedPoll(null)} />
             )}
-            {data && selectedWard && <WardCard data={data} ward={selectedWard} />}
-            {data && !selectedWard && (isMayor ? <CityCard data={data} /> : <WardList data={data} onPick={pickWard} />)}
+            {data && selectedWard && <WardCard data={data} ward={selectedWard} votes={votes} />}
+            {data && !selectedWard && (isMayor
+              ? <CityCard data={data} votes={votes} />
+              : <WardList data={data} votes={votes} onPick={pickWard} />)}
           </div>
         </div>
 
         <div className="mt-8 dd-panel p-6 text-sm space-y-2" style={{ color: 'var(--ink-2)' }}>
           <p>
-            The map shows election-day votes only. Advance, mail-in and long-term-care votes were
-            counted at the ward level and can&rsquo;t be placed on a poll. They&rsquo;re included
-            in the ward totals.
+            Only election-day votes are reported poll by poll. Advance, mail-in and long-term-care
+            votes were counted at the ward level, so the map shows those by ward, and they&rsquo;re
+            included in the ward totals.
             {meta && <> In the {race.label.toLowerCase()} they were {pct(meta.offMap, meta.allVotes)} of all votes.</>}
           </p>
           <p>
@@ -338,12 +399,13 @@ const Swatch = ({ color, opacity = 1 }) => (
   <span className="inline-block shrink-0 rounded-sm" style={{ width: 12, height: 12, background: color, opacity }} />
 );
 
-function Legend({ view, isMayor, data, breaks, targetLabel }) {
+function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
+  const byWard = votes !== 'day';
   if (view === 'share') {
     return (
       <div className="mt-3">
         <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>
-          {isMayor ? `${targetLabel}'s` : `The ${targetLabel}'s`} share of each poll
+          {isMayor ? `${targetLabel}'s` : `The ${targetLabel}'s`} share of {byWard ? `each ward's ${VOTE_NOUN[votes]}` : 'each poll'}
         </p>
         <div className="flex flex-wrap items-end gap-0.5">
           {SHARE_RAMP.map((c, i) => (
@@ -364,14 +426,14 @@ function Legend({ view, isMayor, data, breaks, targetLabel }) {
   return (
     <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
       <div>
-        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>Poll led by</p>
+        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>{byWard ? `${VOTE_TYPES.find((t) => t.value === votes).label} vote led by` : 'Poll led by'}</p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs" style={{ color: 'var(--ink-2)' }}>
           {labels.map((label, i) => (
             <span key={label} className="flex items-center gap-1.5"><Swatch color={SLOT_COLORS[i]} />{label}</span>
           ))}
           <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} />Anyone else</span>
           <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} opacity={0.25} />Tie</span>
-          {isMayor && <span className="flex items-center gap-1.5"><Swatch color={NO_RESULT_COLOR} opacity={0.5} />Care home, no separate result</span>}
+          {isMayor && !byWard && <span className="flex items-center gap-1.5"><Swatch color={NO_RESULT_COLOR} opacity={0.5} />Care home, no separate result</span>}
         </div>
       </div>
       <div>
@@ -449,8 +511,9 @@ function PollCard({ data, poll, onClose }) {
   );
 }
 
-function WardCard({ data, ward: w }) {
+function WardCard({ data, ward: w, votes }) {
   const ward = data.wards[w];
+  const shown = wardVotes(ward, votes);
   const names = ward.cand.map((c) => data.candidates[c]);
   const onMap = ward.allVotes - ward.offMap;
   return (
@@ -458,13 +521,15 @@ function WardCard({ data, ward: w }) {
       <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
         <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{ward.name}</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
-          {data.meta.isMayor ? 'Mayoral votes cast in this ward' : 'Council race result'} · {fmt(ward.allVotes)} votes
+          {votes === 'all'
+            ? `${data.meta.isMayor ? 'Mayoral votes cast in this ward' : 'Council race result'} · ${fmt(ward.allVotes)} votes`
+            : `${fmt(sum(shown))} ${VOTE_NOUN[votes]} of ${fmt(ward.allVotes)}`}
         </p>
       </div>
       <div className="p-4">
-        <ResultBars names={names} votes={ward.totals} colors={wardColors(data, w)} />
+        <ResultBars names={names} votes={shown} colors={wardColors(data, w)} />
         <dl className="mt-4 pt-3 text-xs grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1" style={{ borderTop: '1px solid var(--line)', color: 'var(--ink-2)' }}>
-          <dt>Election-day polls (on map)</dt>
+          <dt>Election-day polls</dt>
           <dd style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(onMap)}</dd>
           <dd className="text-right" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{pct(onMap, ward.allVotes)}</dd>
           {Object.entries(ward.special).map(([kind, votes]) => (
@@ -486,16 +551,24 @@ function SpecialRow({ label, votes, total }) {
   );
 }
 
-function CityCard({ data }) {
+function CityCard({ data, votes: type }) {
   const { cityRanked, allVotes } = data.meta;
   const names = cityRanked.map(([c]) => data.candidates[c]);
-  const votes = cityRanked.map(([, v]) => v);
+  const byCandidate = new Map();
+  for (const ward of Object.values(data.wards)) {
+    wardVotes(ward, type).forEach((v, i) => byCandidate.set(ward.cand[i], (byCandidate.get(ward.cand[i]) ?? 0) + v));
+  }
+  const votes = cityRanked.map(([c]) => byCandidate.get(c) ?? 0);
   const colors = cityRanked.map((_, i) => colorOfSlot(i < SLOT_COLORS.length ? i : -1));
   return (
     <div className="dd-panel">
       <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
         <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{data.title}</h2>
-        <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>{fmt(allVotes)} votes, {data.candidates.length} candidates</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
+          {type === 'all'
+            ? `${fmt(allVotes)} votes, ${data.candidates.length} candidates`
+            : `${fmt(sum(votes))} ${VOTE_NOUN[type]} of ${fmt(allVotes)}`}
+        </p>
       </div>
       <div className="p-4">
         <ResultBars names={names} votes={votes} colors={colors} limit={8} />
@@ -505,15 +578,20 @@ function CityCard({ data }) {
 }
 
 // Council has no citywide result, so the starting panel is the 25 winners.
-function WardList({ data, onPick }) {
+function WardList({ data, votes, onPick }) {
   return (
     <div className="dd-panel">
       <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
         <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{data.title}</h2>
-        <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>Ward winners</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
+          {votes === 'all' ? 'Ward winners' : `Who led each ward's ${VOTE_NOUN[votes]}`}
+        </p>
       </div>
       <ul className="divide-y" style={{ borderColor: 'var(--line)' }}>
-        {Object.entries(data.wards).map(([w, ward]) => (
+        {Object.entries(data.wards).map(([w, ward]) => {
+          const v = wardVotes(ward, votes);
+          const lead = Math.max(0, pollLeader(v));
+          return (
           <li key={w}>
             <button
               type="button"
@@ -521,15 +599,16 @@ function WardList({ data, onPick }) {
               className="w-full text-left px-4 py-2 text-sm flex justify-between gap-3 hover:bg-[var(--paper)]"
             >
               <span className="min-w-0">
-                <span className="block truncate font-semibold" style={{ color: 'var(--ink)' }}>{data.candidates[ward.cand[0]]}</span>
+                <span className="block truncate font-semibold" style={{ color: 'var(--ink)' }}>{data.candidates[ward.cand[lead]]}</span>
                 <span className="block truncate text-xs" style={{ color: 'var(--ink-3)' }}>{w}. {ward.name}</span>
               </span>
               <span className="shrink-0 self-center" style={{ color: 'var(--ink-2)', fontVariantNumeric: 'tabular-nums' }}>
-                {pct(ward.totals[0], ward.allVotes)}
+                {pct(v[lead] ?? 0, sum(v))}
               </span>
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </div>
   );
