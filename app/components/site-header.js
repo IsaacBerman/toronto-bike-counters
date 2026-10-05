@@ -11,6 +11,7 @@ const PAGES = [
   { key: 'bike-counters', href: '/bike-counters', label: 'Bicycle Counters' },
   { key: 'intersection-counts', href: '/intersection-counts', label: 'Intersection Counts' },
   { key: 'slow-zones', href: '/slow-zones', label: 'TTC Slow Zones' },
+  { key: 'elections', href: '/elections', label: 'Election Results' },
   { key: 'transform-toronto', href: '/transform-toronto', label: 'Transform Toronto' },
   { key: 'downtown-definer', href: '/downtown-definer', label: 'Where is Downtown?' },
   { key: 'where-would-you-live', href: '/where-would-you-live', label: 'Where Would You Live?' },

@@ -11,7 +11,8 @@
     "build:bikeshare-hourly": "node scripts/build-bikeshare-hourly.mjs",
     "build:tmc": "node scripts/build-tmc.mjs",
     "ingest:slow-zones": "node scripts/ingest-slow-zones.mjs",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:elections": "node scripts/build-elections.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
