@@ -12,22 +12,28 @@ export { NEEDLE, computeNeedle } from './needle-model';
 const A_COLOR = CANDIDATE_COLORS_2026[NEEDLE.a];
 const colorOf = (name) => CANDIDATE_COLORS_2026[name] ?? OTHER_COLOR;
 
-// Probability bands, as the dial labels them.
-const bands = (bColor) => [
-  [0, 0.05, bColor, 1],
-  [0.05, 0.25, bColor, 0.6],
-  [0.25, 0.4, bColor, 0.28],
-  [0.4, 0.6, '#d6d4ca', 1],
-  [0.6, 0.75, A_COLOR, 0.28],
-  [0.75, 0.95, A_COLOR, 0.6],
-  [0.95, 1, A_COLOR, 1],
+// The rim shades smoothly from the challenger's colour through grey at a
+// toss-up to Chow's, as [p, colour, opacity] stops. Only the middle and the
+// two ends are labelled.
+const gradientStops = (bColor) => [
+  [0, bColor, 1],
+  [0.2, bColor, 0.6],
+  [0.4, '#d6d4ca', 1],
+  [0.6, '#d6d4ca', 1],
+  [0.8, A_COLOR, 0.6],
+  [1, A_COLOR, 1],
 ];
-const TICKS = [[0.05, 'Very likely'], [0.25, 'Likely'], [0.5, 'Tossup'], [0.75, 'Likely'], [0.95, 'Very likely']];
+const LABELS = [[0.025, 'Safe'], [0.5, 'Toss-up'], [0.975, 'Safe']];
 
+// The dial is the top half of a bike wheel: a tire around the outside, the
+// probability bands as the rim, laced spokes and a hub. The pointer is the CN
+// Tower, turning on the hub.
 const CX = 160;
-const CY = 158;
-const R_OUT = 140;
-const R_IN = 100;
+const CY = 168;
+const R_TIRE = 146; // centre line of the tire
+const R_OUT = 140; // outer edge of the rim (the bands)
+const R_IN = 112; // inner edge of the rim
+const R_HUB = 11;
 
 // p = 0 is the far left (the challenger), 1 the far right (Chow).
 const pt = (p, r) => {
@@ -43,11 +49,43 @@ function bandPath(p0, p1) {
   return `M${x0},${y0} A${R_OUT},${R_OUT} 0 0 1 ${x1},${y1} L${x2},${y2} A${R_IN},${R_IN} 0 0 0 ${x3},${y3} Z`;
 }
 
+// Spokes leave the hub at a tangent, alternately leading and trailing, so
+// they cross the way a laced wheel's do. Only the top half is drawn.
+const SPOKES = Array.from({ length: 19 }, (_, i) => i / 18).flatMap((p, i) => {
+  const [x1, y1] = pt(p, R_IN - 1);
+  const lean = (i % 2 ? 1 : -1) * 0.075;
+  const [x0, y0] = pt(Math.min(1, Math.max(0, p + lean * 6)), R_HUB - 3);
+  return [{ x0, y0, x1, y1 }];
+});
+
+// Tire tread: short ticks across the tire.
+const TREAD = Array.from({ length: 37 }, (_, i) => i / 36).map((p) => {
+  const [x0, y0] = pt(p, R_TIRE - 2.5);
+  const [x1, y1] = pt(p, R_TIRE + 2.5);
+  return { x0, y0, x1, y1 };
+});
+
+// The CN Tower, drawn pointing straight up from the hub (its base at 0, its
+// antenna tip at -L), in the real tower's proportions: the main pod about
+// 60–66% of the way up, the SkyPod at about 80%, the antenna above that.
+const L = R_OUT - 4;
+const at = (f) => (-f * L).toFixed(1);
+const TOWER = [
+  'M-7,0',
+  `L-2.8,${at(0.58)}`, `L-6,${at(0.6)}`, `L-12,${at(0.62)}`, `L-12,${at(0.65)}`, `L-5,${at(0.67)}`,
+  `L-1.8,${at(0.68)}`, `L-1.8,${at(0.79)}`, `L-4.2,${at(0.8)}`, `L-4.2,${at(0.825)}`, `L-1.2,${at(0.835)}`,
+  `L-0.6,${-L}`, `L0.6,${-L}`,
+  `L1.2,${at(0.835)}`, `L4.2,${at(0.825)}`, `L4.2,${at(0.8)}`, `L1.8,${at(0.79)}`, `L1.8,${at(0.68)}`,
+  `L5,${at(0.67)}`, `L12,${at(0.65)}`, `L12,${at(0.62)}`, `L6,${at(0.6)}`, `L2.8,${at(0.58)}`,
+  'L7,0', 'Z',
+].join(' ');
+
 const signed = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}`;
 const pctText = (p, allIn) => (!allIn && p >= 0.995 ? '>99' : p <= 0.005 && !allIn ? '<1' : Math.round(p * 100));
 const clock = (ms) => new Date(ms).toLocaleTimeString('en-CA', { timeZone: 'America/Toronto', hour: 'numeric', minute: '2-digit' });
 
 export function Needle({ needle, history, seq }) {
+  const gradientId = useId();
   const waiting = !needle || needle.waiting;
   const p = waiting ? 0.5 : needle.p;
   const rival = surname(needle?.challenger ?? NEEDLE.b);
@@ -60,29 +98,43 @@ export function Needle({ needle, history, seq }) {
         <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>Who will win?</h2>
       </div>
       <div className="p-4">
-        <svg viewBox="-34 0 388 178" className="w-full" role="img"
-          aria-label={waiting ? 'Needle waiting for results' : `${leader} ${pctText(Math.max(p, 1 - p), needle.allIn)}% likely to win`}>
-          {bands(bColor).map(([p0, p1, color, opacity]) => (
-            <path key={p0} d={bandPath(p0, p1)} fill={color} fillOpacity={waiting ? opacity * 0.35 : opacity} stroke="var(--panel)" strokeWidth="2" />
+        <svg viewBox="-40 0 400 190" className="w-full" role="img"
+          aria-label={waiting ? 'Dial waiting for results' : `${leader} ${pctText(Math.max(p, 1 - p), needle.allIn)}% likely to win`}>
+          {SPOKES.map((sp, i) => (
+            <line key={i} x1={sp.x0} y1={sp.y0} x2={sp.x1} y2={sp.y1} stroke="var(--ink-3)" strokeOpacity="0.55" strokeWidth="0.8" />
           ))}
-          {TICKS.map(([tp, label], i) => {
-            const [x, y] = pt(tp, R_OUT + 9);
+          <defs>
+            {/* Horizontal, so each stop sits where its p falls on the arc. */}
+            <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={CX - R_OUT} y1="0" x2={CX + R_OUT} y2="0">
+              {gradientStops(bColor).map(([gp, color, opacity]) => (
+                <stop key={gp} offset={(1 - Math.cos(Math.PI * gp)) / 2} stopColor={color} stopOpacity={opacity} />
+              ))}
+            </linearGradient>
+          </defs>
+          <path d={bandPath(0, 1)} fill={`url(#${gradientId})`} fillOpacity={waiting ? 0.35 : 1} />
+          <path d={`M${CX - R_TIRE},${CY} A${R_TIRE},${R_TIRE} 0 0 1 ${CX + R_TIRE},${CY}`} fill="none" stroke="#2b2a26" strokeWidth="9" />
+          {TREAD.map((t, i) => (
+            <line key={i} x1={t.x0} y1={t.y0} x2={t.x1} y2={t.y1} stroke="#57554b" strokeWidth="1.2" />
+          ))}
+          {LABELS.map(([lp, label], i) => {
+            const [x, y] = pt(lp, R_TIRE + 11);
             return (
-              <text key={i} x={x} y={y} fontSize="8.5" textAnchor={tp < 0.5 ? 'end' : tp > 0.5 ? 'start' : 'middle'}
+              <text key={i} x={x} y={y + 3} fontSize="8.5" textAnchor={lp < 0.45 ? 'end' : lp > 0.55 ? 'start' : 'middle'}
                 fill="var(--ink-3)">{label}</text>
             );
           })}
-          <text x={CX - R_OUT + (R_OUT - R_IN) / 2} y={CY + 16} fontSize="10.5" fontWeight="700" textAnchor="middle" fill="var(--ink-2)">{rival} win</text>
-          <text x={CX + R_OUT - (R_OUT - R_IN) / 2} y={CY + 16} fontSize="10.5" fontWeight="700" textAnchor="middle" fill="var(--ink-2)">{NEEDLE.aShort} win</text>
+          <text x={CX - (R_OUT + R_IN) / 2} y={CY + 16} fontSize="10.5" fontWeight="700" textAnchor="middle" fill="var(--ink-2)">{rival} win</text>
+          <text x={CX + (R_OUT + R_IN) / 2} y={CY + 16} fontSize="10.5" fontWeight="700" textAnchor="middle" fill="var(--ink-2)">{NEEDLE.aShort} win</text>
           <g style={{ transform: `rotate(${(p - 0.5) * 180}deg)`, transformOrigin: `${CX}px ${CY}px`, transition: 'transform 1.2s cubic-bezier(.3,.7,.3,1)' }}>
-            <path d={`M${CX - 4},${CY} L${CX},${CY - R_OUT + 6} L${CX + 4},${CY} Z`} fill={waiting ? 'var(--ink-3)' : 'var(--ink)'} />
+            <path d={TOWER} transform={`translate(${CX},${CY})`} fill={waiting ? 'var(--ink-3)' : 'var(--ink)'} />
           </g>
-          <circle cx={CX} cy={CY} r="9" fill={waiting ? 'var(--ink-3)' : 'var(--ink)'} />
+          <circle cx={CX} cy={CY} r={R_HUB} fill={waiting ? 'var(--ink-3)' : 'var(--ink)'} />
+          <circle cx={CX} cy={CY} r="3.5" fill="var(--panel)" />
         </svg>
 
         {waiting ? (
           <p className="text-sm text-center mt-2" style={{ color: 'var(--ink-2)' }}>
-            The needle starts moving once votes are counted after polls close at 8 p.m.
+            The tower starts moving once votes are counted after polls close at 8 p.m.
           </p>
         ) : (
           <>
