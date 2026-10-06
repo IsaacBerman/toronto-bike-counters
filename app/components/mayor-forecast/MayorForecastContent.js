@@ -8,6 +8,13 @@ import {
 
 import forecast from './forecast.json';
 
+// A candidate who has ended their campaign is still simulated -- their
+// residual ballot share moves the margin -- but they come off the charts and
+// the standing. The tables below keep them, because those are the record.
+const RUNNING = forecast.candidates.filter(
+  (c) => !(forecast.withdrawals ?? {})[c.name],
+);
+
 const AXIS_DATE = new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric' });
 const LONG_DATE = new Intl.DateTimeFormat('en-CA', { month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -42,7 +49,7 @@ function Tip({ active, payload, label }) {
           ? `Projected · ${row.daysOut} days before the vote`
           : `Polling to date · ${row.daysOut} days before the vote`}
       </div>
-      {forecast.candidates.map(({ name, color }) => {
+      {RUNNING.map(({ name, color }) => {
         const c = row[name];
         if (!c) return null;
         return (
@@ -80,24 +87,15 @@ export default function MayorForecastContent() {
     return { rows: data, pivot: forecast.lastPollDate ?? lastActual?.date, latest: lastActual };
   }, []);
 
-  const electionDay = LONG_DATE.format(parseDay(forecast.electionDay));
 
   return (
     <main className="min-h-screen" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>
       <div className="container mx-auto px-4 max-w-5xl py-8">
-        <p className="dd-kicker">Toronto · 2026 municipal election</p>
-        <h1 className="dd-title text-3xl sm:text-4xl mt-1">Mayoral projection</h1>
-        <p className="mt-3 text-sm sm:text-base leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-          A projection of the {electionDay} result built from {forecast.polls.length} public
-          polls, correcting each firm for its house effect and widening the range by however
-          much of the campaign is left to run. Polling runs through{' '}
-          {LONG_DATE.format(parseDay(forecast.lastPollDate))}; everything after that is
-          projection.
-        </p>
+        <h1 className="dd-title text-3xl sm:text-4xl">2026 Toronto Mayoral projection</h1>
 
         {/* current standing */}
-        <div className="grid gap-3 sm:grid-cols-3 mt-7">
-          {forecast.candidates.map(({ name, color }) => {
+        <div className="grid gap-3 sm:grid-cols-2 mt-7">
+          {RUNNING.map(({ name, color }) => {
             const c = latest?.[name];
             if (!c) return null;
             return (
@@ -122,23 +120,6 @@ export default function MayorForecastContent() {
         {/* projected result over time */}
         <section className="mt-10">
           <h2 className="dd-title text-xl">Projected result, as the campaign ran</h2>
-          <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            Each point is what the model would have projected for election day using only the
-            polls published by that date. The shaded band is the 90% range. It narrows toward
-            the vote because less campaign is left for opinion to move — not because the polls
-            get better. Past the dashed line there are no polls yet, so the central estimate is
-            held flat and only the range tightens.
-          </p>
-          {Object.keys(forecast.withdrawals ?? {}).length > 0 && (
-            <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-              The step on {LONG_DATE.format(parseDay(Object.values(forecast.withdrawals)[0]))} is{' '}
-              {Object.keys(forecast.withdrawals)[0]} ending his campaign. Nominations closed on
-              21 August, so he stays on the ballot and keeps some of his vote; the rest is
-              released, mostly toward Bradford. How much moves, and where, is drawn fresh in
-              every simulation from deliberately wide ranges — nobody knows these numbers, and
-              a point estimate would hide how much they matter.
-            </p>
-          )}
           <div className="dd-panel mt-4 p-3 sm:p-4">
             <div style={{ height: 380 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -150,19 +131,19 @@ export default function MayorForecastContent() {
                     tickFormatter={(v) => AXIS_DATE.format(parseDay(v))}
                   />
                   <YAxis
-                    domain={[0, 60]} ticks={[0, 10, 20, 30, 40, 50, 60]}
+                    domain={[25, 60]} ticks={[25, 30, 35, 40, 45, 50, 55, 60]}
                     tickLine={false} axisLine={false}
                     tick={{ fill: 'var(--ink-3)', fontSize: 11 }}
                     tickFormatter={(v) => `${v}%`}
                   />
                   <Tooltip content={<Tip />} />
-                  {forecast.candidates.map(({ name, color }) => (
+                  {RUNNING.map(({ name, color }) => (
                     <Area
                       key={`${name}-band`} dataKey={`${name}:band`} stroke="none"
                       fill={color} fillOpacity={0.16} isAnimationActive={false} connectNulls={false}
                     />
                   ))}
-                  {forecast.candidates.map(({ name, color }) => (
+                  {RUNNING.map(({ name, color }) => (
                     <Line
                       key={`${name}-mid`} dataKey={`${name}:mid`} stroke={color} strokeWidth={2}
                       dot={false} isAnimationActive={false} connectNulls={false}
@@ -189,11 +170,6 @@ export default function MayorForecastContent() {
         {/* win probability over time */}
         <section className="mt-10">
           <h2 className="dd-title text-xl">Chance of winning, as the campaign ran</h2>
-          <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            The same model, read as a probability. It moves with the polls and drifts toward
-            certainty as election day approaches, but it never reaches 100% — see the floor
-            described below.
-          </p>
           <div className="dd-panel mt-4 p-3 sm:p-4">
             <div style={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -212,7 +188,7 @@ export default function MayorForecastContent() {
                   />
                   <Tooltip content={<Tip />} />
                   <ReferenceLine y={50} stroke="var(--line)" />
-                  {forecast.candidates.map(({ name, color }) => (
+                  {RUNNING.map(({ name, color }) => (
                     <Line
                       key={`${name}-win`} dataKey={`${name}:win`} stroke={color} strokeWidth={2}
                       dot={false} isAnimationActive={false} connectNulls={false}
@@ -231,12 +207,6 @@ export default function MayorForecastContent() {
         {/* house effects */}
         <section className="mt-10">
           <h2 className="dd-title text-xl">House effects</h2>
-          <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            How far each firm reads a candidate above or below the average firm, in percentage
-            points, after allowing for when they polled. These are <em>relative</em>: they are
-            constrained to average out across firms, so they say who disagrees with whom, not
-            who is right. Only the result settles that.
-          </p>
           <div className="dd-panel mt-4 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -269,6 +239,48 @@ export default function MayorForecastContent() {
         </section>
 
         {/* method */}
+        <section className="mt-10">
+          <h2 className="dd-title text-xl">How it works, and what it can&apos;t do</h2>
+          <div className="mt-3 space-y-3 text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+            <p>
+              Each point on the charts is what the model would have projected for election day
+              using only the polls published by that date. Support is estimated with a local
+              regression through the polls over a {forecast.bandwidthDays}-day window, while
+              each firm&apos;s house effect is estimated from how far its polls sit from that
+              trend; the two are fitted together, alternating until they settle. House effects
+              are relative — constrained to average out across firms — so they say who
+              disagrees with whom, not who is right.
+            </p>
+            <p>
+              The range comes from three things. <strong>Estimation</strong> error — how
+              precisely the polls pin down support today — is small and shrinks as polls
+              accumulate. <strong>Drift</strong> — how much opinion can still move — is taken
+              from how much this campaign&apos;s own trend has moved over comparable stretches,
+              and shrinks to nothing on election day.{' '}
+              <strong>Industry-wide polling error</strong> does neither.
+            </p>
+            <p>
+              That last one is the floor, and it is why the band stops narrowing and the
+              probability never reaches certainty. House effects cannot touch it: they measure
+              firms against each other, so an error every firm shares passes straight through.
+              It is set here at {forecast.pollingErrorSd} points on a 50% share, scaled down for
+              candidates polling further from 50%. It is an assumption, not a measurement, and
+              it drives the headline number more than anything the polls say.
+            </p>
+            <p>
+              Chris Alexander ended his campaign on 6 October, which is the step in both charts.
+              Nominations closed on 21 August, so he stays on the ballot and keeps some of his
+              vote; the rest is released, mostly toward Bradford. How much moves, and where, is
+              drawn fresh in every simulation from deliberately wide ranges. He is still
+              simulated but no longer plotted.
+            </p>
+            <p>
+              Turnout is the other thing no poll here settles. Municipal elections in Toronto
+              draw well under half the electorate, and who shows up moves results by more than
+              sampling error does.
+            </p>
+          </div>
+        </section>
 
         {/* polls */}
         <section className="mt-10">
