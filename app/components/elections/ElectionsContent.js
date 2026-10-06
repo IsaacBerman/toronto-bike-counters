@@ -448,9 +448,7 @@ export default function ElectionsContent() {
         <div className="mt-8 dd-panel p-6 text-sm space-y-2" style={{ color: 'var(--ink-2)' }}>
           {isLive ? (
             <p>
-              Unofficial results from the City of Toronto&rsquo;s election-night feed, by ward only.
-              Advance votes are added to each ward&rsquo;s totals after polls close. Poll-by-poll
-              results come once the City Clerk certifies the election.
+              Unofficial results from the City of Toronto&rsquo;s election-night feed.
             </p>
           ) : (
           <p>
