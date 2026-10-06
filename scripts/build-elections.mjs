@@ -369,11 +369,28 @@ function build(election) {
       const pos = ward.cand.indexOf(ci);
       // Ranked by ward total, so the closest challenger is the top non-Chow row.
       const rivalPos = pos === 0 ? 1 : 0;
+      // Advance, mail-in and care-home votes, apart: they arrive on election
+      // night as late lump sums (in 2023, about an hour after the
+      // election-day polls) and lean differently, so the needle compares each
+      // part of the count with the same part of 2023.
+      const early = (i) => ['advance', 'mail', 'ltc'].reduce((t, k) => t + (ward.special[k]?.[i] ?? 0), 0);
       baseline[w] = {
         candidate: ward.totals[pos],
         rival: ward.totals[rivalPos],
         rivalName: candidates[ward.cand[rivalPos]],
         total: ward.totals.reduce((t, v) => t + v, 0),
+        early: {
+          candidate: early(pos),
+          rival: early(rivalPos),
+          total: ward.totals.reduce((t, _, i) => t + early(i), 0),
+        },
+        // The same, per kind of special poll: they differ a lot in size (an
+        // advance poll holds thousands, care homes a few hundred) and lean.
+        special: Object.fromEntries(['advance', 'mail', 'ltc'].map((k) => [k, {
+          candidate: ward.special[k]?.[pos] ?? 0,
+          rival: ward.special[k]?.[rivalPos] ?? 0,
+          total: (ward.special[k] ?? []).reduce((t, v) => t + v, 0),
+        }])),
       };
     }
     fs.writeFileSync(path.join(OUT_DIR, 'needle-baseline.json'), JSON.stringify({ candidate, wards: baseline }));

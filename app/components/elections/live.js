@@ -21,8 +21,14 @@ export function useLiveResults(enabled) {
   useEffect(() => {
     if (!enabled) return undefined;
     let cancelled = false;
-    let timer;
+    let checking = false;
+    // When the next check is due. A short local tick compares against the
+    // clock instead of trusting one long timer: browsers can fire a timer set
+    // hours ahead late after the computer sleeps, which could miss poll close.
+    let due = 0;
     const check = async () => {
+      if (checking) return;
+      checking = true;
       let failed = false;
       try {
         const res = await fetch('/api/election-results');
@@ -38,12 +44,21 @@ export function useLiveResults(enabled) {
         if (!cancelled) setError({ message: e.message, at: new Date().toISOString() });
       }
       // A failed check retries within a minute, even in the daily phase.
-      if (!cancelled) timer = setTimeout(check, Math.min(nextCheckDelay(), failed ? 60000 : Infinity));
+      due = Date.now() + Math.min(nextCheckDelay(), failed ? 60000 : Infinity);
+      checking = false;
     };
+    const tick = () => { if (!cancelled && Date.now() >= due) check(); };
+    // Coming back to the tab checks straight away if a check came due.
+    const onVisible = () => { if (document.visibilityState === 'visible') tick(); };
     check();
+    const timer = setInterval(tick, 10 * 1000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', tick);
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', tick);
     };
   }, [enabled]);
 

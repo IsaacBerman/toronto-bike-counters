@@ -8,7 +8,7 @@ import {
   SWING_BINS, marginOpacity, shareBreaks, shareColor, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets, LiveStatus } from './live';
-import { computeNeedle, Needle, NEEDLE } from './needle';
+import { computeNeedle, Needle } from './needle';
 import { isElectionNight } from '../../lib/elections-live';
 
 const ElectionMap = dynamic(() => import('./ElectionMap'), {
@@ -221,19 +221,14 @@ export default function ElectionsContent() {
   );
 
   // Chow's margin over her closest challenger in a ward now (the needle's
-  // challenger) against her margin over her closest challenger there in 2023,
-  // both as shares of all the ward's votes.
+  // challenger) against her 2023 margin over her closest challenger there in
+  // the same kind of votes, as the needle computes it — so before the advance
+  // votes arrive, election day is measured against election day.
   const wardSwing = useCallback((w) => {
-    const base = baseline?.wards[w];
-    const ward = data?.wards[w];
-    if (!base?.total || !ward || !needle?.challenger) return null;
-    const n = sum(ward.totals);
-    if (!n) return null;
-    const votesOf = (name) => ward.totals[ward.cand.indexOf(data.candidates.indexOf(name))] ?? 0;
-    const now = (votesOf(NEEDLE.a) - votesOf(needle.challenger)) / n;
-    const then = (base.candidate - base.rival) / base.total;
-    return { now, then, swing: now - then, rivalThen: base.rivalName, rivalNow: needle.challenger };
-  }, [baseline, data, needle]);
+    const s = needle?.wardSwings?.[w];
+    if (!s) return null;
+    return { ...s, rivalThen: baseline?.wards[w]?.rivalName ?? 'Bailão', rivalNow: needle.challenger };
+  }, [baseline, needle]);
 
   const wardStyleFor = useCallback((w) => {
     if (view === 'swing') {

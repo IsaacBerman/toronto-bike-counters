@@ -27,10 +27,15 @@ async function getJson(url) {
   return res.json();
 }
 
+// Offices are matched by name, trimmed, falling back to the ids the City's
+// spec gives (Mayor 1, Councillor 2).
+const findOffice = (offices, name, id) =>
+  offices.find((o) => String(o.name ?? '').trim() === name) ?? offices.find((o) => Number(o.id) === id);
+
 function shape(main, byWard) {
-  const offices = main.office ?? [];
-  const mayorOffice = offices.find((o) => o.name === 'Mayor');
-  const councilOffice = offices.find((o) => o.name === 'Councillor');
+  const offices = [main.office ?? []].flat();
+  const mayorOffice = findOffice(offices, 'Mayor', 1);
+  const councilOffice = findOffice(offices, 'Councillor', 2);
   const mayorTotal = mayorOffice?.ward?.[0];
   const wardInfo = new Map();
 
@@ -51,7 +56,11 @@ function shape(main, byWard) {
   // Mayoral votes by ward come from the second file, one entry per candidate
   // with that candidate's count in each ward.
   const mayorWards = new Map();
-  const mayorCandidates = (byWard?.office?.candidate ?? []).map((c) => {
+  // A single object in the live file and in 2023's, though the spec's slide
+  // draws a list; either works.
+  const byWardOffice = [byWard?.office ?? []].flat().find((o) => String(o?.name ?? '').trim() === 'Mayor')
+    ?? [byWard?.office ?? []].flat()[0];
+  const mayorCandidates = (byWardOffice?.candidate ?? []).map((c) => {
     const wards = {};
     for (const w of c.ward ?? []) {
       wards[num(w.num)] = num(w.votesReceived);
@@ -90,7 +99,11 @@ export async function GET() {
     // never the results.
     try {
       const mayor = liveDatasets(body, { wards: {} })['mayor-2026'];
-      body.needleHistory = await recordNeedle(body.seq, computeNeedle(baseline, mayor));
+      // Capped, so a database waking up slowly delays the chart, not results.
+      body.needleHistory = await Promise.race([
+        recordNeedle(body.seq, computeNeedle(baseline, mayor)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('needle history timed out')), 3000)),
+      ]);
     } catch (e) {
       console.error('needle history', e);
       body.needleHistory = null;
