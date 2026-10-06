@@ -238,11 +238,11 @@ export default function MayorForecastContent() {
         {/* range of outcomes */}
         {density.length > 0 && (
           <section className="mt-10">
-            <h2 className="dd-title text-xl">Range of outcomes on election day</h2>
+            <h2 className="dd-title text-xl">Range of outcomes</h2>
             <div className="dd-panel mt-4 p-3 sm:p-4">
               <div style={{ height: 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={density} margin={{ top: 8, right: 8, bottom: 4, left: -18 }}>
+                  <ComposedChart data={density} margin={{ top: 26, right: 12, bottom: 4, left: -18 }}>
                     <CartesianGrid stroke="var(--line)" vertical={false} />
                     <XAxis
                       dataKey="share" type="number" domain={[30, 60]}
