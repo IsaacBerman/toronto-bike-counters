@@ -129,6 +129,16 @@ export default function MayorForecastContent() {
             get better. Past the dashed line there are no polls yet, so the central estimate is
             held flat and only the range tightens.
           </p>
+          {Object.keys(forecast.withdrawals ?? {}).length > 0 && (
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
+              The step on {LONG_DATE.format(parseDay(Object.values(forecast.withdrawals)[0]))} is{' '}
+              {Object.keys(forecast.withdrawals)[0]} ending his campaign. Nominations closed on
+              21 August, so he stays on the ballot and keeps some of his vote; the rest is
+              released, mostly toward Bradford. How much moves, and where, is drawn fresh in
+              every simulation from deliberately wide ranges — nobody knows these numbers, and
+              a point estimate would hide how much they matter.
+            </p>
+          )}
           <div className="dd-panel mt-4 p-3 sm:p-4">
             <div style={{ height: 380 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -164,6 +174,12 @@ export default function MayorForecastContent() {
                       label={{ value: 'latest poll', position: 'insideTopLeft', fill: 'var(--ink-3)', fontSize: 11 }}
                     />
                   )}
+                  {(forecast.events ?? []).filter((e) => rows.some((r) => r.date === e.date)).map((e) => (
+                    <ReferenceLine
+                      key={e.date} x={e.date} stroke="var(--ink-3)"
+                      label={{ value: e.label, position: 'insideTopRight', fill: 'var(--ink-3)', fontSize: 11 }}
+                    />
+                  ))}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -203,6 +219,9 @@ export default function MayorForecastContent() {
                     />
                   ))}
                   {pivot && <ReferenceLine x={pivot} stroke="var(--ink-3)" strokeDasharray="4 4" />}
+                  {(forecast.events ?? []).filter((e) => rows.some((r) => r.date === e.date)).map((e) => (
+                    <ReferenceLine key={e.date} x={e.date} stroke="var(--ink-3)" />
+                  ))}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
