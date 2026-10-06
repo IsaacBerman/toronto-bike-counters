@@ -361,10 +361,6 @@ export default function MayorForecastContent() {
           )}
         </section>
 
-        <p className="mt-10 text-xs" style={{ color: 'var(--ink-3)' }}>
-          Not a prediction anyone should bet on. Poll figures are as published by each firm;
-          the model, its assumptions and any errors in them are mine.
-        </p>
       </div>
     </main>
   );
