@@ -238,50 +238,6 @@ export default function MayorForecastContent() {
           </div>
         </section>
 
-        {/* method */}
-        <section className="mt-10">
-          <h2 className="dd-title text-xl">How it works, and what it can&apos;t do</h2>
-          <div className="mt-3 space-y-3 text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            <p>
-              Each point on the charts is what the model would have projected for election day
-              using only the polls published by that date. Support is estimated with a local
-              regression through the polls over a {forecast.bandwidthDays}-day window, while
-              each firm&apos;s house effect is estimated from how far its polls sit from that
-              trend; the two are fitted together, alternating until they settle. House effects
-              are relative — constrained to average out across firms — so they say who
-              disagrees with whom, not who is right.
-            </p>
-            <p>
-              The range comes from three things. <strong>Estimation</strong> error — how
-              precisely the polls pin down support today — is small and shrinks as polls
-              accumulate. <strong>Drift</strong> — how much opinion can still move — is taken
-              from how much this campaign&apos;s own trend has moved over comparable stretches,
-              and shrinks to nothing on election day.{' '}
-              <strong>Industry-wide polling error</strong> does neither.
-            </p>
-            <p>
-              That last one is the floor, and it is why the band stops narrowing and the
-              probability never reaches certainty. House effects cannot touch it: they measure
-              firms against each other, so an error every firm shares passes straight through.
-              It is set here at {forecast.pollingErrorSd} points on a 50% share, scaled down for
-              candidates polling further from 50%. It is an assumption, not a measurement, and
-              it drives the headline number more than anything the polls say.
-            </p>
-            <p>
-              Chris Alexander ended his campaign on 6 October, which is the step in both charts.
-              Nominations closed on 21 August, so he stays on the ballot and keeps some of his
-              vote; the rest is released, mostly toward Bradford. How much moves, and where, is
-              drawn fresh in every simulation from deliberately wide ranges. He is still
-              simulated but no longer plotted.
-            </p>
-            <p>
-              Turnout is the other thing no poll here settles. Municipal elections in Toronto
-              draw well under half the electorate, and who shows up moves results by more than
-              sampling error does.
-            </p>
-          </div>
-        </section>
-
         {/* polls */}
         <section className="mt-10">
           <button
