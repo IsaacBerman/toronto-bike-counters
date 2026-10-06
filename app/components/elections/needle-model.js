@@ -218,7 +218,11 @@ export function computeNeedle(baseline, data) {
     //  - wards not yet reporting depend on the swing, which is uncertain while
     //    few wards are in (8 points with none, narrowing as wards report), plus
     //    how much wards have differed from one another;
-    //  - within this reading, not knowing exactly which polls are in.
+    //  - within this reading, not knowing exactly which polls are in;
+    //  - the polls counted first may not be typical of the rest — the
+    //    quickest to report are often smaller or from particular areas — so
+    //    the swing seen early is itself shaky (10 points with nothing counted,
+    //    fading as the count fills in).
     const k = reported.length;
     const swingDoubt = Math.sqrt(0.08 ** 2 / (1 + k / 3) + swingVar / Math.max(1, wards.length - k));
     const sigma = allIn
@@ -228,6 +232,7 @@ export function computeNeedle(baseline, data) {
         0.1 * (leftEarly / total),
         swingDoubt * (leftInUnreported / total),
         Math.sqrt(mixVar) / total,
+        0.1 * (1 - counted / total),
       ) + 0.002;
     const projected = margin / total;
     return {
