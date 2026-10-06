@@ -102,7 +102,7 @@ export function LiveStatus({ data, fetchedAt, seq, error }) {
         ) : (
           <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
             <span className="font-semibold" style={{ color: 'var(--ink)' }}>Polls close at 8 p.m. on Monday, October 26.</span>{' '}
-            Unofficial results will appear here as the City reports them, updating every minute.
+            Unofficial results will appear here as the City reports them.
           </p>
         )}
       </div>
