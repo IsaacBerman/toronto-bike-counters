@@ -147,6 +147,9 @@ export default function MayorForecastContent() {
                     <Area
                       key={`${name}-band`} dataKey={`${name}:band`} stroke="none"
                       fill={color} fillOpacity={0.16} isAnimationActive={false} connectNulls={false}
+                      /* the band is a range, so it would otherwise mark both
+                         ends on hover -- three dots per candidate with the line */
+                      activeDot={false}
                     />
                   ))}
                   {RUNNING.map(({ name, color }) => (
