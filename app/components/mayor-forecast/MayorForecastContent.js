@@ -38,7 +38,9 @@ function Tip({ active, payload, label }) {
     >
       <div className="font-semibold mb-1">{LONG_DATE.format(parseDay(label))}</div>
       <div style={{ color: 'var(--ink-3)' }} className="mb-1.5">
-        {row.forecast ? 'Projected — no polls yet' : `${row.daysOut} days before the vote`}
+        {row.forecast
+          ? `Projected · ${row.daysOut} days before the vote`
+          : `Polling to date · ${row.daysOut} days before the vote`}
       </div>
       {forecast.candidates.map(({ name, color }) => {
         const c = row[name];
@@ -62,7 +64,7 @@ function Tip({ active, payload, label }) {
 export default function MayorForecastContent() {
   const [showPolls, setShowPolls] = useState(false);
 
-  const { rows, today, latest } = useMemo(() => {
+  const { rows, pivot, latest } = useMemo(() => {
     const data = forecast.track.map((row) => {
       const flat = { date: row.date, daysOut: row.daysOut, forecast: row.forecast };
       forecast.candidates.forEach(({ name }) => {
@@ -75,7 +77,7 @@ export default function MayorForecastContent() {
       return flat;
     });
     const lastActual = [...data].reverse().find((r) => !r.forecast);
-    return { rows: data, today: lastActual?.date, latest: lastActual };
+    return { rows: data, pivot: forecast.lastPollDate ?? lastActual?.date, latest: lastActual };
   }, []);
 
   const electionDay = LONG_DATE.format(parseDay(forecast.electionDay));
@@ -88,7 +90,9 @@ export default function MayorForecastContent() {
         <p className="mt-3 text-sm sm:text-base leading-relaxed" style={{ color: 'var(--ink-2)' }}>
           A projection of the {electionDay} result built from {forecast.polls.length} public
           polls, correcting each firm for its house effect and widening the range by however
-          much of the campaign is left to run. Updated {LONG_DATE.format(parseDay(forecast.generated))}.
+          much of the campaign is left to run. Polling runs through{' '}
+          {LONG_DATE.format(parseDay(forecast.lastPollDate))}; everything after that is
+          projection.
         </p>
 
         {/* current standing */}
@@ -154,9 +158,9 @@ export default function MayorForecastContent() {
                       dot={false} isAnimationActive={false} connectNulls={false}
                     />
                   ))}
-                  {today && (
+                  {pivot && (
                     <ReferenceLine
-                      x={today} stroke="var(--ink-3)" strokeDasharray="4 4"
+                      x={pivot} stroke="var(--ink-3)" strokeDasharray="4 4"
                       label={{ value: 'latest poll', position: 'insideTopLeft', fill: 'var(--ink-3)', fontSize: 11 }}
                     />
                   )}
@@ -198,7 +202,7 @@ export default function MayorForecastContent() {
                       dot={false} isAnimationActive={false} connectNulls={false}
                     />
                   ))}
-                  {today && <ReferenceLine x={today} stroke="var(--ink-3)" strokeDasharray="4 4" />}
+                  {pivot && <ReferenceLine x={pivot} stroke="var(--ink-3)" strokeDasharray="4 4" />}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
