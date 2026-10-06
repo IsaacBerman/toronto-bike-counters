@@ -7,7 +7,7 @@
 //         data/voting-subdivisions-2023 - 4326 (1).geojson
 //         One sheet per ward: a row of subdivision numbers, then a row per
 //         candidate with their votes in each subdivision, then a totals row.
-// Output: public/elections/council-2022.json, public/elections/mayor-2023.json
+// Output: public/elections/<id>.json for each entry in ELECTIONS
 //
 // Subdivisions 96-99 have no polygon: 96 is every long-term care and retirement
 // home in the ward pooled together (2023 only), 97 is mail-in, 98 and 99 are
@@ -36,6 +36,17 @@ const ELECTIONS = [
     boundaries: 'voting-subdivisions-2022 - 4326.geojson',
   },
   {
+    id: 'council-2018',
+    title: '2018 City Council',
+    date: '2018-10-22',
+    results: '2018_Toronto_Poll_By_Poll_Councillor.xlsx',
+    boundaries: 'voting-subdivisions-2018 - 4326.geojson',
+    // The 2018 boundaries tile the city but omit ~500 small polls (median
+    // ~100 votes; most likely single apartment buildings), so their location
+    // is unknown. They're pooled per ward rather than guessed at.
+    allowUnmapped: true,
+  },
+  {
     id: 'mayor-2023',
     title: '2023 Mayoral By-election',
     date: '2023-06-26',
@@ -61,6 +72,15 @@ const NAME_OVERRIDES = {
   'Singh Partap Dua': 'Partap Dua Singh',
   'Allan Gru Jesse': 'Jesse Allan Gru',
   'Yan Nathalie Xian Yi': 'Nathalie Xian Yi Yan',
+  'Di Giorgio Frank': 'Frank Di Giorgio',
+  'La Rose Winston': 'Winston La Rose',
+  'Carmichael Greb Christin': 'Christin Carmichael Greb',
+  'De Santis Danny': 'Danny De Santis',
+  'Del Grande David': 'David Del Grande',
+  'Tabasi Nejad Saman': 'Saman Tabasi Nejad',
+  'Khogali Ali Walied': 'Walied Khogali Ali',
+  'Park Chung Jin': 'Chung Jin Park',
+  'Nadeem Zamir ul hassan': 'Zamir ul hassan Nadeem',
 };
 
 function givenNameFirst(listed) {
@@ -265,6 +285,15 @@ function build(election) {
     };
   });
 
+  if (election.allowUnmapped) {
+    for (const [key, votes] of pollVotes) {
+      const ward = wards[Number(key.split('-')[0])];
+      ward.special.unmapped ??= votes.map(() => 0);
+      votes.forEach((v, i) => { ward.special.unmapped[i] += v; });
+    }
+    if (pollVotes.size) console.log(`  ${pollVotes.size} polls with no boundary, pooled per ward`);
+    pollVotes.clear();
+  }
   if (pollVotes.size) throw new Error(`${election.id}: results with no boundary: ${[...pollVotes.keys()].join(', ')}`);
 
   const out = {

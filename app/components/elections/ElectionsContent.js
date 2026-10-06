@@ -18,7 +18,7 @@ const ElectionMap = dynamic(() => import('./ElectionMap'), {
 });
 
 const RANK_LABELS = ['Ward winner', 'Runner-up', 'Third place'];
-const SPECIAL_LABELS = { advance: 'Advance polls', mail: 'Mail-in', ltc: 'Care-home polls' };
+const SPECIAL_LABELS = { advance: 'Advance polls', mail: 'Mail-in', ltc: 'Care-home polls', unmapped: 'Election-day polls with no boundary' };
 
 // Election-day votes are reported poll by poll; the rest only by ward.
 const VOTE_TYPES = [
@@ -33,7 +33,8 @@ const VOTE_NOUN = { day: 'election-day votes', advance: 'advance votes', mail: '
 function wardVotes(ward, type) {
   if (type === 'all') return ward.totals;
   if (type === 'day') {
-    const special = Object.values(ward.special);
+    // Polls with no boundary (2018) are still election-day votes.
+    const special = ['advance', 'mail', 'ltc'].map((k) => ward.special[k]).filter(Boolean);
     return ward.totals.map((t, i) => t - sum(special.map((v) => v[i])));
   }
   return ward.special[type] ?? ward.totals.map(() => 0);
@@ -50,6 +51,7 @@ function prepare(data) {
     ward.cand.forEach((c, i) => cityTotals.set(c, (cityTotals.get(c) ?? 0) + ward.totals[i]));
     ward.allVotes = sum(ward.totals);
     ward.offMap = sum(Object.values(ward.special).map(sum));
+    ward.unmapped = ward.special.unmapped ? sum(ward.special.unmapped) : 0;
   }
   const cityRanked = [...cityTotals].sort((a, b) => b[1] - a[1]);
   // Colour follows the candidate in the mayor's race (Chow is the same blue in
@@ -63,7 +65,8 @@ function prepare(data) {
   };
   const offMap = sum(Object.values(data.wards).map((w) => w.offMap));
   const allVotes = sum(Object.values(data.wards).map((w) => w.allVotes));
-  return { isMayor, cityRanked, slotOf, offMap, allVotes };
+  const unmapped = sum(Object.values(data.wards).map((w) => w.unmapped));
+  return { isMayor, cityRanked, slotOf, offMap, unmapped, allVotes };
 }
 
 const colorOfSlot = (slot) => (slot >= 0 ? SLOT_COLORS[slot] : OTHER_COLOR);
@@ -355,7 +358,12 @@ export default function ElectionsContent() {
             Only election-day votes are reported poll by poll. Advance, mail-in and long-term-care
             votes were counted at the ward level, so the map shows those by ward, and they&rsquo;re
             included in the ward totals.
-            {meta && <> In the {race.label.toLowerCase()} they were {pct(meta.offMap, meta.allVotes)} of all votes.</>}
+            {meta && <> In the {race.label.toLowerCase()} they were {pct(meta.offMap - meta.unmapped, meta.allVotes)} of all votes.</>}
+            {meta?.unmapped > 0 && (
+              <> Another {pct(meta.unmapped, meta.allVotes)} came from small election-day polls,
+              most likely single apartment buildings, that the City&rsquo;s {race.label.slice(0, 4)} boundary
+              file doesn&rsquo;t draw. They&rsquo;re in the ward totals but not on the poll map.</>
+            )}
           </p>
           <p>
             Poll-by-poll results and voting subdivision boundaries from the{' '}
@@ -529,7 +537,7 @@ function WardCard({ data, ward: w, votes }) {
       <div className="p-4">
         <ResultBars names={names} votes={shown} colors={wardColors(data, w)} />
         <dl className="mt-4 pt-3 text-xs grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1" style={{ borderTop: '1px solid var(--line)', color: 'var(--ink-2)' }}>
-          <dt>Election-day polls</dt>
+          <dt>{ward.unmapped ? 'Election-day polls on map' : 'Election-day polls'}</dt>
           <dd style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(onMap)}</dd>
           <dd className="text-right" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{pct(onMap, ward.allVotes)}</dd>
           {Object.entries(ward.special).map(([kind, votes]) => (

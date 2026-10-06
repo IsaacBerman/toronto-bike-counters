@@ -4,6 +4,7 @@
 export const RACES = [
   { id: 'mayor-2023', label: '2023 Mayoral By-election', short: '2023 Mayor' },
   { id: 'council-2022', label: '2022 City Council', short: '2022 Council' },
+  { id: 'council-2018', label: '2018 City Council', short: '2018 Council' },
 ];
 
 // The first three slots of the validated categorical palette, which are the
