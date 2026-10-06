@@ -16,6 +16,15 @@ export const RACES = [
 // Other.
 export const SLOT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a'];
 export const OTHER_COLOR = '#8a887c';
+
+// 2026 mayoral candidates in their campaign colours, matching the polling
+// chart on dash.raccoon.bike (light theme there, validated as a set). The
+// live mayor map pins these three to its colour slots, in this order.
+export const CANDIDATE_COLORS_2026 = {
+  'Olivia Chow': '#854a90',
+  'Brad Bradford': '#2e8b57',
+  'Chris Alexander': '#54c4cc',
+};
 export const NO_RESULT_COLOR = '#c9c7bc';
 
 // Fill opacity by the leader's share of the poll: a deeper fill is a more
@@ -44,6 +53,23 @@ export function shareBreaks(shares) {
   const steps = [0.005, 0.01, 0.02, 0.025, 0.05, 0.1];
   const step = steps.find((s) => s * SHARE_RAMP.length >= p95) ?? 0.1;
   return SHARE_RAMP.map((_, i) => i * step);
+}
+
+// Swing in Chow's margin since 2023, in points of the ward's vote: green away
+// from her, a grey midpoint for little change, purple toward her — the two
+// campaign hues, stepped lighter toward the middle.
+export const SWING_BINS = [
+  { max: -0.1, color: '#2e8b57', label: '10+' },
+  { max: -0.05, color: '#6fae89', label: '5–10' },
+  { max: -0.02, color: '#acd0ba', label: '2–5' },
+  { max: 0.02, color: '#e2e0d6', label: '<2' },
+  { max: 0.05, color: '#cdb3d2', label: '2–5' },
+  { max: 0.1, color: '#a97bb2', label: '5–10' },
+  { max: Infinity, color: '#854a90', label: '10+' },
+];
+
+export function swingColor(swing) {
+  return SWING_BINS.find((b) => swing < b.max)?.color ?? SWING_BINS[SWING_BINS.length - 1].color;
 }
 
 export function shareColor(share, breaks) {

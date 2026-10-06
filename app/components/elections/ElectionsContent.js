@@ -5,10 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
   RACES, SLOT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
-  marginOpacity, shareBreaks, shareColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
+  SWING_BINS, marginOpacity, shareBreaks, shareColor, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets, LiveStatus } from './live';
-import { computeNeedle, Needle } from './needle';
+import { computeNeedle, Needle, NEEDLE } from './needle';
 import { isElectionNight } from '../../lib/elections-live';
 
 const ElectionMap = dynamic(() => import('./ElectionMap'), {
@@ -63,19 +63,21 @@ function prepare(data) {
   // Pinned candidates (the live needle's two) take the first slots outright.
   const pinned = (data.pinned ?? []).map((name) => data.candidates.indexOf(name)).filter((c) => c >= 0);
   const slotOrder = [...pinned, ...cityRanked.map(([c]) => c).filter((c) => !pinned.includes(c))];
-  const citySlot = new Map(slotOrder.slice(0, SLOT_COLORS.length).map((c, i) => [c, i]));
+  // A race can bring its own colours (2026: the campaigns'); otherwise slots.
+  const palette = data.palette ?? SLOT_COLORS;
+  const citySlot = new Map(slotOrder.slice(0, palette.length).map((c, i) => [c, i]));
   const slotOf = (ward, pos) => {
     if (pos < 0) return -1;
     if (isMayor) return citySlot.get(data.wards[ward].cand[pos]) ?? -1;
-    return pos < SLOT_COLORS.length ? pos : -1;
+    return pos < palette.length ? pos : -1;
   };
   const offMap = sum(Object.values(data.wards).map((w) => w.offMap));
   const allVotes = sum(Object.values(data.wards).map((w) => w.allVotes));
   const unmapped = sum(Object.values(data.wards).map((w) => w.unmapped));
-  return { isMayor, cityRanked, citySlot, slotOrder, slotOf, offMap, unmapped, allVotes };
+  return { isMayor, cityRanked, citySlot, slotOrder, slotOf, palette, offMap, unmapped, allVotes };
 }
 
-const colorOfSlot = (slot) => (slot >= 0 ? SLOT_COLORS[slot] : OTHER_COLOR);
+const colorOfSlot = (slot, palette = SLOT_COLORS) => (slot >= 0 ? palette[slot] : OTHER_COLOR);
 
 export default function ElectionsContent() {
   const router = useRouter();
@@ -90,7 +92,9 @@ export default function ElectionsContent() {
   const [raceId, setRaceId] = useState(initialRace);
   const [cache, setCache] = useState({});
   const [error, setError] = useState(null);
-  const [view, setView] = useState('leader'); // 'leader' | 'share'
+  const [viewPick, setView] = useState('leader'); // 'leader' | 'share' | 'swing'
+  // Swing only exists for the live mayor's race, which has a 2023 to swing from.
+  const view = viewPick === 'swing' && raceId !== 'mayor-2026' ? 'leader' : viewPick;
   const [votesPick, setVotes] = useState(initialVotes);
   // Live results are ward totals only, with no split by how people voted.
   const isLive = Boolean(RACES.find((r) => r.id === raceId)?.live);
@@ -194,7 +198,7 @@ export default function ElectionsContent() {
     }
     const lead = pollLeader(v);
     if (lead < 0) return { fillColor: OTHER_COLOR, fillOpacity: 0.25 };
-    return { fillColor: colorOfSlot(meta.slotOf(w, lead)), fillOpacity: marginOpacity(v[lead] / total) };
+    return { fillColor: colorOfSlot(meta.slotOf(w, lead), meta.palette), fillOpacity: marginOpacity(v[lead] / total) };
   }, [view, targetPos, breaks, meta]);
 
   const styleFor = useCallback(
@@ -202,10 +206,28 @@ export default function ElectionsContent() {
     [fillFor]
   );
 
-  const wardStyleFor = useCallback(
-    (w) => fillFor(w, wardVotes(data.wards[w], votes)),
-    [fillFor, data, votes]
-  );
+  // Chow's margin over her closest challenger in a ward now (the needle's
+  // challenger) against her margin over her closest challenger there in 2023,
+  // both as shares of all the ward's votes.
+  const wardSwing = useCallback((w) => {
+    const base = baseline?.wards[w];
+    const ward = data?.wards[w];
+    if (!base?.total || !ward || !needle?.challenger) return null;
+    const n = sum(ward.totals);
+    if (!n) return null;
+    const votesOf = (name) => ward.totals[ward.cand.indexOf(data.candidates.indexOf(name))] ?? 0;
+    const now = (votesOf(NEEDLE.a) - votesOf(needle.challenger)) / n;
+    const then = (base.candidate - base.rival) / base.total;
+    return { now, then, swing: now - then, rivalThen: base.rivalName, rivalNow: needle.challenger };
+  }, [baseline, data, needle]);
+
+  const wardStyleFor = useCallback((w) => {
+    if (view === 'swing') {
+      const s = wardSwing(w);
+      return s ? { fillColor: swingColor(s.swing), fillOpacity: 0.85 } : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
+    }
+    return fillFor(w, wardVotes(data.wards[w], votes));
+  }, [view, wardSwing, fillFor, data, votes]);
 
   // Top three in a set of votes, plus the share view's candidate if they're
   // further down.
@@ -216,7 +238,7 @@ export default function ElectionsContent() {
     const pos = view === 'share' ? targetPos(w) : -1;
     if (pos >= 0 && !shown.includes(pos)) shown.push(pos);
     const rows = shown.map((i) => `<tr style="${i === pos ? 'font-weight:700;' : ''}">
-        <td style="padding-right:6px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorOfSlot(meta.slotOf(w, i))}"></span></td>
+        <td style="padding-right:6px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorOfSlot(meta.slotOf(w, i), meta.palette)}"></span></td>
         <td style="padding-right:8px">${escapeHtml(data.candidates[ward.cand[i]])}</td>
         <td style="text-align:right;font-variant-numeric:tabular-nums">${fmt(v[i] ?? 0)}</td>
         <td style="text-align:right;padding-left:8px;opacity:0.65;font-variant-numeric:tabular-nums">${pct(v[i] ?? 0, total)}</td>
@@ -239,6 +261,19 @@ export default function ElectionsContent() {
   }, [data, resultRows]);
 
   const wardTooltipFor = useCallback((w) => {
+    if (view === 'swing') {
+      const s = wardSwing(w);
+      const sgn = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}`;
+      const last = (name) => escapeHtml(name.split(' ').slice(-1)[0]);
+      return `<div style="font-size:12px">
+        <div style="font-weight:700;margin-bottom:4px">${escapeHtml(data.wards[w].name)}</div>
+        ${s ? `<table style="border-collapse:collapse;font-variant-numeric:tabular-nums">
+          <tr><td style="padding-right:10px">Chow over ${last(s.rivalNow)}, now</td><td style="text-align:right">${sgn(s.now)}</td></tr>
+          <tr><td style="padding-right:10px">Chow over ${last(s.rivalThen)}, 2023</td><td style="text-align:right">${sgn(s.then)}</td></tr>
+          <tr style="font-weight:700"><td style="padding-right:10px">Swing ${s.swing >= 0 ? 'toward' : 'away from'} Chow</td><td style="text-align:right">${Math.abs(s.swing * 100).toFixed(1)} pts</td></tr>
+        </table>` : '<div style="opacity:0.7">No results yet</div>'}
+      </div>`;
+    }
     const v = wardVotes(data.wards[w], votes);
     return `<div style="font-size:12px">
       <div style="font-weight:700">${escapeHtml(data.wards[w].name)}</div>
@@ -246,7 +281,7 @@ export default function ElectionsContent() {
       <div style="margin-bottom:4px"></div>
       ${resultRows(w, v)}
       <div style="margin-top:4px;opacity:0.7">${fmt(sum(v))} ${VOTE_NOUN[votes]}</div></div>`;
-  }, [data, votes, resultRows]);
+  }, [data, votes, resultRows, view, wardSwing]);
 
   const handleSelectWard = useCallback((w) => {
     setSelectedWard(w);
@@ -309,7 +344,11 @@ export default function ElectionsContent() {
           <Segmented
             label="Show"
             value={view}
-            options={[{ value: 'leader', label: 'Who led' }, { value: 'share', label: 'Vote share' }]}
+            options={[
+              { value: 'leader', label: 'Who led' },
+              { value: 'share', label: 'Vote share' },
+              ...(raceId === 'mayor-2026' ? [{ value: 'swing', label: 'Swing' }] : []),
+            ]}
             onChange={setView}
           />
           {!isLive && <Segmented label="Votes" value={votes} options={VOTE_TYPES} onChange={switchVotes} />}
@@ -480,6 +519,27 @@ function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
   if (data.live && !data.meta.allVotes) {
     return <p className="mt-3 text-xs" style={{ color: 'var(--ink-3)' }}>Wards fill in as results are counted.</p>;
   }
+  if (view === 'swing') {
+    return (
+      <div className="mt-3">
+        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>
+          Swing in Chow&rsquo;s margin over her closest challenger since 2023, points
+        </p>
+        <div className="flex items-end gap-0.5">
+          {SWING_BINS.map((b, i) => (
+            <div key={i} className="flex flex-col items-center" style={{ width: 46 }}>
+              <span className="block w-full" style={{ height: 12, background: b.color }} />
+              <span className="text-xs mt-0.5" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{b.label}</span>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-between text-xs mt-0.5" style={{ width: 46 * 7 + 12, color: 'var(--ink-2)' }}>
+          <span>&larr; Away from Chow</span>
+          <span>Toward Chow &rarr;</span>
+        </div>
+      </div>
+    );
+  }
   if (view === 'share') {
     return (
       <div className="mt-3">
@@ -500,7 +560,7 @@ function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
     );
   }
   const labels = isMayor
-    ? data.meta.slotOrder.slice(0, SLOT_COLORS.length).map((c) => data.candidates[c])
+    ? data.meta.slotOrder.slice(0, data.meta.palette.length).map((c) => data.candidates[c])
     : RANK_LABELS;
   return (
     <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
@@ -508,7 +568,7 @@ function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
         <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>{!byWard ? 'Poll led by' : votes === 'all' ? 'Ward led by' : `${VOTE_TYPES.find((t) => t.value === votes).label} vote led by`}</p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs" style={{ color: 'var(--ink-2)' }}>
           {labels.map((label, i) => (
-            <span key={label} className="flex items-center gap-1.5"><Swatch color={SLOT_COLORS[i]} />{label}</span>
+            <span key={label} className="flex items-center gap-1.5"><Swatch color={isMayor ? data.meta.palette[i] : SLOT_COLORS[i]} />{label}</span>
           ))}
           <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} />Anyone else</span>
           <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} opacity={0.25} />Tie</span>
@@ -557,7 +617,7 @@ function ResultBars({ names, votes, colors, limit = 6 }) {
 }
 
 function wardColors(data, w) {
-  return data.wards[w].cand.map((_, pos) => colorOfSlot(data.meta.slotOf(w, pos)));
+  return data.wards[w].cand.map((_, pos) => colorOfSlot(data.meta.slotOf(w, pos), data.meta.palette));
 }
 
 function PollCard({ data, poll, onClose }) {
@@ -643,7 +703,7 @@ function CityCard({ data, votes: type }) {
     wardVotes(ward, type).forEach((v, i) => byCandidate.set(ward.cand[i], (byCandidate.get(ward.cand[i]) ?? 0) + v));
   }
   const votes = cityRanked.map(([c]) => byCandidate.get(c) ?? 0);
-  const colors = cityRanked.map(([c]) => colorOfSlot(data.meta.citySlot.get(c) ?? -1));
+  const colors = cityRanked.map(([c]) => colorOfSlot(data.meta.citySlot.get(c) ?? -1, data.meta.palette));
   return (
     <div className="dd-panel">
       <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>

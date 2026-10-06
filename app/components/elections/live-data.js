@@ -1,8 +1,7 @@
 // Turns the City's live feed (as /api/election-results shapes it) into the
 // same structure as the past races' files. Plain JS so the API route can use
 // it too.
-import { sum } from './results';
-import { NEEDLE } from './needle-model';
+import { sum, CANDIDATE_COLORS_2026 } from './results';
 
 // Ranks candidates by votes, ties alphabetically, as the City's feed does.
 function rank(list) {
@@ -50,8 +49,9 @@ export function liveDatasets(feed, outlines) {
       id: 'mayor-2026',
       title: '2026 Mayoral Election',
       live: true,
-      // Fixed colours for the needle's two candidates, whoever is ahead.
-      pinned: [NEEDLE.a, NEEDLE.b],
+      // Campaign colours for the leading candidates, whoever is ahead.
+      pinned: Object.keys(CANDIDATE_COLORS_2026),
+      palette: Object.values(CANDIDATE_COLORS_2026),
       polls: empty,
       wardOutlines: outlines.wardOutlines,
       candidates: mayorNames,

@@ -1,20 +1,22 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { SLOT_COLORS, fmt } from './results';
+import { CANDIDATE_COLORS_2026, OTHER_COLOR, fmt } from './results';
 import { NEEDLE, surname } from './needle-model';
 import { POLLS_CLOSE } from '../../lib/elections-live';
 
 export { NEEDLE, computeNeedle } from './needle-model';
 
-const A_COLOR = SLOT_COLORS[0];
-const B_COLOR = SLOT_COLORS[1];
+// Chow on the right in her campaign colour; the challenger on the left in
+// theirs (grey for anyone without one).
+const A_COLOR = CANDIDATE_COLORS_2026[NEEDLE.a];
+const colorOf = (name) => CANDIDATE_COLORS_2026[name] ?? OTHER_COLOR;
 
 // Probability bands, as the dial labels them.
-const BANDS = [
-  [0, 0.05, B_COLOR, 1],
-  [0.05, 0.25, B_COLOR, 0.6],
-  [0.25, 0.4, B_COLOR, 0.28],
+const bands = (bColor) => [
+  [0, 0.05, bColor, 1],
+  [0.05, 0.25, bColor, 0.6],
+  [0.25, 0.4, bColor, 0.28],
   [0.4, 0.6, '#d6d4ca', 1],
   [0.6, 0.75, A_COLOR, 0.28],
   [0.75, 0.95, A_COLOR, 0.6],
@@ -49,20 +51,18 @@ export function Needle({ needle, history, seq }) {
   const waiting = !needle || needle.waiting;
   const p = waiting ? 0.5 : needle.p;
   const rival = surname(needle?.challenger ?? NEEDLE.b);
+  const bColor = colorOf(needle?.challenger ?? NEEDLE.b);
   const leader = p >= 0.5 ? NEEDLE.aShort : rival;
 
   return (
     <div className="dd-panel">
       <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
         <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>Who will win?</h2>
-        <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
-          Our estimate, from Chow&rsquo;s margin over her closest challenger in each ward against 2023
-        </p>
       </div>
       <div className="p-4">
         <svg viewBox="-34 0 388 178" className="w-full" role="img"
           aria-label={waiting ? 'Needle waiting for results' : `${leader} ${pctText(Math.max(p, 1 - p), needle.allIn)}% likely to win`}>
-          {BANDS.map(([p0, p1, color, opacity]) => (
+          {bands(bColor).map(([p0, p1, color, opacity]) => (
             <path key={p0} d={bandPath(p0, p1)} fill={color} fillOpacity={waiting ? opacity * 0.35 : opacity} stroke="var(--panel)" strokeWidth="2" />
           ))}
           {TICKS.map(([tp, label], i) => {
@@ -94,7 +94,7 @@ export function Needle({ needle, history, seq }) {
                 {needle.allIn ? 'all polls reporting' : 'chance of winning'}
               </span>
             </p>
-            <ChanceChart history={history} needle={needle} seq={seq} rival={rival} />
+            <ChanceChart history={history} needle={needle} seq={seq} rival={rival} bColor={bColor} />
             <dl className="mt-3 pt-3 text-xs grid grid-cols-[1fr_auto] gap-x-3 gap-y-1" style={{ borderTop: '1px solid var(--line)', color: 'var(--ink-2)', fontVariantNumeric: 'tabular-nums' }}>
               <dt>Projected margin, Chow over {rival}</dt>
               <dd className="text-right font-semibold" style={{ color: 'var(--ink)' }}>{signed(needle.projected)}</dd>
@@ -107,11 +107,6 @@ export function Needle({ needle, history, seq }) {
             </dl>
           </>
         )}
-        <p className="text-xs mt-3 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-          Margins are shares of all votes in a ward. Uncounted votes are projected at Chow&rsquo;s
-          2023 margin over her closest challenger there (Bailão, in every ward), shifted by the
-          swing seen in the wards counted so far. An estimate, not an official result.
-        </p>
       </div>
     </div>
   );
@@ -122,7 +117,7 @@ const W = 300;
 const H = 118;
 const M = { l: 30, r: 8, t: 8, b: 18 };
 
-function ChanceChart({ history, needle, seq, rival }) {
+function ChanceChart({ history, needle, seq, rival, bColor }) {
   const clipId = useId();
   const [hover, setHover] = useState(null);
   const points = [...(history ?? [])].map(([t, p]) => [t, p]);
@@ -164,7 +159,7 @@ function ChanceChart({ history, needle, seq, rival }) {
             </g>
           ))}
           <path d={area} fill={A_COLOR} fillOpacity="0.2" clipPath={`url(#${clipId}a)`} />
-          <path d={area} fill={B_COLOR} fillOpacity="0.2" clipPath={`url(#${clipId}b)`} />
+          <path d={area} fill={bColor} fillOpacity="0.2" clipPath={`url(#${clipId}b)`} />
           <path d={line} fill="none" stroke="var(--ink)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
           <text x={M.l} y={H - 4} fontSize="9" fill="var(--ink-3)">{clock(t0)}</text>
           <text x={W - M.r} y={H - 4} fontSize="9" textAnchor="end" fill="var(--ink-3)">{clock(t1)}</text>
