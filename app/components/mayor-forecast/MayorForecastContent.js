@@ -68,6 +68,18 @@ function Tip({ active, payload, label }) {
   );
 }
 
+function DensityTip({ active, label }) {
+  if (!active) return null;
+  return (
+    <div
+      className="text-xs rounded px-3 py-2 shadow-sm"
+      style={{ background: 'var(--panel)', border: '1px solid var(--line)', color: 'var(--ink)' }}
+    >
+      <div className="font-semibold">{Number(label).toFixed(1)}% of the vote</div>
+    </div>
+  );
+}
+
 export default function MayorForecastContent() {
   const [showPolls, setShowPolls] = useState(false);
 
@@ -93,6 +105,16 @@ export default function MayorForecastContent() {
     };
   }, []);
 
+
+  const density = useMemo(() => {
+    const d = forecast.distribution;
+    if (!d) return [];
+    return d.grid.map((share, i) => {
+      const row = { share };
+      RUNNING.forEach(({ name }) => { if (d[name]) row[name] = d[name][i]; });
+      return row;
+    });
+  }, []);
 
   return (
     <main className="min-h-screen" style={{ background: 'var(--paper)', color: 'var(--ink)' }}>
@@ -212,6 +234,50 @@ export default function MayorForecastContent() {
             </div>
           </div>
         </section>
+
+        {/* range of outcomes */}
+        {density.length > 0 && (
+          <section className="mt-10">
+            <h2 className="dd-title text-xl">Range of outcomes on election day</h2>
+            <div className="dd-panel mt-4 p-3 sm:p-4">
+              <div style={{ height: 300 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={density} margin={{ top: 8, right: 8, bottom: 4, left: -18 }}>
+                    <CartesianGrid stroke="var(--line)" vertical={false} />
+                    <XAxis
+                      dataKey="share" type="number" domain={[30, 60]}
+                      ticks={[30, 35, 40, 45, 50, 55, 60]}
+                      tickLine={false} axisLine={{ stroke: 'var(--line)' }}
+                      tick={{ fill: 'var(--ink-3)', fontSize: 11 }}
+                      tickFormatter={(v) => `${v}%`}
+                    />
+                    <YAxis hide domain={[0, 'dataMax']} />
+                    <Tooltip content={<DensityTip />} cursor={{ stroke: 'var(--line)' }} />
+                    {RUNNING.map(({ name, color }) => (
+                      <Area
+                        key={`${name}-dens`} dataKey={name} stroke={color} strokeWidth={2}
+                        fill={color} fillOpacity={0.22} isAnimationActive={false}
+                        activeDot={false}
+                      />
+                    ))}
+                    {RUNNING.map(({ name, color }) => {
+                      const c = latest?.[name];
+                      return c ? (
+                        <ReferenceLine
+                          key={`${name}-med`} x={c.median} stroke={color} strokeOpacity={0.55}
+                          label={{
+                            value: `${name} ${c.median.toFixed(1)}%`, position: 'top',
+                            fill: 'var(--ink-2)', fontSize: 11,
+                          }}
+                        />
+                      ) : null;
+                    })}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* house effects */}
         <section className="mt-10">
