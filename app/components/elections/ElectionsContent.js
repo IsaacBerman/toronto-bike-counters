@@ -21,6 +21,9 @@ const ElectionMap = dynamic(() => import('./ElectionMap'), {
 });
 
 const RANK_LABELS = ['Ward winner', 'Runner-up', 'Third place'];
+// The 2026 council map's slots: the incumbent stays blue all night; open
+// seats, with no incumbent, show their leader in the third colour.
+const INCUMBENT_LABELS = ['Incumbent', 'Closest challenger', 'Open-seat leader'];
 const SPECIAL_LABELS = { advance: 'Advance polls', mail: 'Mail-in', ltc: 'Care-home polls', unmapped: 'Election-day polls with no boundary' };
 
 // Election-day votes are reported poll by poll; the rest only by ward.
@@ -68,6 +71,17 @@ function prepare(data) {
   const citySlot = new Map(slotOrder.slice(0, palette.length).map((c, i) => [c, i]));
   const slotOf = (ward, pos) => {
     if (pos < 0) return -1;
+    if (data.colorRule === 'incumbent') {
+      const wd = data.wards[ward];
+      if (!wd.totals[pos]) return -1;
+      if (wd.incumbent != null) {
+        if (wd.cand[pos] === wd.incumbent) return 0;
+        // Candidates are ranked by votes, so the first non-incumbent is the
+        // closest challenger.
+        return pos === wd.cand.findIndex((c) => c !== wd.incumbent) ? 1 : -1;
+      }
+      return pos === 0 ? 2 : pos === 1 ? 1 : -1;
+    }
     if (isMayor) return citySlot.get(data.wards[ward].cand[pos]) ?? -1;
     return pos < palette.length ? pos : -1;
   };
@@ -559,7 +573,7 @@ function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
   }
   const labels = isMayor
     ? data.meta.slotOrder.slice(0, data.meta.palette.length).map((c) => data.candidates[c])
-    : RANK_LABELS;
+    : data.colorRule === 'incumbent' ? INCUMBENT_LABELS : RANK_LABELS;
   return (
     <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
       <div>
@@ -586,11 +600,14 @@ function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
 }
 
 // Candidate rows with a bar each, top `limit` then everyone else summed.
-function ResultBars({ names, votes, colors, limit = 6 }) {
+// `always` (an index) is listed even if it falls outside the top, so an
+// incumbent never disappears into "others".
+function ResultBars({ names, votes, colors, limit = 6, always = -1 }) {
   const total = sum(votes);
   const order = votes.map((v, i) => i).sort((a, b) => votes[b] - votes[a]);
   const top = order.slice(0, limit);
-  const rest = order.slice(limit);
+  if (always >= 0 && !top.includes(always)) top.push(always);
+  const rest = order.filter((i) => !top.includes(i));
   const restVotes = sum(rest.map((i) => votes[i]));
   const max = Math.max(1, ...top.map((i) => votes[i]), restVotes);
   const row = (key, name, v, color) => (
@@ -653,7 +670,7 @@ function PollCard({ data, poll, onClose }) {
 function WardCard({ data, ward: w, votes }) {
   const ward = data.wards[w];
   const shown = wardVotes(ward, votes);
-  const names = ward.cand.map((c) => data.candidates[c]);
+  const names = ward.cand.map((c) => `${data.candidates[c]}${c === ward.incumbent ? ' (incumbent)' : ''}`);
   const onMap = ward.allVotes - ward.offMap;
   return (
     <div className="dd-panel">
@@ -669,7 +686,7 @@ function WardCard({ data, ward: w, votes }) {
         </p>
       </div>
       <div className="p-4">
-        <ResultBars names={names} votes={shown} colors={wardColors(data, w)} />
+        <ResultBars names={names} votes={shown} colors={wardColors(data, w)} always={ward.incumbent != null ? ward.cand.indexOf(ward.incumbent) : -1} />
         {!data.live && <dl className="mt-4 pt-3 text-xs grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1" style={{ borderTop: '1px solid var(--line)', color: 'var(--ink-2)' }}>
           <dt>{ward.unmapped ? 'Election-day polls on map' : 'Election-day polls'}</dt>
           <dd style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(onMap)}</dd>

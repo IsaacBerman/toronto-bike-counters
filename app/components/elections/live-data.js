@@ -3,9 +3,42 @@
 // it too.
 import { sum, CANDIDATE_COLORS_2026 } from './results';
 
-// Ranks candidates by votes, ties alphabetically, as the City's feed does.
-function rank(list) {
-  return list.map((c, i) => ({ ...c, i })).sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name));
+// Councillors seeking re-election in 2026, by ward: the 2022 winners, plus
+// three who won their seats at by-elections since: Parthi Kandavel (Ward 20),
+// Rachel Chernos Lin (Ward 15) and Neethan Shan (Ward 25). Wards 4, 11, 14
+// and 19 are open seats. The live council map keeps each incumbent in one colour all
+// night rather than colouring by whoever is ahead.
+const INCUMBENTS_2026 = {
+  1: 'Vincent Crisanti',
+  2: 'Stephen Holyday',
+  3: 'Amber Morley',
+  5: 'Frances Nunziata',
+  6: 'James Pasternak',
+  7: 'Anthony Perruzza',
+  8: 'Mike Colle',
+  9: 'Alejandra Bravo',
+  10: 'Ausma Malik',
+  12: 'Josh Matlow',
+  13: 'Chris Moise',
+  15: 'Rachel Chernos Lin',
+  16: 'Jon Burnside',
+  17: 'Shelley Carroll',
+  18: 'Lily Cheng',
+  20: 'Parthi Kandavel',
+  21: 'Michael Thompson',
+  22: 'Nick Mantas',
+  23: 'Jamaal Myers',
+  24: 'Paul Ainslie',
+  25: 'Neethan Shan',
+};
+
+// Ranks candidates by votes, ties alphabetically, as the City's feed does —
+// except that an incumbent wins ties, so before any votes are in they're
+// listed first.
+function rank(list, incumbent) {
+  return list
+    .map((c, i) => ({ ...c, i }))
+    .sort((a, b) => b.votes - a.votes || (b.name === incumbent) - (a.name === incumbent) || a.name.localeCompare(b.name));
 }
 
 // Turns the live feed into the same shape as the past races' files, so the map
@@ -31,10 +64,12 @@ export function liveDatasets(feed, outlines) {
   const councilNames = [];
   const councilWards = {};
   for (const w of feed.council) {
-    const ranked = rank(w.candidates);
+    const ranked = rank(w.candidates, INCUMBENTS_2026[w.num]);
     const base = councilNames.length;
     councilNames.push(...w.candidates.map((c) => c.name));
+    const incumbent = w.candidates.findIndex((c) => c.name === INCUMBENTS_2026[w.num]);
     councilWards[w.num] = {
+      incumbent: incumbent >= 0 ? base + incumbent : null,
       name: w.name || outlines.wards[w.num],
       cand: ranked.map((c) => base + c.i),
       totals: ranked.map((c) => c.votes),
@@ -66,6 +101,7 @@ export function liveDatasets(feed, outlines) {
       wardOutlines: outlines.wardOutlines,
       candidates: councilNames,
       wards: councilWards,
+      colorRule: 'incumbent',
       reporting: {
         polls: sum(feed.council.map((w) => w.polls)),
         pollsReceived: sum(feed.council.map((w) => w.pollsReceived)),
