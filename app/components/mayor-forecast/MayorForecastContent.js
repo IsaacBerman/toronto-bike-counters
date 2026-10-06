@@ -83,8 +83,14 @@ export default function MayorForecastContent() {
       });
       return flat;
     });
-    const lastActual = [...data].reverse().find((r) => !r.forecast);
-    return { rows: data, pivot: forecast.lastPollDate ?? lastActual?.date, latest: lastActual };
+    // The standing is the last point on the charts, not the last polled one.
+    // Those differ once something happens after the final poll -- a withdrawal,
+    // say -- and the tiles must not disagree with the line above them.
+    return {
+      rows: data,
+      pivot: forecast.lastPollDate,
+      latest: data[data.length - 1],
+    };
   }, []);
 
 
