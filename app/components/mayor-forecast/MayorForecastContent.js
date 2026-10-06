@@ -147,7 +147,7 @@ export default function MayorForecastContent() {
 
         {/* projected result over time */}
         <section className="mt-10">
-          <h2 className="dd-title text-xl">Projected result, as the campaign ran</h2>
+          <h2 className="dd-title text-xl">Projected result</h2>
           <div className="dd-panel mt-4 p-3 sm:p-4">
             <div style={{ height: 380 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -200,7 +200,7 @@ export default function MayorForecastContent() {
 
         {/* win probability over time */}
         <section className="mt-10">
-          <h2 className="dd-title text-xl">Chance of winning, as the campaign ran</h2>
+          <h2 className="dd-title text-xl">Chance of winning</h2>
           <div className="dd-panel mt-4 p-3 sm:p-4">
             <div style={{ height: 300 }}>
               <ResponsiveContainer width="100%" height="100%">
