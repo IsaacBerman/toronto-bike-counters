@@ -25,7 +25,7 @@ function ensureTable() {
   return tableReady;
 }
 
-const toPoints = (rows) => rows.map((r) => [Number(r.seq), r.p, r.share]);
+const toPoints = (rows) => rows.map((r) => [Number(r.seq), r.p, r.share, r.projected]);
 
 // After election night the history no longer changes, so each server instance
 // reads it once and keeps it.
@@ -33,13 +33,13 @@ let frozen = null;
 
 /**
  * Records this reading (during election night only) and returns the history
- * as [seq, p, share] points, oldest first. Outside the window nothing is
+ * as [seq, p, share, projected] points, oldest first. Outside the window nothing is
  * written, and before poll close the database isn't touched at all.
  */
 export async function recordNeedle(seq, needle, now = Date.now()) {
   if (now < POLLS_CLOSE) return [];
   if (now >= HISTORY_UNTIL) {
-    if (!frozen) frozen = query('SELECT seq, p, share FROM needle_history ORDER BY seq').then(toPoints);
+    if (!frozen) frozen = query('SELECT seq, p, share, projected FROM needle_history ORDER BY seq').then(toPoints);
     try {
       return await frozen;
     } catch (e) {
@@ -55,5 +55,5 @@ export async function recordNeedle(seq, needle, now = Date.now()) {
       [seq, needle.p, needle.projected, needle.share, needle.challenger]
     );
   }
-  return toPoints(await query('SELECT seq, p, share FROM needle_history ORDER BY seq'));
+  return toPoints(await query('SELECT seq, p, share, projected FROM needle_history ORDER BY seq'));
 }

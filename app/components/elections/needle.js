@@ -95,6 +95,7 @@ export function Needle({ needle, history, seq }) {
               </span>
             </p>
             <ChanceChart history={history} needle={needle} seq={seq} rival={rival} bColor={bColor} />
+            <MarginChart history={history} needle={needle} seq={seq} rival={rival} bColor={bColor} />
             <dl className="mt-3 pt-3 text-xs grid grid-cols-[1fr_auto] gap-x-3 gap-y-1" style={{ borderTop: '1px solid var(--line)', color: 'var(--ink-2)', fontVariantNumeric: 'tabular-nums' }}>
               <dt>Projected margin, Chow over {rival}</dt>
               <dd className="text-right font-semibold" style={{ color: 'var(--ink)' }}>{signed(needle.projected)}</dd>
@@ -112,26 +113,24 @@ export function Needle({ needle, history, seq }) {
   );
 }
 
-// Chow's chance over the night: one point per results file the City published.
+// The needle's path over the night: one point per results file the City
+// published. Two charts share this: Chow's chance, and her projected margin.
 const W = 300;
 const H = 118;
 const M = { l: 30, r: 8, t: 8, b: 18 };
 
-function ChanceChart({ history, needle, seq, rival, bColor }) {
+function NightChart({ title, points, lo, hi, mid, ticks, bColor, tip, aria }) {
   const clipId = useId();
   const [hover, setHover] = useState(null);
-  const points = [...(history ?? [])].map(([t, p]) => [t, p]);
-  // The current reading, if the server's history hasn't caught up to it.
-  if (seq && (!points.length || points[points.length - 1][0] < seq)) points.push([seq, needle.p]);
   if (points.length < 2) return null;
 
   const t0 = Math.min(POLLS_CLOSE, points[0][0]);
   const t1 = Math.max(points[points.length - 1][0], t0 + 2 * 60 * 60 * 1000);
   const x = (t) => M.l + ((t - t0) / (t1 - t0)) * (W - M.l - M.r);
-  const y = (p) => M.t + (1 - p) * (H - M.t - M.b);
-  const line = points.map(([t, p], i) => `${i ? 'L' : 'M'}${x(t).toFixed(1)},${y(p).toFixed(1)}`).join('');
+  const y = (v) => M.t + ((hi - Math.min(hi, Math.max(lo, v))) / (hi - lo)) * (H - M.t - M.b);
+  const line = points.map(([t, v], i) => `${i ? 'L' : 'M'}${x(t).toFixed(1)},${y(v).toFixed(1)}`).join('');
   const last = points[points.length - 1];
-  const area = `${line}L${x(last[0]).toFixed(1)},${y(0.5)}L${x(points[0][0]).toFixed(1)},${y(0.5)}Z`;
+  const area = `${line}L${x(last[0]).toFixed(1)},${y(mid)}L${x(points[0][0]).toFixed(1)},${y(mid)}Z`;
 
   const onMove = (e) => {
     const box = e.currentTarget.getBoundingClientRect();
@@ -144,18 +143,18 @@ function ChanceChart({ history, needle, seq, rival, bColor }) {
 
   return (
     <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
-      <p className="text-xs font-semibold mb-1" style={{ color: 'var(--ink-2)' }}>Chow&rsquo;s chance of winning through the night</p>
+      <p className="text-xs font-semibold mb-1" style={{ color: 'var(--ink-2)' }}>{title}</p>
       <div className="relative">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" onPointerMove={onMove} onPointerLeave={() => setHover(null)}
-          role="img" aria-label={`Chow's chance moved from ${Math.round(points[0][1] * 100)}% to ${Math.round(last[1] * 100)}%`}>
+          role="img" aria-label={aria(points[0][1], last[1])}>
           <defs>
-            <clipPath id={`${clipId}a`}><rect x="0" y="0" width={W} height={y(0.5)} /></clipPath>
-            <clipPath id={`${clipId}b`}><rect x="0" y={y(0.5)} width={W} height={H} /></clipPath>
+            <clipPath id={`${clipId}a`}><rect x="0" y="0" width={W} height={y(mid)} /></clipPath>
+            <clipPath id={`${clipId}b`}><rect x="0" y={y(mid)} width={W} height={H} /></clipPath>
           </defs>
-          {[0, 0.5, 1].map((p) => (
-            <g key={p}>
-              <line x1={M.l} x2={W - M.r} y1={y(p)} y2={y(p)} stroke="var(--line)" strokeDasharray={p === 0.5 ? '3 3' : undefined} />
-              <text x={M.l - 4} y={y(p) + 3} fontSize="9" textAnchor="end" fill="var(--ink-3)">{p * 100}%</text>
+          {ticks.map(({ v, label }) => (
+            <g key={v}>
+              <line x1={M.l} x2={W - M.r} y1={y(v)} y2={y(v)} stroke="var(--line)" strokeDasharray={v === mid ? '3 3' : undefined} />
+              <text x={M.l - 4} y={y(v) + 3} fontSize="9" textAnchor="end" fill="var(--ink-3)">{label}</text>
             </g>
           ))}
           <path d={area} fill={A_COLOR} fillOpacity="0.2" clipPath={`url(#${clipId}a)`} />
@@ -180,10 +179,55 @@ function ChanceChart({ history, needle, seq, rival, bColor }) {
               color: '#fff',
               fontVariantNumeric: 'tabular-nums',
             }}>
-            {clock(h[0])} · {h[1] >= 0.5 ? `Chow ${pctText(h[1])}%` : `${rival} ${pctText(1 - h[1])}%`}
+            {clock(h[0])} · {tip(h[1])}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+// History points are [seq, p, share, projected]; the current reading is added
+// if the server's history hasn't caught up to it.
+function series(history, needle, seq, index, current) {
+  const points = (history ?? []).filter((pt) => pt[index] != null).map((pt) => [pt[0], pt[index]]);
+  if (seq && (!points.length || points[points.length - 1][0] < seq)) points.push([seq, current]);
+  return points;
+}
+
+function ChanceChart({ history, needle, seq, rival, bColor }) {
+  return (
+    <NightChart
+      title="Chow’s chance of winning through the night"
+      points={series(history, needle, seq, 1, needle.p)}
+      lo={0}
+      hi={1}
+      mid={0.5}
+      ticks={[{ v: 0, label: '0%' }, { v: 0.5, label: '50%' }, { v: 1, label: '100%' }]}
+      bColor={bColor}
+      tip={(p) => (p >= 0.5 ? `Chow ${pctText(p)}%` : `${rival} ${pctText(1 - p)}%`)}
+      aria={(a, b) => `Chow's chance moved from ${Math.round(a * 100)}% to ${Math.round(b * 100)}%`}
+    />
+  );
+}
+
+function MarginChart({ history, needle, seq, rival, bColor }) {
+  const points = series(history, needle, seq, 3, needle.projected);
+  // Symmetric around a tie, wide enough for the biggest swing so far, in
+  // steps of 5 points.
+  const top = Math.max(0.05, Math.ceil((Math.max(...points.map(([, v]) => Math.abs(v)), 0) * 1.1) / 0.05) * 0.05);
+  const pts = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v) * 100)}`;
+  return (
+    <NightChart
+      title={`Chow’s projected margin over ${rival}`}
+      points={points}
+      lo={-top}
+      hi={top}
+      mid={0}
+      ticks={[{ v: -top, label: pts(-top) }, { v: 0, label: 'Tie' }, { v: top, label: pts(top) }]}
+      bColor={bColor}
+      tip={(v) => (v >= 0 ? `Chow +${(v * 100).toFixed(1)}` : `${rival} +${(-v * 100).toFixed(1)}`)}
+      aria={(a, b) => `Chow's projected margin moved from ${(a * 100).toFixed(1)} to ${(b * 100).toFixed(1)} points`}
+    />
   );
 }
