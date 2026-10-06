@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { nextCheckDelay } from '../../lib/elections-live';
+import { recordNeedle } from '../../lib/needle-history';
+import { liveDatasets } from '../../components/elections/live-data';
+import { computeNeedle } from '../../components/elections/needle-model';
+import baseline from '../../../public/elections/needle-baseline.json';
 
 // The City's unofficial election-night results. Its feed refuses cross-origin
 // requests, so the page can't read it directly; this route fetches it, keeps
@@ -82,6 +86,15 @@ export async function GET() {
   try {
     const [main, byWard] = await Promise.all([getJson(FEED), getJson(WARD_FEED)]);
     const body = { fetchedAt: new Date().toISOString(), ...shape(main, byWard) };
+    // The needle's path over the night. A database hiccup costs the chart,
+    // never the results.
+    try {
+      const mayor = liveDatasets(body, { wards: {} })['mayor-2026'];
+      body.needleHistory = await recordNeedle(body.seq, computeNeedle(baseline, mayor));
+    } catch (e) {
+      console.error('needle history', e);
+      body.needleHistory = null;
+    }
     const ttl = Math.max(1, Math.floor(nextCheckDelay() / 1000));
     return NextResponse.json(body, {
       headers: { 'Cache-Control': `public, max-age=0, s-maxage=${ttl}, stale-while-revalidate=30` },

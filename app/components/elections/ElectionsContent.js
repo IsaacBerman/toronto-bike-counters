@@ -8,6 +8,7 @@ import {
   marginOpacity, shareBreaks, shareColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets, LiveStatus } from './live';
+import { computeNeedle, Needle } from './needle';
 import { isElectionNight } from '../../lib/elections-live';
 
 const ElectionMap = dynamic(() => import('./ElectionMap'), {
@@ -59,7 +60,10 @@ function prepare(data) {
   // Colour follows the candidate in the mayor's race (Chow is the same blue in
   // every ward) and the finishing position in council, where every ward is a
   // different race.
-  const citySlot = new Map(cityRanked.slice(0, SLOT_COLORS.length).map(([c], i) => [c, i]));
+  // Pinned candidates (the live needle's two) take the first slots outright.
+  const pinned = (data.pinned ?? []).map((name) => data.candidates.indexOf(name)).filter((c) => c >= 0);
+  const slotOrder = [...pinned, ...cityRanked.map(([c]) => c).filter((c) => !pinned.includes(c))];
+  const citySlot = new Map(slotOrder.slice(0, SLOT_COLORS.length).map((c, i) => [c, i]));
   const slotOf = (ward, pos) => {
     if (pos < 0) return -1;
     if (isMayor) return citySlot.get(data.wards[ward].cand[pos]) ?? -1;
@@ -68,7 +72,7 @@ function prepare(data) {
   const offMap = sum(Object.values(data.wards).map((w) => w.offMap));
   const allVotes = sum(Object.values(data.wards).map((w) => w.allVotes));
   const unmapped = sum(Object.values(data.wards).map((w) => w.unmapped));
-  return { isMayor, cityRanked, slotOf, offMap, unmapped, allVotes };
+  return { isMayor, cityRanked, citySlot, slotOrder, slotOf, offMap, unmapped, allVotes };
 }
 
 const colorOfSlot = (slot) => (slot >= 0 ? SLOT_COLORS[slot] : OTHER_COLOR);
@@ -109,6 +113,23 @@ export default function ElectionsContent() {
   }, [live.feed, outlines]);
 
   const data = isLive ? liveData?.[raceId] : cache[raceId];
+
+  // The needle compares Chow's live ward margins with her 2023 ones.
+  const showNeedle = raceId === 'mayor-2026';
+  const baseline = cache['needle-baseline'];
+  useEffect(() => {
+    if (!showNeedle || baseline) return undefined;
+    let cancelled = false;
+    fetch('/elections/needle-baseline.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => { if (b && !cancelled) setCache((c) => ({ ...c, 'needle-baseline': b })); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [showNeedle, baseline]);
+  const needle = useMemo(
+    () => (showNeedle && baseline && data ? computeNeedle(baseline, data) : null),
+    [showNeedle, baseline, data]
+  );
 
   // The live tabs need only the ward outlines; past races their own file.
   const fileId = isLive ? 'wards' : raceId;
@@ -374,6 +395,7 @@ export default function ElectionsContent() {
           </div>
 
           <div className="flex flex-col gap-4 min-w-0">
+            {showNeedle && needle && <Needle needle={needle} history={live.feed?.needleHistory} seq={live.feed?.seq} />}
             {data && selectedPoll && (
               <PollCard data={data} poll={selectedPoll} onClose={() => setSelectedPoll(null)} />
             )}
@@ -478,7 +500,7 @@ function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
     );
   }
   const labels = isMayor
-    ? data.meta.cityRanked.slice(0, SLOT_COLORS.length).map(([c]) => data.candidates[c])
+    ? data.meta.slotOrder.slice(0, SLOT_COLORS.length).map((c) => data.candidates[c])
     : RANK_LABELS;
   return (
     <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
@@ -621,7 +643,7 @@ function CityCard({ data, votes: type }) {
     wardVotes(ward, type).forEach((v, i) => byCandidate.set(ward.cand[i], (byCandidate.get(ward.cand[i]) ?? 0) + v));
   }
   const votes = cityRanked.map(([c]) => byCandidate.get(c) ?? 0);
-  const colors = cityRanked.map((_, i) => colorOfSlot(i < SLOT_COLORS.length ? i : -1));
+  const colors = cityRanked.map(([c]) => colorOfSlot(data.meta.citySlot.get(c) ?? -1));
   return (
     <div className="dd-panel">
       <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>

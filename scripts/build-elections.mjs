@@ -10,6 +10,7 @@
 //         candidate with their votes in each subdivision, then a totals row.
 // Output: public/elections/<id>.json for each entry in ELECTIONS, plus
 //         public/elections/wards.json (outlines only, for the live results)
+//         public/elections/needle-baseline.json (2023 Chow vs closest challenger by ward)
 //
 // Subdivisions 96-99 have no polygon: 96 is every long-term care and retirement
 // home in the ward pooled together (2023 only), 97 is mail-in, 98 and 99 are
@@ -66,6 +67,8 @@ const ELECTIONS = [
     title: '2023 Mayoral By-election',
     date: '2023-06-26',
     results: '2023 Office of the Mayor (1).xlsx',
+    // Writes public/elections/needle-baseline.json for the 2026 needle.
+    needleBaseline: { candidate: 'Olivia Chow' },
     boundaries: 'voting-subdivisions-2023 - 4326 (1).geojson',
   },
 ];
@@ -354,6 +357,27 @@ function build(election) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const outFile = path.join(OUT_DIR, `${election.id}.json`);
   fs.writeFileSync(outFile, JSON.stringify(out));
+  // The election-night needle measures Chow's margin over her closest
+  // challenger in each ward against the same margin in 2023, so it needs her
+  // votes, that challenger's, and the ward's total.
+  if (election.needleBaseline) {
+    const { candidate } = election.needleBaseline;
+    const ci = candidates.indexOf(candidate);
+    if (ci < 0) throw new Error(`${election.id}: needle candidate not found`);
+    const baseline = {};
+    for (const [w, ward] of Object.entries(wards)) {
+      const pos = ward.cand.indexOf(ci);
+      // Ranked by ward total, so the closest challenger is the top non-Chow row.
+      const rivalPos = pos === 0 ? 1 : 0;
+      baseline[w] = {
+        candidate: ward.totals[pos],
+        rival: ward.totals[rivalPos],
+        rivalName: candidates[ward.cand[rivalPos]],
+        total: ward.totals.reduce((t, v) => t + v, 0),
+      };
+    }
+    fs.writeFileSync(path.join(OUT_DIR, 'needle-baseline.json'), JSON.stringify({ candidate, wards: baseline }));
+  }
   // The 2026 live results only come by ward, so that tab needs just these.
   if (election.wardsFile) {
     fs.writeFileSync(path.join(OUT_DIR, 'wards.json'), JSON.stringify({
