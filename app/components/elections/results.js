@@ -2,6 +2,9 @@
 // panel, so all three agree on what a colour means.
 
 export const RACES = [
+  // Live on election night, October 26, 2026: ward totals from the City's feed.
+  { id: 'mayor-2026', label: '2026 Mayoral Election', short: '2026 Mayor', live: true },
+  { id: 'council-2026', label: '2026 City Council', short: '2026 Council', live: true },
   { id: 'mayor-2023', label: '2023 Mayoral By-election', short: '2023 Mayor' },
   { id: 'council-2022', label: '2022 City Council', short: '2022 Council' },
   { id: 'council-2018', label: '2018 City Council', short: '2018 Council' },

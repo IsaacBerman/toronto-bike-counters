@@ -213,8 +213,8 @@ export default function ElectionMap({
     if (focusWard.ward) {
       const layer = wardBoundsRef.current.get(focusWard.ward);
       if (layer) map.fitBounds(layer.getBounds(), { padding: [20, 20] });
-    } else if (pollsRef.current) {
-      map.fitBounds(pollsRef.current.getBounds(), { padding: [10, 10] });
+    } else if (wardsRef.current) {
+      map.fitBounds(wardsRef.current.getBounds(), { padding: [10, 10] });
     }
   }, [focusWard, data, ready]);
 

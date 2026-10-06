@@ -2,12 +2,14 @@
 // boundaries, for the elections page.
 //
 // Input:  data/2022-results/2022_Toronto_Poll_By_Poll_Councillor.xlsx
+//         data/2023 Councillor Ward 20 Poll by Poll.xlsx (replaces Ward 20)
 //         data/voting-subdivisions-2022 - 4326.geojson
 //         data/2023 Office of the Mayor (1).xlsx
 //         data/voting-subdivisions-2023 - 4326 (1).geojson
 //         One sheet per ward: a row of subdivision numbers, then a row per
 //         candidate with their votes in each subdivision, then a totals row.
-// Output: public/elections/<id>.json for each entry in ELECTIONS
+// Output: public/elections/<id>.json for each entry in ELECTIONS, plus
+//         public/elections/wards.json (outlines only, for the live results)
 //
 // Subdivisions 96-99 have no polygon: 96 is every long-term care and retirement
 // home in the ward pooled together (2023 only), 97 is mail-in, 98 and 99 are
@@ -34,6 +36,19 @@ const ELECTIONS = [
     date: '2022-10-24',
     results: '2022-results/2022_Toronto_Poll_By_Poll_Councillor.xlsx',
     boundaries: 'voting-subdivisions-2022 - 4326.geojson',
+    // Ward 20's seat was refilled in a by-election after Gary Crawford left
+    // for Queen's Park, so the map shows the race that decided its current
+    // councillor. It ran on the 2023 poll boundaries.
+    // Source of public/elections/wards.json; 2026 uses the same 25 wards.
+    wardsFile: true,
+    replaceWards: [
+      {
+        ward: 20,
+        note: 'November 2023 by-election',
+        results: '2023 Councillor Ward 20 Poll by Poll.xlsx',
+        boundaries: 'voting-subdivisions-2023 - 4326 (1).geojson',
+      },
+    ],
   },
   {
     id: 'council-2018',
@@ -81,6 +96,7 @@ const NAME_OVERRIDES = {
   'Khogali Ali Walied': 'Walied Khogali Ali',
   'Park Chung Jin': 'Chung Jin Park',
   'Nadeem Zamir ul hassan': 'Zamir ul hassan Nadeem',
+  'Mamun MD Abdullah Al': 'MD Abdullah Al Mamun',
 };
 
 function givenNameFirst(listed) {
@@ -186,64 +202,89 @@ const round5 = (coords) =>
     : coords.map(round5);
 
 function build(election) {
-  const sheets = readWorkbook(path.join(DATA_DIR, election.results));
   const candidates = []; // every name in the race(s), indexed
   const candidateIndex = new Map();
   const wards = {};
   const pollVotes = new Map(); // "ward-sub" -> votes aligned to that ward's cand order
+  const hasLtcPoll = new Set(); // wards whose care homes report as subdivision 96
 
-  for (const [sheetName, rows] of Object.entries(sheets)) {
-    const wardMatch = sheetName.match(/^Ward (\d+)$/);
-    if (!wardMatch) continue;
-    const ward = Number(wardMatch[1]);
-    const title = String(rows[0][0]).trim();
-    const name = title.replace(/^City Ward \d+\s*/, '');
-    const header = rows.find((r) => r[0] === 'Subdivision');
-    const totalsAt = rows.findIndex((r) => typeof r[0] === 'string' && /Totals$/.test(r[0]));
-    // Candidate rows sit between the office label row (just under the header)
-    // and the totals row.
-    const candRows = rows.slice(rows.indexOf(header) + 2, totalsAt).filter((r) => r[0]);
-    const cols = [];
-    let totalCol = -1;
-    header.forEach((h, j) => {
-      if (j === 0 || h == null) return;
-      if (h === 'Total') totalCol = j;
-      else cols.push([j, Number(h)]);
-    });
+  // Reads every ward sheet in a workbook (or just `onlyWard`'s) into the
+  // tables above, replacing anything already there for that ward.
+  const readResults = (file, onlyWard) => {
+    const sheets = readWorkbook(path.join(DATA_DIR, file));
+    for (const [sheetName, rows] of Object.entries(sheets)) {
+      const wardMatch = sheetName.match(/^Ward (\d+)$/);
+      if (!wardMatch) continue;
+      const ward = Number(wardMatch[1]);
+      if (onlyWard && ward !== onlyWard) continue;
+      for (const key of [...pollVotes.keys()]) if (key.startsWith(`${ward}-`)) pollVotes.delete(key);
+      hasLtcPoll.delete(ward);
+      const title = String(rows[0][0]).trim();
+      const name = title.replace(/^City Ward \d+\s*/, '');
+      const header = rows.find((r) => r[0] === 'Subdivision');
+      const totalsAt = rows.findIndex((r) => typeof r[0] === 'string' && /Totals$/.test(r[0]));
+      // Candidate rows sit between the office label row (just under the header)
+      // and the totals row.
+      const candRows = rows.slice(rows.indexOf(header) + 2, totalsAt).filter((r) => r[0]);
+      const cols = [];
+      let totalCol = -1;
+      header.forEach((h, j) => {
+        if (j === 0 || h == null) return;
+        if (h === 'Total') totalCol = j;
+        else cols.push([j, Number(h)]);
+      });
 
-    // Each ward's candidates ordered by their ward total, so index 0 is the
-    // ward's winner and the page can colour by finishing position.
-    const ranked = candRows
-      .map((r) => ({ name: givenNameFirst(String(r[0])), row: r, total: Number(r[totalCol]) || 0 }))
-      .sort((a, b) => b.total - a.total);
-    for (const c of ranked) {
-      const computed = cols.reduce((s, [j]) => s + (Number(c.row[j]) || 0), 0);
-      if (computed !== c.total) throw new Error(`Ward ${ward} ${c.name}: subdivisions sum to ${computed}, sheet total ${c.total}`);
-      if (!candidateIndex.has(c.name)) {
-        candidateIndex.set(c.name, candidates.length);
-        candidates.push(c.name);
+      // Each ward's candidates ordered by their ward total, so index 0 is the
+      // ward's winner and the page can colour by finishing position.
+      const ranked = candRows
+        .map((r) => ({ name: givenNameFirst(String(r[0])), row: r, total: Number(r[totalCol]) || 0 }))
+        .sort((a, b) => b.total - a.total);
+      for (const c of ranked) {
+        const computed = cols.reduce((s, [j]) => s + (Number(c.row[j]) || 0), 0);
+        if (computed !== c.total) throw new Error(`Ward ${ward} ${c.name}: subdivisions sum to ${computed}, sheet total ${c.total}`);
+        if (!candidateIndex.has(c.name)) {
+          candidateIndex.set(c.name, candidates.length);
+          candidates.push(c.name);
+        }
       }
-    }
 
-    const special = { ltc: [], mail: [], advance: [] };
-    for (const key of Object.keys(special)) special[key] = ranked.map(() => 0);
-    for (const [j, sub] of cols) {
-      const votes = ranked.map((c) => Number(c.row[j]) || 0);
-      const kind = SPECIAL[sub];
-      if (kind) votes.forEach((v, i) => { special[kind][i] += v; });
-      else pollVotes.set(`${ward}-${sub}`, votes);
-    }
-    for (const key of Object.keys(special)) if (special[key].every((v) => v === 0)) delete special[key];
+      const special = { ltc: [], mail: [], advance: [] };
+      for (const key of Object.keys(special)) special[key] = ranked.map(() => 0);
+      for (const [j, sub] of cols) {
+        const votes = ranked.map((c) => Number(c.row[j]) || 0);
+        const kind = SPECIAL[sub];
+        if (sub === 96) hasLtcPoll.add(ward);
+        if (kind) votes.forEach((v, i) => { special[kind][i] += v; });
+        else pollVotes.set(`${ward}-${sub}`, votes);
+      }
+      for (const key of Object.keys(special)) if (special[key].every((v) => v === 0)) delete special[key];
 
-    wards[ward] = {
-      name,
-      cand: ranked.map((c) => candidateIndex.get(c.name)),
-      totals: ranked.map((c) => c.total),
-      special,
-    };
+      wards[ward] = {
+        name,
+        cand: ranked.map((c) => candidateIndex.get(c.name)),
+        totals: ranked.map((c) => c.total),
+        special,
+      };
+    }
+  };
+
+  readResults(election.results);
+  const replaced = new Map((election.replaceWards ?? []).map((rep) => [rep.ward, rep]));
+  for (const rep of replaced.values()) {
+    readResults(rep.results, rep.ward);
+    wards[rep.ward].note = rep.note;
   }
 
+  // The race's own boundaries, with any replaced ward's polls swapped for the
+  // ones its by-election used.
+  const wardOf = (f) => Number(f.properties.AREA_LONG_CODE.slice(0, 2));
   const geo = JSON.parse(fs.readFileSync(path.join(DATA_DIR, election.boundaries), 'utf8'));
+  geo.features = geo.features.filter((f) => !replaced.has(wardOf(f)));
+  for (const rep of replaced.values()) {
+    const repGeo = JSON.parse(fs.readFileSync(path.join(DATA_DIR, rep.boundaries), 'utf8'));
+    geo.features.push(...repGeo.features.filter((f) => wardOf(f) === rep.ward));
+  }
+
   const features = [];
   let ltcPolys = 0;
   for (const f of geo.features) {
@@ -260,7 +301,11 @@ function build(election) {
     const simplified = simplify(f, { tolerance: SIMPLIFY_TOLERANCE, highQuality: false });
     features.push({
       type: 'Feature',
-      properties: votes ? { w: ward, s: sub, v: votes.slice(0, end) } : { w: ward, s: sub, ltc: 1 },
+      // A polygon with no result is a care home where the ward's care homes
+      // report together (96); otherwise it simply has no result of its own.
+      properties: votes
+        ? { w: ward, s: sub, v: votes.slice(0, end) }
+        : { w: ward, s: sub, ...(hasLtcPoll.has(ward) ? { ltc: 1 } : { none: 1 }) },
       geometry: { type: simplified.geometry.type, coordinates: round5(simplified.geometry.coordinates) },
     });
   }
@@ -309,9 +354,16 @@ function build(election) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const outFile = path.join(OUT_DIR, `${election.id}.json`);
   fs.writeFileSync(outFile, JSON.stringify(out));
+  // The 2026 live results only come by ward, so that tab needs just these.
+  if (election.wardsFile) {
+    fs.writeFileSync(path.join(OUT_DIR, 'wards.json'), JSON.stringify({
+      wards: Object.fromEntries(Object.entries(wards).map(([w, ward]) => [w, ward.name])),
+      wardOutlines: out.wardOutlines,
+    }));
+  }
   console.log(
     `${election.id}: ${Object.keys(wards).length} wards, ${features.length - ltcPolys} polls mapped, `
-    + `${ltcPolys} care-home polygons without results, ${(fs.statSync(outFile).size / 1e6).toFixed(2)} MB`
+    + `${ltcPolys} polygons without results, ${(fs.statSync(outFile).size / 1e6).toFixed(2)} MB`
   );
 }
 
