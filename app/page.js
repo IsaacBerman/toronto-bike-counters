@@ -51,7 +51,7 @@ export default function Home() {
           <ProjectCard
             href="/elections"
             title="Toronto Election Results"
-            blurb="Poll-by-poll maps of the 2018 and 2022 council races and the 2023 mayoral by-election, with live 2026 results on election night."
+            blurb="Poll-by-poll maps of Toronto elections since 2018, and live 2026 results."
           />
           <ProjectCard
             href="/bike-counters"
