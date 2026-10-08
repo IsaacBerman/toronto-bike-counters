@@ -586,12 +586,14 @@ function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
 }
 
 // Candidate rows with a bar each, top `limit` then everyone else summed.
-// `always` (an index) is listed even if it falls outside the top, so an
-// incumbent never disappears into "others".
+// Clicking the "others" row lists every candidate. `always` (an index) is
+// listed even if it falls outside the top, so an incumbent never disappears
+// into "others".
 function ResultBars({ names, votes, colors, limit = 6, always = -1 }) {
+  const [expanded, setExpanded] = useState(false);
   const total = sum(votes);
   const order = votes.map((v, i) => i).sort((a, b) => votes[b] - votes[a]);
-  const top = order.slice(0, limit);
+  const top = expanded ? order : order.slice(0, limit);
   if (always >= 0 && !top.includes(always)) top.push(always);
   const rest = order.filter((i) => !top.includes(i));
   const restVotes = sum(rest.map((i) => votes[i]));
@@ -613,6 +615,13 @@ function ResultBars({ names, votes, colors, limit = 6, always = -1 }) {
     <ul className="space-y-2.5">
       {top.map((i) => row(i, names[i], votes[i], colors[i]))}
       {rest.length > 0 && row('rest', `${rest.length} others`, restVotes, OTHER_COLOR)}
+      {(rest.length > 0 || expanded) && (
+        <li>
+          <button type="button" onClick={() => setExpanded((e) => !e)} className="dd-link-accent text-sm">
+            {expanded ? 'Show top candidates only' : `Show all ${votes.length} candidates`}
+          </button>
+        </li>
+      )}
     </ul>
   );
 }
