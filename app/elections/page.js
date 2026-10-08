@@ -3,8 +3,8 @@ import SiteHeader from '../components/site-header';
 import ElectionsContent from '../components/elections/ElectionsContent';
 
 const DESCRIPTION =
-  'Poll-by-poll maps of the 2023 Toronto mayoral by-election and the 2022 and 2018 city council races: '
-  + 'who led each election-day poll, and each candidate’s share of the vote.';
+  'Poll-by-poll maps of the 2023 Toronto mayoral by-election and the 2022 and 2018 city council races, '
+  + 'showing who led each election-day poll and each candidate’s share of the vote.';
 
 export const metadata = {
   title: 'Toronto Poll-by-Poll Election Results Map',

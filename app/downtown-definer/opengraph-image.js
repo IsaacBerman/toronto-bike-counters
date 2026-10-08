@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 
-export const alt = 'Where is Downtown? — draw what you consider downtown';
+export const alt = 'Where is Downtown? map tool';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -30,7 +30,7 @@ export default function OgImage() {
             Where is Downtown?
           </div>
           <div style={{ fontSize: '34px', color: '#57554b', marginTop: '24px', maxWidth: '900px' }}>
-            Draw the boundary of what you call “downtown” and watch it merge into a crowd heatmap.
+            Draw your definition of downtown and see how it compares to everyone else’s.
           </div>
         </div>
 

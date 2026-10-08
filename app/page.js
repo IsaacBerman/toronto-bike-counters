@@ -56,12 +56,12 @@ export default function Home() {
           <ProjectCard
             href="/bike-counters"
             title="Toronto Bicycle Counters"
-            blurb="Dashboard Toronto permanent bicycle counter data and Bike Share ridership."
+            blurb="Dashboard of Toronto permanent bicycle counter data and Bike Share ridership."
           />
           <ProjectCard
             href="/intersection-counts"
             title="Toronto Intersection Counts"
-            blurb="Map of all intersections in Toronto that have ever had a modal count taken, and charts showing splits over time. "
+            blurb="Map of all intersections in Toronto that have ever had a modal count taken, and charts showing splits over time."
           />
           <ProjectCard
             href="/transform-toronto"

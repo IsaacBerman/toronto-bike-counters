@@ -5,7 +5,7 @@ import IntersectionCountsContent from '../components/intersection-counts/Interse
 export const metadata = {
   title: 'Toronto Intersection Counts',
   description:
-    'Every Toronto intersection the City has counted, mapped by how its traffic splits between cars, trucks, buses, people walking and people cycling.',
+    'Map of all intersections in Toronto that have ever had a modal count taken, and charts showing splits over time.',
 };
 
 export default function IntersectionCountsPage() {

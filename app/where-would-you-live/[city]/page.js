@@ -14,7 +14,7 @@ export async function generateMetadata({ params }) {
   const { city } = await params;
   const name = prettifyCity(city);
   const title = `Where would you live in ${name}?`;
-  const description = `Draw the parts of ${name} you'd actually want to live in, and see where everyone else would.`;
+  const description = `Map tool for drawing the parts of ${name} you would want to live in, aggregated into a heatmap of everyone's answers.`;
   return {
     title,
     description,

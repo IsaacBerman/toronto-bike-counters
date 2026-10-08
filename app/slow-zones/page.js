@@ -8,8 +8,8 @@ const TTC_SOURCE = 'https://www.ttc.ca/riding-the-ttc/Updates/Reduced-Speed-Zone
 // "slow zone" is what everyone calls them. Both need to appear, and the
 // official one has to lead.
 const DESCRIPTION =
-  'Daily tracking of TTC subway reduced speed zones, also called slow zones: '
-  + 'where trains are slowed, how much delay each zone adds, and when the TTC expects to remove them.';
+  'Daily tracking of TTC subway reduced speed zones (slow zones), the delay each one adds, '
+  + 'and when the TTC expects to remove them.';
 
 export const metadata = {
   title: 'TTC Reduced Speed Zones (Slow Zones) Tracker',

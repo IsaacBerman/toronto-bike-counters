@@ -2,8 +2,8 @@ import SiteHeader from '../components/site-header';
 import MayorForecastContent from '../components/mayor-forecast/MayorForecastContent';
 
 const DESCRIPTION =
-  'A projection of the 2026 Toronto mayoral election from public polling, correcting each '
-  + 'pollster for its house effect and widening the range by how much campaign is left to run.';
+  'Projection of the 2026 Toronto mayoral election from public polls, adjusted for each '
+  + 'pollster\u2019s house effect.';
 
 // Deliberately unlisted: not in site-header's nav, not in sitemap.js, and
 // noindex here. It is a working model with assumptions that need the page's

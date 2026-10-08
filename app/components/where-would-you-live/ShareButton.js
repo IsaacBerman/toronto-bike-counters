@@ -175,7 +175,7 @@ export default function ShareButton({
 
       <p className="text-xs mt-3 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
         {filteredGrid
-          ? 'The image shows everyone’s map alongside the filtered one, so the comparison travels with it.'
+          ? 'The image shows everyone’s map next to the filtered one.'
           : 'Posting opens a pre-filled message linking back here. To include the picture, attach the downloaded image (or use “Share image” on mobile).'}
       </p>
       {error && <p className="text-sm mt-2" style={{ color: 'var(--accent)' }}>{error}</p>}

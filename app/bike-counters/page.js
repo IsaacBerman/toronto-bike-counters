@@ -4,7 +4,7 @@ import BicycleCountersContent from '../components/bicycle-counters-content';
 
 export const metadata = {
   title: 'Toronto Bicycle Counters',
-  description: 'Explore bicycle traffic data from permanent counting stations across Toronto',
+  description: 'Dashboard of Toronto permanent bicycle counter data and Bike Share ridership.',
 };
 
 export default function BikeCountersPage() {

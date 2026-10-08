@@ -14,7 +14,7 @@ export async function generateMetadata({ params }) {
   const { city } = await params;
   const name = prettifyCity(city);
   const title = `Where is Downtown ${name}?`;
-  const description = `Draw what you consider "downtown" in ${name} and see how it compares to everyone else's.`;
+  const description = `Map tool for drawing your definition of downtown ${name}, aggregated into a heatmap of all submissions.`;
   return {
     title,
     description,

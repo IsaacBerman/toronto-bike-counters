@@ -2,7 +2,7 @@ import SiteHeader from '../components/site-header';
 
 export const metadata = {
   title: 'Contact | Observing the City',
-  description: 'Get in touch with Observing the City. Feedback, data corrections and ideas welcome.',
+  description: 'Email Observing the City with feedback, data corrections or ideas.',
 };
 
 export default function ContactPage() {
@@ -44,8 +44,8 @@ export default function ContactPage() {
                 Support the project
               </a>
               <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
-                The site is free and I pay for the hosting myself, so if you find it useful and
-                want to chip in, it genuinely helps keep things running.
+                The site is free and I pay for the hosting myself. If you use it, donations help
+                cover that.
               </p>
             </div>
           </div>

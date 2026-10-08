@@ -526,7 +526,7 @@ export default function BicycleCountersContent() {
               </h2>
               <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
                 Data shown in Eastern Time (EST/EDT). Last year&rsquo;s hours are counted from
-                the City&rsquo;s trip-level ridership files; today and the two-week average come
+                the City&rsquo;s trip-level ridership files. Today and the two-week average come
                 from bikeraccoon&rsquo;s polling of the live feed, which runs a few percent off
                 the City&rsquo;s own count.
               </p>
@@ -643,8 +643,7 @@ export default function BicycleCountersContent() {
               >
                 Bike Share Toronto Ridership Data
               </a>
-              {' '}on the City of Toronto Open Data Portal. These are official trip records,
-              and the only source with rider and bike-type detail. Days after that come from the{' '}
+              {' '}on the City of Toronto Open Data Portal. Days after that come from the{' '}
               <a
                 href="https://github.com/mjarrett/bikeraccoon"
                 target="_blank"
@@ -653,11 +652,10 @@ export default function BicycleCountersContent() {
               >
                 bikeraccoon api
               </a>
-              , which are estimates rather than official counts: they are inferred from
-              station counts and tend to undercount trips by about 2%.
+              , which estimates trips from station counts and undercounts by about 2%.
             </p>
             <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
-              All times displayed in Eastern Time (EST/EDT) for consistency across all users
+              All times in Eastern Time (EST/EDT).
             </p>
           </div>
         </div>

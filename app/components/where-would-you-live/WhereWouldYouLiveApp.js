@@ -775,8 +775,7 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                   </button>
                 </div>
                 <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-                  Results can be filtered by this answer, so people inside and outside the city can be
-                  read apart.
+                  Results can be filtered by this answer.
                 </p>
               </div>
 
@@ -809,10 +808,9 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                 </span>
               </div>
               <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
-                Your answer is already saved. Tap the square you live in and it will be added to it,
-                so the results can be read by where people live. These squares are a few kilometres
-                across on purpose: nothing more precise than the one you tap is ever asked for or
-                stored. Skip this and your answer still counts everywhere else.
+                Your answer is already saved. Tap the square you live in to add it to your answer,
+                so results can be filtered by where people live. Only the square is stored, and
+                they&rsquo;re a few kilometres across. You can skip this.
               </p>
 
               <CityMap
@@ -958,7 +956,7 @@ export default function WhereWouldYouLiveApp({ initialCitySlug }) {
                     )}
                   </div>
                   <p className="text-xs" style={{ color: 'var(--ink-3)' }}>
-                    Click an area to filter the map above to just see response from the people who
+                    Click an area to filter the map above to responses from people who
                     live in the selected area. Switch to &ldquo;Drag to select&rdquo; to sweep across
                     several and combine them.
                   </p>

@@ -503,14 +503,12 @@ export default function VideoCounterContent() {
       <div className="mb-6">
         <h1 className="dd-title text-3xl sm:text-4xl mb-3">Transportation Mode Counter</h1>
         <p className="max-w-2xl text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-          Drop in a video of a street, drag the counting line across the lane, sidewalk or bike
-          path you care about, and everything that crosses it gets counted, with the running tally
-          drawn into the video for you to download.
+          Upload a street video, drag the counting line across a lane, sidewalk or bike path, and
+          count everything that crosses it. You can download the video with the running tally
+          drawn on it.
         </p>
         <p className="mt-3 max-w-2xl text-xs leading-relaxed" style={{ color: 'var(--ink-3)' }}>
-          Your video never leaves this browser tab. There is no upload and nothing is stored on a
-          server: the detection model runs on your own machine and the annotated copy is built
-          locally.
+          The video is processed in your browser and isn&rsquo;t uploaded or stored anywhere.
         </p>
       </div>
 
@@ -704,8 +702,8 @@ export default function VideoCounterContent() {
                   </select>
                   <span className="font-semibold" style={{ color: 'var(--ink-3)' }}>
                     {TILINGS.find((t) => t.value === tiles)?.note}
-                    {' '}Every model shrinks the frame to a fixed size, so tiling is the only way
-                    to give distant traffic more pixels.
+                    {' '}Every model shrinks the frame to a fixed size, so tiling helps pick up
+                    distant traffic.
                   </span>
                 </label>
 
@@ -757,10 +755,10 @@ export default function VideoCounterContent() {
                     style={{ accentColor: 'var(--accent)' }}
                   />
                   <span className="font-semibold" style={{ color: 'var(--ink-3)' }}>
-                    How sure the model must be before a new object is tracked. These models score
-                    low on ordinary street footage, so set this too high and most traffic is never
-                    picked up at all. Weaker detections still keep objects already being tracked
-                    alive.
+                    How sure the model has to be before it starts tracking something. These models
+                    score low on normal street footage, so if this is too high most traffic
+                    won&rsquo;t get picked up. Objects already being tracked can keep going on
+                    weaker detections.
                   </span>
                 </label>
 
@@ -837,8 +835,8 @@ export default function VideoCounterContent() {
 
             {!canExport && (
               <p className="text-xs font-semibold" style={{ color: '#96201c' }}>
-                This browser can’t encode video (no WebCodecs support), so counting will run and
-                display but there will be nothing to download. Chrome, Edge, Safari 16.4+ or
+                This browser can’t encode video (no WebCodecs support). Counting still works,
+                but you can&rsquo;t download the result. Chrome, Edge, Safari 16.4+ or
                 Firefox 130+ can export.
               </p>
             )}
@@ -850,19 +848,18 @@ export default function VideoCounterContent() {
         <p className="dd-kicker mb-3">How the counting works</p>
         <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed" style={{ color: 'var(--ink-2)' }}>
           <li>
-            The line is vertical, so put it where traffic passes across it. Anything above or
-            below the two handles is ignored, so trimming the line to one lane or one sidewalk
-            counts only that lane or sidewalk.
+            Put the line where traffic crosses it. Anything above or below the two handles is
+            ignored, so you can trim the line to count a single lane or sidewalk.
           </li>
           <li>
-            Bikes and people on foot are never counted in the same run. A cyclist is a person
-            sitting on a bicycle as far as any detector is concerned, so counting both at once
-            means constantly deciding which one they are. Counting bikes against vehicles removes
-            the question: people aren’t a category, and a rider can only be a bike.
+            Bikes and pedestrians are counted in separate runs. To the detector a cyclist is a
+            person on a bicycle, so counting both at once means guessing which one each rider
+            is. In bike mode, people aren&rsquo;t counted at all, so a rider always counts as a
+            bike.
           </li>
           <li>
-            These are estimates, not a certified count: heavy occlusion, night footage, very small
-            or very fast objects and steep camera angles all cost accuracy.
+            The counts are estimates. Blocked views, night footage, very small or fast objects
+            and steep camera angles all make them less accurate.
           </li>
         </ul>
       </div>

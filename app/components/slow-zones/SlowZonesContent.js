@@ -615,7 +615,7 @@ export default function SlowZonesContent() {
           </p>
         ) : days.length === 0 ? (
           <p className="py-20 text-center" style={{ color: INK2 }}>
-            No snapshots collected yet — the first daily capture will appear here.
+            No snapshots collected yet.
           </p>
         ) : (
           <>
@@ -938,8 +938,8 @@ export default function SlowZonesContent() {
                   Business Case Manual Volume 2
                 </a>{' '}
                 (Table 5.8, Economic Case parameters). The cumulative line in the cost chart sums
-                the daily figures from the start of data collection. These are order-of-magnitude
-                estimates, not measurements.
+                the daily figures from the start of data collection. These are rough,
+                order-of-magnitude estimates.
               </p>
               <p style={{ color: INK3 }}>
                 Sources:{' '}

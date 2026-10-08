@@ -217,25 +217,24 @@ export default function IntersectionCountsContent() {
                 <p className="text-xs mt-4 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
                   {win === 'peak' ? (
                     <>
-                      Bars cover {data.peakWindow.label} — the {data.peakWindow.hours} hours every
-                      count in the City&rsquo;s export shares, so counts from different years line
-                      up. Most counts run 8 hours in all and the rest run 14; switch to{' '}
-                      <b>Whole count</b> to see each count&rsquo;s full total instead.
+                      Bars cover {data.peakWindow.label}, the {data.peakWindow.hours} hours that
+                      every count in the City&rsquo;s export includes, so counts from different
+                      years can be compared. Most counts run 8 hours and the rest run 14. Switch
+                      to <b>Whole count</b> to see each count&rsquo;s full total.
                     </>
                   ) : (
                     <>
-                      Bars cover each count&rsquo;s whole duration, which is <b>not</b> the same
-                      from count to count — most run 8 hours, some run 14, and a taller bar can
-                      simply mean a longer count. Switch to <b>Peak hours</b> to compare like
-                      with like.
+                      Bars cover each count&rsquo;s whole duration. Most run 8 hours and some run
+                      14, so a taller bar can just mean a longer count. Switch to{' '}
+                      <b>Peak hours</b> to compare counts over the same hours.
                     </>
                   )}{' '}
-                  Pedestrians and cyclists are counted per approach; cars, trucks and buses per
-                  turning movement.
+                  Pedestrians and cyclists are counted per approach. Cars, trucks and buses are
+                  counted per turning movement.
                   {pickedModes.length > 0 && (
                     <>
-                      {' '}Showing {describeModes(pickedModes)} only — shares stay out of
-                      everything counted, so they will not add up to 100%.
+                      {' '}Showing {describeModes(pickedModes)} only. Shares are still out of
+                      everything counted, so they won&rsquo;t add up to 100%.
                     </>
                   )}
                 </p>

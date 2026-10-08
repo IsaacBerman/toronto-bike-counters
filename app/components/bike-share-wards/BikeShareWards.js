@@ -590,8 +590,9 @@ export default function BikeShareWards({ embedded = false, ward: controlledWard,
           )}
 
           <p className="text-xs leading-relaxed" style={{ color: INK3 }}>
-            Trips are counted where they started. Docks retired before the station feed recorded
-            them cannot be placed, which costs the early years:{' '}
+            Trips are counted where they started. Docks that were removed before the station feed
+            recorded them can&rsquo;t be mapped, so some early trips are missing. Share of trips
+            mapped:{' '}
             {city.byYear
               .filter((r) => r.placed < 0.98)
               .map((r) => `${r.year} ${(r.placed * 100).toFixed(0)}%`)
@@ -716,8 +717,8 @@ export default function BikeShareWards({ embedded = false, ward: controlledWard,
           </div>
           {ebikeYear !== year && (
             <p className="text-xs mt-3" style={{ color: INK3 }}>
-              {year} records no bike model, so this shows {ebikeYear} — the most recent year that
-              does. The archive first distinguishes classic from e-bike in 2024.
+              {year} has no bike model data, so this shows {ebikeYear}. The City&rsquo;s data
+              only splits classic and e-bike from 2024.
             </p>
           )}
         </div>

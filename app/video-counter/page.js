@@ -4,7 +4,7 @@ import VideoCounterContent from '../components/video-counter/VideoCounterContent
 export const metadata = {
   title: 'Video Traffic Counter',
   description:
-    'Count vehicles, bikes and pedestrians crossing a line in your own video. Runs entirely in your browser — nothing is uploaded or stored.',
+    'Upload a street video, draw a counting line, and tally the vehicles, bikes and pedestrians that cross it.',
 };
 
 export default function VideoCounterPage() {

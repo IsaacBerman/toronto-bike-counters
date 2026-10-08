@@ -307,9 +307,8 @@ export default function TravelExplorer() {
             />
             {ageActive && (
               <p className="text-xs mt-2 leading-relaxed" style={{ color: INK3 }}>
-                Fixed at all distances: the survey&rsquo;s age breakdown and its trip-length
-                breakdown are separate cross-tabs, so a school stage can&rsquo;t be narrowed by
-                distance. Pick <b style={{ color: INK2 }}>All ages</b> to filter by distance again.
+                Fixed at all distances. The survey&rsquo;s age and trip-length breakdowns are
+                separate tables, so a school stage can&rsquo;t be filtered by distance. Pick <b style={{ color: INK2 }}>All ages</b> to filter by distance again.
               </p>
             )}
           </Control>
@@ -324,7 +323,7 @@ export default function TravelExplorer() {
                 onChange={selectAgeGroup}
               />
               <p className="text-xs mt-2" style={{ color: INK3 }}>
-                By age of the person travelling — {ageGroups.map(ageBand).join(', ')}.
+                By age of the person travelling: {ageGroups.map(ageBand).join(', ')}.
               </p>
             </Control>
           )}
@@ -434,14 +433,14 @@ export default function TravelExplorer() {
           2001–2022. Wards use the current 25-ward model; 2001–2016 counts are apportioned from the
           former 44-ward model by area-weighted crosswalk, so pre-2022 ward figures are estimates.
           &ldquo;Sustainable&rdquo; = walking, cycling (incl. e-mobility) and transit. Work and
-          school are the same commute trips split by purpose; school stage comes from a separate
-          cross-tab that has no trip length, so the two can&rsquo;t be combined.
+          school are the same commute trips split by purpose. School stage comes from a separate
+          table with no trip length, so the two can&rsquo;t be combined.
           {hasAge && ageGroups.length > 0 && earlyMinAge > lateMinAge && (
             <>
               {' '}
               Before {lastYear} the survey only recorded trips for people aged {earlyMinAge} and
-              up, while {lastYear} covers ages {lateMinAge} and up — so the{' '}
-              {ageGroups[0].short.toLowerCase()} band is not comparable across that break.
+              up, and {lastYear} covers ages {lateMinAge} and up, so the{' '}
+              {ageGroups[0].short.toLowerCase()} band can&rsquo;t be compared across that change.
             </>
           )}
         </p>

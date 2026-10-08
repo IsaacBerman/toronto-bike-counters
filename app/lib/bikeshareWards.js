@@ -476,7 +476,7 @@ export function buildWardProfiles({ data, geo, live = [], daily = null }) {
 }
 
 export const DATA_NOTES = [
-  'Counted from the City of Toronto’s trip-level ridership archives, one row per trip. Months past the archive’s cutoff are estimated from bikeraccoon’s polling of the live feed instead, and marked as estimates wherever they appear.',
+  'Counted from the City of Toronto’s trip-level ridership data. Months after that data ends are estimated from bikeraccoon’s polling of the live feed and marked as estimates.',
   'A ward’s count is trips starting at docks inside it. Returns are trips ending there; neither says where the rider lives.',
   'Docks are placed by their position in Bike Share Toronto’s station feed, snapshotted at each build and accumulated, so a dock retired since its last snapshot keeps the position recorded for it. Trips at docks never snapshotted cannot be placed — the share lost is shown per month.',
   'Classic and e-bike appear only from 2024, when the archive first records a bike model.',

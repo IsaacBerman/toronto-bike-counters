@@ -508,9 +508,9 @@ export default function CounterChart({ data, title, measureLabel }) {
           
         <div className="text-center text-sm text-gray-500 mt-4 px-4 pb-4">
           {showCumulative ? (
-            <p>Showing cumulative year-to-date bicycle counts. Lines show total trips accumulated throughout each year.</p>
+            <p>Cumulative year-to-date bicycle counts.</p>
           ) : (
-            <p>Showing year-over-year comparison by day of year. Dots represent daily counts (transparent), lines show 14-day rolling average.</p>
+            <p>Each year by day of year. Dots are daily counts, lines are the 14-day rolling average.</p>
           )}
         </div>
       </div>
