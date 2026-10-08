@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { POLLS_CLOSE, isElectionNight, nextCheckDelay } from '../../lib/elections-live';
-import { fmt } from './results';
+import { fmt, sum, CANDIDATE_COLORS_2026 } from './results';
 
 export { liveDatasets } from './live-data';
 
@@ -84,9 +84,36 @@ function ago(seconds) {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+// Chow and Bradford's citywide mayoral totals, big enough to read at a glance.
+const HEADLINE = ['Olivia Chow', 'Brad Bradford'];
+
+function MayorTotals({ mayor }) {
+  const city = new Map();
+  for (const ward of Object.values(mayor.wards)) {
+    ward.cand.forEach((c, i) => city.set(c, (city.get(c) ?? 0) + ward.totals[i]));
+  }
+  const total = sum([...city.values()]);
+  if (!total) return null;
+  return (
+    <div className="flex flex-wrap gap-x-8 gap-y-2" style={{ fontVariantNumeric: 'tabular-nums' }}>
+      {HEADLINE.map((name) => {
+        const votes = city.get(mayor.candidates.indexOf(name)) ?? 0;
+        return (
+          <div key={name} className="flex items-baseline gap-2">
+            <span className="inline-block w-3 h-3 rounded-sm self-center" style={{ background: CANDIDATE_COLORS_2026[name] }} />
+            <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>{name.split(' ').slice(-1)[0]}</span>
+            <span className="dd-title text-3xl" style={{ color: 'var(--ink)' }}>{((votes / total) * 100).toFixed(1)}%</span>
+            <span className="text-xs" style={{ color: 'var(--ink-3)' }}>{fmt(votes)} votes</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // The strip above the live map: what state the night is in, how much is
-// counted, and a ticking "last checked".
-export function LiveStatus({ data, fetchedAt, seq, error }) {
+// counted, Chow and Bradford's totals, and a ticking "last checked".
+export function LiveStatus({ data, mayor, fetchedAt, seq, error }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -113,6 +140,7 @@ export function LiveStatus({ data, fetchedAt, seq, error }) {
             <div className="mt-2 h-1.5 rounded-sm w-64 max-w-full" style={{ background: 'var(--paper)' }}>
               <div className="h-full rounded-sm" style={{ width: `${polls ? (pollsReceived / polls) * 100 : 0}%`, background: 'var(--ink)' }} />
             </div>
+            {mayor && <div className="mt-3"><MayorTotals mayor={mayor} /></div>}
           </>
         ) : (
           <p className="text-sm" style={{ color: 'var(--ink-2)' }}>

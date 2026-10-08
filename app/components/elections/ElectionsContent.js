@@ -403,7 +403,7 @@ export default function ElectionsContent() {
           </div>
         </div>
 
-        {isLive && <LiveStatus data={data} fetchedAt={live.fetchedAt} seq={live.feed?.seq} error={live.error} />}
+        {isLive && <LiveStatus data={data} mayor={liveData?.['mayor-2026']} fetchedAt={live.fetchedAt} seq={live.feed?.seq} error={live.error} />}
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="dd-panel-ruled p-3 sm:p-4 min-w-0">
