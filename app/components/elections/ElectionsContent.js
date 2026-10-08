@@ -460,17 +460,7 @@ export default function ElectionsContent() {
               Unofficial results from the City of Toronto&rsquo;s election-night feed.
             </p>
           ) : (
-          <p>
-            Only election-day votes are reported poll by poll. Advance, mail-in and long-term-care
-            votes were counted at the ward level, so the map shows those by ward, and they&rsquo;re
-            included in the ward totals.
-            {meta && <> In the {race.label.toLowerCase()} they were {pct(meta.offMap - meta.unmapped, meta.allVotes)} of all votes.</>}
-            {meta?.unmapped > 0 && (
-              <> Another {pct(meta.unmapped, meta.allVotes)} came from small election-day polls,
-              most likely single apartment buildings, that the City&rsquo;s {race.label.slice(0, 4)} boundary
-              file doesn&rsquo;t draw. They&rsquo;re in the ward totals but not on the poll map.</>
-            )}
-          </p>
+            <p></p>
           )}
           {data && Object.values(data.wards).some((w) => w.note) && (
             <p>
@@ -494,9 +484,10 @@ export default function ElectionsContent() {
 
 function Segmented({ label, value, options, onChange }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="dd-kicker" style={{ color: 'var(--ink-2)' }}>{label}</span>
-      <div className="inline-flex rounded overflow-hidden" style={{ border: '1px solid var(--line)' }} role="group" aria-label={label}>
+    <div className="flex items-center gap-2 min-w-0 max-w-full">
+      <span className="dd-kicker shrink-0" style={{ color: 'var(--ink-2)' }}>{label}</span>
+      {/* Wraps onto a second row on narrow screens rather than running off the page. */}
+      <div className="flex flex-wrap min-w-0 rounded overflow-hidden" style={{ border: '1px solid var(--line)' }} role="group" aria-label={label}>
         {options.map((o) => {
           const on = o.value === value;
           return (
@@ -505,7 +496,7 @@ function Segmented({ label, value, options, onChange }) {
               type="button"
               aria-pressed={on}
               onClick={() => onChange(o.value)}
-              className="px-3 py-1.5 text-sm font-semibold transition-colors"
+              className="px-3 py-1.5 text-sm font-semibold transition-colors whitespace-nowrap"
               style={{ background: on ? 'var(--ink)' : 'var(--panel)', color: on ? '#fff' : 'var(--ink-2)' }}
             >
               {o.label}

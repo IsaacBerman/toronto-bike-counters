@@ -49,6 +49,11 @@ export default function Home() {
 
         <div className="grid sm:grid-cols-2 gap-5">
           <ProjectCard
+            href="/elections"
+            title="Toronto Election Results"
+            blurb="Poll-by-poll maps of the 2018 and 2022 council races and the 2023 mayoral by-election, with live 2026 results on election night."
+          />
+          <ProjectCard
             href="/bike-counters"
             title="Toronto Bicycle Counters"
             blurb="Dashboard Toronto permanent bicycle counter data and Bike Share ridership."
