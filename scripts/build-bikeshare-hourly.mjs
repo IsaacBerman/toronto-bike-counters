@@ -11,7 +11,8 @@
 // plain group-by.
 //
 // Input:  the bikeshare-ridership-YYYY.zip resources on Toronto's CKAN portal,
-//         downloaded to a temp dir (~226 MB for a full year; nothing is kept).
+//         kept in ~/.cache/bikeshare-ridership and downloaded again only when
+//         the City republishes a year.
 // Output: public/bikeshare-hourly.json — trips per local hour, positionally
 //         encoded: 24 entries per day starting at `start`, so the date and hour
 //         of every cell are implied by its index and only the counts are
@@ -22,17 +23,14 @@
 // `npm run build:bikeshare-hourly` when a new quarter lands. Dates past the end
 // of this file fall back to bikeraccoon at runtime (see dataUtils.js).
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import readline from 'readline';
-import zlib from 'zlib';
 import { fileURLToPath } from 'url';
+import { PACKAGE, ckanResources, archivePath, centralDirectory, memberStream } from './lib/bikeshare-archive.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const OUTPUT = path.join(root, 'public', 'bikeshare-hourly.json');
-const PACKAGE = 'bike-share-toronto-ridership-data';
-const CKAN = `https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/package_show?id=${PACKAGE}`;
 
 // Years to fetch. The runtime only ever asks for a two-week window ending a
 // year ago, so the current and previous calendar years always cover it; a year
@@ -45,27 +43,18 @@ const WANTED = years.length ? years.map(Number) : [thisYear - 1, thisYear];
 const counts = new Map();
 
 const resources = await ckanResources();
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bikeshare-hourly-'));
-try {
-  for (const year of WANTED) {
-    const resource = resources.get(year);
-    if (!resource) {
-      console.warn(`no bikeshare-ridership-${year}.zip published; skipping`);
-      continue;
-    }
-    const zipPath = path.join(tmp, `${year}.zip`);
-    process.stdout.write(`${year}: downloading… `);
-    await download(resource, zipPath);
-    const size = fs.statSync(zipPath).size;
-    process.stdout.write(`${(size / 1e6).toFixed(0)} MB\n`);
-    for (const member of centralDirectory(zipPath)) {
-      if (!member.name.toLowerCase().endsWith('.csv')) continue;
-      const rows = await tallyMember(zipPath, member);
-      console.log(`  ${member.name}: ${rows.toLocaleString()} trips`);
-    }
+for (const year of WANTED) {
+  const resource = resources.get(year);
+  if (!resource) {
+    console.warn(`no bikeshare-ridership-${year}.zip published; skipping`);
+    continue;
   }
-} finally {
-  fs.rmSync(tmp, { recursive: true, force: true });
+  const zipPath = await archivePath(resource);
+  for (const member of centralDirectory(zipPath)) {
+    if (!member.name.toLowerCase().endsWith('.csv')) continue;
+    const rows = await tallyMember(zipPath, member);
+    console.log(`  ${member.name}: ${rows.toLocaleString()} trips`);
+  }
 }
 
 if (!counts.size) throw new Error('no trips tallied; refusing to write an empty file');
@@ -118,72 +107,6 @@ console.log(
     `${total.toLocaleString()} trips, ${(fs.statSync(OUTPUT).size / 1024).toFixed(1)} KB`
 );
 
-/** Map of year -> download URL for each bikeshare-ridership-YYYY.zip. */
-async function ckanResources() {
-  const response = await fetch(CKAN);
-  if (!response.ok) throw new Error(`CKAN ${response.status}`);
-  const { result } = await response.json();
-  const found = new Map();
-  for (const resource of result.resources) {
-    const match = /^bikeshare-ridership-(\d{4})\.zip$/.exec(resource.name);
-    if (match) found.set(Number(match[1]), resource.url);
-  }
-  return found;
-}
-
-async function download(url, dest) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url} -> ${response.status}`);
-  await fs.promises.writeFile(dest, response.body);
-}
-
-/**
- * The zip members, read out of the central directory at the end of the file.
- *
- * Node ships no zip reader, and these archives are far too big to hold
- * uncompressed in memory (a year of trips is ~1 GB of CSV), so the members are
- * located here and then inflated one at a time as streams.
- */
-function centralDirectory(zipPath) {
-  const size = fs.statSync(zipPath).size;
-  const tailLength = Math.min(size, 0x10000 + 22); // max comment + EOCD record
-  const tail = Buffer.alloc(tailLength);
-  const fd = fs.openSync(zipPath, 'r');
-  try {
-    fs.readSync(fd, tail, 0, tailLength, size - tailLength);
-  } finally {
-    fs.closeSync(fd);
-  }
-
-  const eocd = tail.lastIndexOf('PK\x05\x06', 'latin1');
-  if (eocd < 0) throw new Error(`${zipPath}: no end-of-central-directory record`);
-  const entries = tail.readUInt16LE(eocd + 10);
-  const directoryStart = tail.readUInt32LE(eocd + 16);
-
-  const directory = Buffer.alloc(tail.readUInt32LE(eocd + 12));
-  const fd2 = fs.openSync(zipPath, 'r');
-  try {
-    fs.readSync(fd2, directory, 0, directory.length, directoryStart);
-  } finally {
-    fs.closeSync(fd2);
-  }
-
-  const members = [];
-  let at = 0;
-  for (let i = 0; i < entries; i++) {
-    if (directory.readUInt32LE(at) !== 0x02014b50) throw new Error(`${zipPath}: bad directory entry ${i}`);
-    const nameLength = directory.readUInt16LE(at + 28);
-    members.push({
-      name: directory.slice(at + 46, at + 46 + nameLength).toString('utf8'),
-      method: directory.readUInt16LE(at + 10),
-      compressedSize: directory.readUInt32LE(at + 20),
-      localHeader: directory.readUInt32LE(at + 42),
-    });
-    at += 46 + nameLength + directory.readUInt16LE(at + 30) + directory.readUInt16LE(at + 32);
-  }
-  return members;
-}
-
 /**
  * Inflate one member and tally its trips by local hour.
  *
@@ -193,21 +116,7 @@ function centralDirectory(zipPath) {
  * need one all sit after it.
  */
 async function tallyMember(zipPath, member) {
-  // The local header's extra field can differ in length from the central
-  // directory's, so the data offset has to come from the local header itself.
-  const header = Buffer.alloc(30);
-  const fd = fs.openSync(zipPath, 'r');
-  try {
-    fs.readSync(fd, header, 0, 30, member.localHeader);
-  } finally {
-    fs.closeSync(fd);
-  }
-  if (header.readUInt32LE(0) !== 0x04034b50) throw new Error(`${member.name}: bad local header`);
-  const dataStart = member.localHeader + 30 + header.readUInt16LE(26) + header.readUInt16LE(28);
-
-  let stream = fs.createReadStream(zipPath, { start: dataStart, end: dataStart + member.compressedSize - 1 });
-  if (member.method === 8) stream = stream.pipe(zlib.createInflateRaw());
-  else if (member.method !== 0) throw new Error(`${member.name}: unsupported compression ${member.method}`);
+  const stream = memberStream(zipPath, member);
 
   let tallied = 0;
   let header_seen = false;

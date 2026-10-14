@@ -10,6 +10,7 @@ export default function StationDetail({ stationId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [stationName, setStationName] = useState('');
   const [stationInfo, setStationInfo] = useState(null);
+  const [archiveEnd, setArchiveEnd] = useState(null);
 
   useEffect(() => {
     async function loadStationData() {
@@ -37,7 +38,8 @@ export default function StationDetail({ stationId, onBack }) {
       const startDate = new Date(endDate);
       startDate.setFullYear(startDate.getFullYear() - 7);
       
-      const activity = await fetchStationActivity(stationId, startDate, endDate);
+      const { rows: activity, archiveEnd } = await fetchStationActivity(stationId, startDate, endDate);
+      setArchiveEnd(archiveEnd);
       
       // Process data for chart
       const processedData = activity.map(point => ({
@@ -99,11 +101,44 @@ export default function StationDetail({ stationId, onBack }) {
       </div>
       <div className="p-4">
         {data.length > 0 ? (
-          <CounterChart data={data}  />
+          <>
+            <CounterChart data={data}  />
+            <p className="text-xs mt-2" style={{ color: 'var(--ink-3)' }}>
+              {archiveEnd ? (
+                <>
+                  Trips to {formatLongDate(archiveEnd)} are rider trips from the{' '}
+                  <a
+                    href="https://open.toronto.ca/dataset/bike-share-toronto-ridership-data/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="dd-link-accent"
+                  >
+                    City of Toronto ridership data
+                  </a>
+                  . Later days are bikeraccoon estimates from dock counts, which also count
+                  bikes moved by staff, so they can run well above the City&rsquo;s numbers.
+                </>
+              ) : (
+                <>
+                  All days are bikeraccoon estimates from dock counts, which also count bikes
+                  moved by staff.
+                </>
+              )}
+            </p>
+          </>
         ) : (
           <p className="text-center text-black/60 py-8">No data available for this station</p>
         )}
       </div>
     </div>
   );
+}
+
+// "2026-09-30" -> "September 30, 2026"
+function formatLongDate(dateKey) {
+  return new Date(`${dateKey}T00:00:00`).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }

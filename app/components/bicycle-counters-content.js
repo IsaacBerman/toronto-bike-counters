@@ -552,7 +552,7 @@ export default function BicycleCountersContent() {
             />
             {isBikeShare && (
               <p className="text-xs px-4 pb-4" style={{ color: 'var(--ink-3)' }}>
-                Trips to March 31, 2026 are official counts from the{' '}
+                Trips to September 30, 2026 are official counts from the{' '}
                 <a
                   href="https://open.toronto.ca/dataset/bike-share-toronto-ridership-data/"
                   target="_blank"
@@ -634,7 +634,7 @@ export default function BicycleCountersContent() {
               . Last Updated: September 18th, 2026
             </p>
             <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
-              Bike share ridership through March 31, 2026 from{' '}
+              Bike share ridership through September 30, 2026 from{' '}
               <a
                 href="https://open.toronto.ca/dataset/bike-share-toronto-ridership-data/"
                 target="_blank"
