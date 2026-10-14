@@ -116,7 +116,7 @@ export default function StationDetail({ stationId, onBack }) {
                     City of Toronto ridership data
                   </a>
                   . Later days are bikeraccoon estimates from dock counts, which also count
-                  bikes moved by staff, so they can run well above the City&rsquo;s numbers.
+                  bikes moved by staff.
                 </>
               ) : (
                 <>
