@@ -64,21 +64,31 @@ export function computeNeedle(baseline, data) {
   }
   const challenger = data.candidates[ci];
 
-  // Each ward's count mixes two kinds of votes with very different 2023
-  // baselines: the regular election-day polls, and four special polls (two
-  // advance, mail-in, care homes) that report as large lump sums and leaned
-  // far more to Chow. The feed only says how many of a ward's polls are in,
-  // not which, and the order isn't guaranteed (election day came first in
-  // 2023). The special polls are big — an advance poll holds thousands of
-  // votes where an election-day poll holds hundreds — so vote totals hint at
-  // the mix, but turnout is unknown too and trades off against it. And the
-  // order is citywide: guess it wrong in one ward and it's wrong in all 25.
+  // Each ward's count mixes two kinds of votes: the regular election-day
+  // polls, and four special polls (two advance, mail-in, care homes) that
+  // report as large lump sums. The feed only says how many of a ward's polls
+  // are in, not which, and the order isn't guaranteed (election day came
+  // first in 2023). The special polls are big — a 2026 advance poll holds
+  // thousands of votes where an election-day poll holds hundreds — so vote
+  // totals hint at the mix, but turnout is unknown too and trades off against
+  // it. And the order is citywide: guess it wrong in one ward and it's wrong
+  // in all 25.
   //
   // So the night is read three ways — election day first, the lumps first,
   // or polls arriving in no particular order — each fitted with its own
   // turnout. The needle blends them by how well each explains the counts, so
   // when they disagree it shows that rather than picking one.
+  //
+  // How the special polls vote is not borrowed from 2023, when Chow's margin
+  // among advance voters ran 36 points ahead of election day: that was one
+  // by-election's campaign, and 2026's advance electorate is bigger and
+  // differently spread (advance voting grew most where Chow was weakest). A
+  // ward's lumps are projected at its own election-day result, plus a
+  // citywide advance-vs-election-day gap that starts at zero — with ±25
+  // points of doubt, wide enough to take in a 2023-sized gap — and is learned
+  // from the count as lumps report in some wards and not others.
   const SPECIAL_POLLS = 4;
+  const GAP_PRIOR = 0.25;
   const marginOf = (c, r, t) => (t > 0 ? (c - r) / t : 0);
   const logChoose = (nn, kk) => lgamma(nn + 1) - lgamma(kk + 1) - lgamma(nn - kk + 1);
 
@@ -86,13 +96,17 @@ export function computeNeedle(baseline, data) {
     const early = base.early ?? { candidate: 0, rival: 0, total: 0 };
     const dayT = base.total - early.total;
     const mDay = marginOf(base.candidate - early.candidate, base.rival - early.rival, dayT);
-    // The special polls with their 2023 sizes and leans: two advance polls
-    // (half the ward's advance vote each), mail-in, care homes.
-    const sp = base.special ?? { advance: early, mail: { candidate: 0, rival: 0, total: 0 }, ltc: { candidate: 0, rival: 0, total: 0 } };
-    const half = (x) => ({ candidate: x.candidate / 2, rival: x.rival / 2, total: x.total / 2 });
-    const specials = [half(sp.advance), half(sp.advance), sp.mail, sp.ltc].map((x) => ({ d: x.candidate - x.rival, t: x.total }));
-
     const live = data.wards[w];
+
+    // The special polls' sizes: two advance polls (half the ward's advance
+    // vote each), mail-in, care homes. 2026's advance vote is known before
+    // the night (`advanceExpected`, from the City's advance turnout), so
+    // it's used as is; the rest scale 2023's sizes by turnout. Each is
+    // [size, fixed].
+    const sp = base.special ?? { advance: early, mail: { total: 0 }, ltc: { total: 0 } };
+    const adv = live?.advanceExpected > 0 ? [live.advanceExpected / 2, true] : [sp.advance.total / 2, false];
+    const specials = [adv, adv, [sp.mail.total, false], [sp.ltc.total, false]];
+
     const a = live ? live.totals[live.cand.indexOf(ai)] ?? 0 : 0;
     const b = live ? live.totals[live.cand.indexOf(ci)] ?? 0 : 0;
     const n = live ? live.totals.reduce((s, v) => s + v, 0) : 0;
@@ -134,33 +148,42 @@ export function computeNeedle(baseline, data) {
       ];
     }
     for (const m of mixes) {
-      const inSp = specials.filter((_, i) => m.mask & (1 << i));
-      m.was = m.fDay * dayT + inSp.reduce((s, x) => s + x.t, 0);
-      m.expected = m.was > 0 ? (m.fDay * dayT * mDay + inSp.reduce((s, x) => s + x.d, 0)) / m.was : mDay;
-      m.swing = n > 0 ? (a - b) / n - m.expected : 0;
-      // The specials still out: their 2023 votes and Chow's margin in them.
-      const outSp = specials.filter((_, i) => !(m.mask & (1 << i)));
-      m.earlyLeftT = outSp.reduce((s, x) => s + x.t, 0);
-      m.earlyLeftD = outSp.reduce((s, x) => s + x.d, 0);
+      const part = (inMix) => specials.reduce((acc, [size, fixed], i) => {
+        if (Boolean(m.mask & (1 << i)) === inMix) acc[fixed ? 1 : 0] += size;
+        return acc;
+      }, [0, 0]);
+      // Special votes counted and still out, as [scales with turnout, fixed].
+      [m.inScaled, m.inFixed] = part(true);
+      [m.outScaled, m.outFixed] = part(false);
     }
-    return { w, dayT, earlyT: early.total, mDay, d: a - b, n, mixes };
+    const allSpScaled = specials.reduce((s, [size, fixed]) => s + (fixed ? 0 : size), 0);
+    const allSpFixed = specials.reduce((s, [size, fixed]) => s + (fixed ? size : 0), 0);
+    return { w, dayT, mDay, d: a - b, n, y: n > 0 ? (a - b) / n - mDay : 0, mixes, allSpScaled, allSpFixed };
   });
   const reported = wards.filter((w) => w.n > 0);
   const counted = reported.reduce((s, w) => s + w.n, 0);
   const allIn = data.reporting?.polls > 0 && data.reporting.pollsReceived >= data.reporting.polls;
+
+  // What a mix would add up to at a given turnout (relative to 2023), and
+  // how much of that would be special-poll votes.
+  const votesOf = (w, m, t) => t * (m.fDay * w.dayT + m.inScaled) + m.inFixed;
+  const specialShare = (w, m, t) => {
+    const v = votesOf(w, m, t);
+    return v > 0 ? (t * m.inScaled + m.inFixed) / v : 0;
+  };
 
   // Turnout relative to 2023: prior centred on 2023's (±30%); each ward may
   // stray ±15% from the citywide figure.
   const TURNOUTS = Array.from({ length: 23 }, (_, i) => 0.6 + i * 0.05);
   const PRIOR_SPREAD = 0.3;
   const WARD_SPREAD = 0.15;
-  const fitOf = (n, was, t) => (was > 0 ? Math.exp(-(Math.log(n / (was * t)) ** 2) / (2 * WARD_SPREAD ** 2)) : 1e-12);
+  const fitOf = (n, votes) => (votes > 0 ? Math.exp(-(Math.log(n / votes) ** 2) / (2 * WARD_SPREAD ** 2)) : 1e-12);
 
   function reading(key) {
     // Turnout, given this reading.
     const logPost = TURNOUTS.map((t) => {
       let lp = -(Math.log(t) ** 2) / (2 * PRIOR_SPREAD ** 2);
-      for (const w of reported) lp += Math.log(w.mixes.reduce((s, m) => s + m.q[key] * fitOf(w.n, m.was, t), 0) + 1e-300);
+      for (const w of reported) lp += Math.log(w.mixes.reduce((s, m) => s + m.q[key] * fitOf(w.n, votesOf(w, m, t)), 0) + 1e-300);
       return lp;
     });
     const top = Math.max(...logPost);
@@ -173,11 +196,33 @@ export function computeNeedle(baseline, data) {
     const weights = new Map();
     for (const w of wards) {
       const ws = w.mixes.map((m) => (w.n > 0
-        ? m.q[key] * TURNOUTS.reduce((s, t, i) => s + post[i] * fitOf(w.n, m.was, t), 0)
+        ? m.q[key] * TURNOUTS.reduce((s, t, i) => s + post[i] * fitOf(w.n, votesOf(w, m, t)), 0)
         : 1));
       const total = ws.reduce((s, v) => s + v, 0) || 1;
       weights.set(w, ws.map((v) => v / total));
     }
+    const phiOf = (w) => w.mixes.reduce((s, m, i) => s + weights.get(w)[i] * specialShare(w, m, turnout), 0);
+
+    // The advance-vs-election-day gap. Each counted ward's margin, against
+    // its 2023 election day, is a citywide swing plus the gap times the share
+    // of its count that's special polls; wards with different shares tell the
+    // two apart. Fitted with the gap pulled toward zero, so until the count
+    // can show otherwise it stays at zero with its full ±25 points of doubt.
+    const NOISE = 0.06;
+    const mean = counted / Math.max(1, reported.length);
+    let s0 = 0; let s1 = 0; let s2 = 0; let t0 = 0; let t1 = 0;
+    for (const w of reported) {
+      const om = Math.min(3, w.n / mean);
+      const f = phiOf(w);
+      s0 += om; s1 += om * f; s2 += om * f * f; t0 += om * w.y; t1 += om * f * w.y;
+    }
+    const ridge = (NOISE / GAP_PRIOR) ** 2;
+    const det = s0 * (s2 + ridge) - s1 * s1;
+    const gap = det > 0 ? (s0 * t1 - s1 * t0) / det : 0;
+    const gapDoubt = det > 0 ? Math.min(GAP_PRIOR, NOISE * Math.sqrt(s0 / det)) : GAP_PRIOR;
+
+    // Ward swings, net of the gap.
+    for (const w of wards) for (const m of w.mixes) m.swing = w.n > 0 ? w.y - gap * specialShare(w, m, turnout) : 0;
     const wardSwing = (w) => w.mixes.reduce((s, m, i) => s + weights.get(w)[i] * m.swing, 0);
     const swing = reported.reduce((s, w) => s + w.n * wardSwing(w), 0) / counted;
     const swingVar = reported.reduce((s, w) => s + w.n * (wardSwing(w) - swing) ** 2, 0) / counted;
@@ -186,23 +231,26 @@ export function computeNeedle(baseline, data) {
     let total = 0;
     let leftInReported = 0;
     let leftInUnreported = 0;
-    let leftEarly = 0;
+    let leftSpecial = 0;
+    let leftDayAll = 0;
     let mixVar = 0;
     for (const w of wards) {
       const ws = weights.get(w);
+      const wardTotal = turnout * (w.dayT + w.allSpScaled) + w.allSpFixed;
       let wm = 0;
       const outcomes = w.mixes.map((m, i) => {
         const leftDay = (1 - m.fDay) * w.dayT * turnout;
-        const leftE = m.earlyLeftT * turnout;
+        const leftSp = turnout * m.outScaled + m.outFixed;
         // A ward's own swing counts in proportion to how much of it is in.
-        const g = w.n > 0 ? Math.min(1, m.was / Math.max(1, w.dayT + w.earlyT)) : 0;
+        const g = w.n > 0 ? Math.min(1, votesOf(w, m, turnout) / Math.max(1, wardTotal)) : 0;
         const s = g * m.swing + (1 - g) * swing;
-        const mm = w.d + leftDay * (w.mDay + s) + turnout * m.earlyLeftD + leftE * s;
+        const mm = w.d + leftDay * (w.mDay + s) + leftSp * (w.mDay + s + gap);
         wm += ws[i] * mm;
-        total += ws[i] * (w.n + leftDay + leftE);
-        leftEarly += ws[i] * leftE;
+        total += ws[i] * (w.n + leftDay + leftSp);
+        leftSpecial += ws[i] * leftSp;
+        leftDayAll += ws[i] * leftDay;
         if (w.n > 0) leftInReported += ws[i] * leftDay;
-        else leftInUnreported += ws[i] * (leftDay + leftE);
+        else leftInUnreported += ws[i] * (leftDay + leftSp);
         return mm;
       });
       mixVar += w.mixes.reduce((s, m, i) => s + ws[i] * (outcomes[i] - wm) ** 2, 0);
@@ -212,9 +260,10 @@ export function computeNeedle(baseline, data) {
     // Doubt, each part scaled by how much of the vote it covers:
     //  - uncounted election-day polls in wards already reporting may not vote
     //    like the counted ones (5 points of margin);
-    //  - the advance, mail-in and care-home lumps may swing differently from
-    //    election day (10 points; in 2023 Chow's margin in them was about 36
-    //    points better than on election day: +32.8 against −3.3);
+    //  - the advance-vs-election-day gap is uncertain (±25 points until the
+    //    count narrows it), and it cuts both ways: the uncounted lumps lean by
+    //    it, and the swing read from counted lumps is net of it — so when the
+    //    count is mostly one kind of vote, the swing is as unsure as the gap;
     //  - wards not yet reporting depend on the swing, which is uncertain while
     //    few wards are in (8 points with none, narrowing as wards report), plus
     //    how much wards have differed from one another;
@@ -223,13 +272,15 @@ export function computeNeedle(baseline, data) {
     //    quickest to report are often smaller or from particular areas — so
     //    the swing seen early is itself shaky (10 points with nothing counted,
     //    fading as the count fills in).
+    // The share of what's been counted that is special-poll votes.
+    const countedSpecial = reported.reduce((s, w) => s + w.n * phiOf(w), 0) / counted;
     const k = reported.length;
     const swingDoubt = Math.sqrt(0.08 ** 2 / (1 + k / 3) + swingVar / Math.max(1, wards.length - k));
     const sigma = allIn
       ? 0.0005
       : Math.hypot(
         0.05 * (leftInReported / total),
-        0.1 * (leftEarly / total),
+        gapDoubt * Math.abs((1 - countedSpecial) * leftSpecial - countedSpecial * leftDayAll) / total,
         swingDoubt * (leftInUnreported / total),
         Math.sqrt(mixVar) / total,
         0.1 * (1 - counted / total),
@@ -240,9 +291,10 @@ export function computeNeedle(baseline, data) {
       projected,
       p: phi(projected / sigma),
       swing,
+      gap,
       share: Math.min(1, counted / total),
       wardSwings: Object.fromEntries(reported.map((w) => [w.w, {
-        then: w.mixes.reduce((s, m, i) => s + weights.get(w)[i] * m.expected, 0),
+        then: w.mDay + gap * phiOf(w),
         swing: wardSwing(w),
       }])),
     };
@@ -261,11 +313,15 @@ export function computeNeedle(baseline, data) {
     p: blend((r) => r.p),
     projected: blend((r) => r.projected),
     swing: blend((r) => r.swing),
+    // How much better (+) or worse Chow is doing among advance, mail-in and
+    // care-home voters than on election day, as learned so far.
+    advanceGap: blend((r) => r.gap),
     share: blend((r) => r.share),
     wardsReporting: reported.length,
     allIn,
-    // Per ward, for the swing map: Chow's margin now, her 2023 margin in the
-    // same kind of votes (as best the mix can be told), and the difference.
+    // Per ward, for the swing map: Chow's margin now, what her 2023
+    // election-day margin implies for the kind of votes counted, and the
+    // difference.
     wardSwings: Object.fromEntries(reported.map((w) => [w.w, {
       now: w.d / w.n,
       then: blend((r) => r.wardSwings[w.w].then),

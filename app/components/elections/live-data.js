@@ -2,6 +2,7 @@
 // same structure as the past races' files. Plain JS so the API route can use
 // it too.
 import { sum, CANDIDATE_COLORS_2026 } from './results';
+import { ADVANCE_RATE_2026 } from './advance-2026';
 
 // Councillors seeking re-election in 2026, by ward: the 2022 winners, plus
 // three who won their seats at by-elections since: Parthi Kandavel (Ward 20),
@@ -58,6 +59,8 @@ export function liveDatasets(feed, outlines) {
       special: {},
       polls: w.polls,
       pollsReceived: w.pollsReceived,
+      // Advance votes already cast in this ward, for the needle.
+      advanceExpected: ADVANCE_RATE_2026[w.num] && w.totalVoters ? (ADVANCE_RATE_2026[w.num] / 100) * w.totalVoters : 0,
     };
   }
 
