@@ -405,8 +405,15 @@ export default function ElectionsContent() {
 
         {isLive && <LiveStatus data={data} mayor={liveData?.['mayor-2026']} fetchedAt={live.fetchedAt} seq={live.feed?.seq} error={live.error} />}
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="dd-panel-ruled p-3 sm:p-4 min-w-0">
+        {/* On phones the dial comes first, above the map, so the headline is
+            the first thing on screen; on desktop it heads the right column. */}
+        <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_1fr]">
+          {showNeedle && needle && (
+            <div className="min-w-0 lg:col-start-2 lg:row-start-1">
+              <Needle needle={needle} history={live.feed?.needleHistory} seq={live.feed?.seq} />
+            </div>
+          )}
+          <div className="dd-panel-ruled p-3 sm:p-4 min-w-0 lg:col-start-1 lg:row-start-1 lg:row-span-2">
             {data ? (
               <ElectionMap
                 data={data}
@@ -442,8 +449,7 @@ export default function ElectionsContent() {
             )}
           </div>
 
-          <div className="flex flex-col gap-4 min-w-0">
-            {showNeedle && needle && <Needle needle={needle} history={live.feed?.needleHistory} seq={live.feed?.seq} />}
+          <div className={`flex flex-col gap-4 min-w-0 lg:col-start-2 ${showNeedle && needle ? 'lg:row-start-2' : 'lg:row-start-1 lg:row-span-2'}`}>
             {data && selectedPoll && (
               <PollCard data={data} poll={selectedPoll} onClose={() => setSelectedPoll(null)} />
             )}

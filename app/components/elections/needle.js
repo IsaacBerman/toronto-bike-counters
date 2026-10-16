@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { CANDIDATE_COLORS_2026, OTHER_COLOR, fmt } from './results';
 import { NEEDLE, surname } from './needle-model';
 import { POLLS_CLOSE } from '../../lib/elections-live';
@@ -84,10 +84,42 @@ const signed = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}`;
 const pctText = (p, allIn) => (!allIn && p >= 0.995 ? '>99' : p <= 0.005 && !allIn ? '<1' : Math.round(p * 100));
 const clock = (ms) => new Date(ms).toLocaleTimeString('en-CA', { timeZone: 'America/Toronto', hour: 'numeric', minute: '2-digit' });
 
+// Eases a number toward its target over `ms`, picking up from wherever it is
+// if the target changes mid-swing. Driven from JavaScript so the tower can use
+// SVG's own rotate(), which every browser pivots correctly — CSS rotation of
+// SVG shapes has swung around the wrong point in older mobile Safari.
+// People who've asked for reduced motion get the new value straight away.
+function useEased(target, ms = 1200) {
+  const [value, setValue] = useState(target);
+  const current = useRef(target);
+  useEffect(() => {
+    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const from = current.current;
+    if (reduce || from === target) {
+      current.current = target;
+      setValue(target);
+      return undefined;
+    }
+    const start = performance.now();
+    let frame;
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / ms);
+      const v = from + (target - from) * (1 - (1 - t) ** 3);
+      current.current = v;
+      setValue(v);
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, ms]);
+  return value;
+}
+
 export function Needle({ needle, history, seq }) {
   const gradientId = useId();
   const waiting = !needle || needle.waiting;
   const p = waiting ? 0.5 : needle.p;
+  const angle = useEased((p - 0.5) * 180);
   const rival = surname(needle?.challenger ?? NEEDLE.b);
   const bColor = colorOf(needle?.challenger ?? NEEDLE.b);
   const leader = p >= 0.5 ? NEEDLE.aShort : rival;
@@ -98,7 +130,7 @@ export function Needle({ needle, history, seq }) {
         <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>Who will win?</h2>
       </div>
       <div className="p-4">
-        <svg viewBox="-40 0 400 190" className="w-full" role="img"
+        <svg viewBox="-44 0 408 196" className="w-full" role="img"
           aria-label={waiting ? 'Dial waiting for results' : `${leader} ${pctText(Math.max(p, 1 - p), needle.allIn)}% likely to win`}>
           {SPOKES.map((sp, i) => (
             <line key={i} x1={sp.x0} y1={sp.y0} x2={sp.x1} y2={sp.y1} stroke="var(--ink-3)" strokeOpacity="0.55" strokeWidth="0.8" />
@@ -119,13 +151,13 @@ export function Needle({ needle, history, seq }) {
           {LABELS.map(([lp, label], i) => {
             const [x, y] = pt(lp, R_TIRE + 11);
             return (
-              <text key={i} x={x} y={y + 3} fontSize="8.5" textAnchor={lp < 0.45 ? 'end' : lp > 0.55 ? 'start' : 'middle'}
+              <text key={i} x={x} y={y + 4} fontSize="12.5" textAnchor={lp < 0.45 ? 'end' : lp > 0.55 ? 'start' : 'middle'}
                 fill="var(--ink-3)">{label}</text>
             );
           })}
-          <text x={CX - (R_OUT + R_IN) / 2} y={CY + 16} fontSize="10.5" fontWeight="700" textAnchor="middle" fill="var(--ink-2)">{rival} win</text>
-          <text x={CX + (R_OUT + R_IN) / 2} y={CY + 16} fontSize="10.5" fontWeight="700" textAnchor="middle" fill="var(--ink-2)">{NEEDLE.aShort} win</text>
-          <g style={{ transform: `rotate(${(p - 0.5) * 180}deg)`, transformOrigin: `${CX}px ${CY}px`, transition: 'transform 1.2s cubic-bezier(.3,.7,.3,1)' }}>
+          <text x={CX - (R_OUT + R_IN) / 2} y={CY + 22} fontSize="14" fontWeight="700" textAnchor="middle" fill="var(--ink-2)">{rival} win</text>
+          <text x={CX + (R_OUT + R_IN) / 2} y={CY + 22} fontSize="14" fontWeight="700" textAnchor="middle" fill="var(--ink-2)">{NEEDLE.aShort} win</text>
+          <g transform={`rotate(${angle.toFixed(2)} ${CX} ${CY})`}>
             <path d={TOWER} transform={`translate(${CX},${CY})`} fill={waiting ? 'var(--ink-3)' : 'var(--ink)'} />
           </g>
           <circle cx={CX} cy={CY} r={R_HUB} fill={waiting ? 'var(--ink-3)' : 'var(--ink)'} />
@@ -197,7 +229,12 @@ function NightChart({ title, points, lo, hi, mid, ticks, bColor, tip, aria }) {
     <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
       <p className="text-xs font-semibold mb-1" style={{ color: 'var(--ink-2)' }}>{title}</p>
       <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" onPointerMove={onMove} onPointerLeave={() => setHover(null)}
+        {/* Touch: a tap shows that point, dragging sideways scrubs the night, and
+            vertical swipes still scroll the page. The readout stays up after a
+            tap rather than vanishing as the finger lifts. */}
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ touchAction: 'pan-y' }}
+          onPointerMove={onMove} onPointerDown={onMove}
+          onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(null); }}
           role="img" aria-label={aria(points[0][1], last[1])}>
           <defs>
             <clipPath id={`${clipId}a`}><rect x="0" y="0" width={W} height={y(mid)} /></clipPath>
