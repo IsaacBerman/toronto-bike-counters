@@ -1,16 +1,20 @@
 // Shrink the raw Toronto cycling-counter export into just what the bike-counters
 // page needs.
 //
-// Input:  data/cycling-counts.csv — the full City export (8 columns, one row
-//         per counter-direction-day), plus data/cycling-counts-locations.csv
-//         for where each counter physically sits.
+// Input:  the permanent-bicycle-counters package on Toronto's CKAN portal —
+//         cycling_permanent_counts_daily (8 columns, one row per
+//         counter-direction-day) and cycling_permanent_counts_locations (where
+//         each counter physically sits). Both are fetched fresh on every run
+//         and saved to data/cycling-counts.csv and
+//         data/cycling-counts-locations.csv; pass --offline to rebuild from
+//         those saved copies instead.
 // Output: public/cycling-counts.json — daily volumes grouped by counter, with
 //         the two directions summed per day (exactly what processCounterData
 //         does at runtime), the five unused columns dropped, and a lat/lon
 //         attached so the counter map can place it.
 //
 // The page keys everything off location_name, so that string is preserved
-// verbatim. Regenerate with `npm run build:cycling` when a new export lands.
+// verbatim. Rerun `npm run build:cycling` to pick up the City's latest counts.
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -22,6 +26,15 @@ const INPUT = path.join(root, 'data', 'cycling-counts.csv');
 const LOCATIONS = path.join(root, 'data', 'cycling-counts-locations.csv');
 const TMC = path.join(root, 'public', 'tmc-counts.json');
 const OUTPUT = path.join(root, 'public', 'cycling-counts.json');
+
+const PACKAGE = 'permanent-bicycle-counters';
+const CKAN = `https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/package_show?id=${PACKAGE}`;
+
+if (process.argv.includes('--offline')) {
+  console.log(`--offline: using ${path.relative(root, INPUT)} and ${path.relative(root, LOCATIONS)} as saved`);
+} else {
+  await download();
+}
 
 const csv = fs.readFileSync(INPUT, 'utf8');
 const { data, errors } = Papa.parse(csv, { header: true, skipEmptyLines: true });
@@ -84,6 +97,37 @@ if (unplaced.length) {
   console.warn(`No coordinates for ${unplaced.length}: ${unplaced.map((c) => c.location).join('; ')}`);
 }
 console.log(`${INPUT.split('/').pop()} ${inKB} KB  ->  ${OUTPUT.split('/').pop()} ${outKB} KB`);
+
+// Pull both resources from CKAN into data/. They are looked up by name rather
+// than by resource id, since the id changes when the City republishes. The
+// datastore dump is used because it carries the same _id-first columns the
+// parsing above expects; the static .csv download beside it can lag a refresh.
+async function download() {
+  const response = await fetch(CKAN);
+  if (!response.ok) throw new Error(`CKAN ${response.status}`);
+  const { result } = await response.json();
+  const wanted = [
+    ['cycling_permanent_counts_daily', INPUT],
+    ['cycling_permanent_counts_locations', LOCATIONS],
+  ];
+  fs.mkdirSync(path.dirname(INPUT), { recursive: true });
+  for (const [name, file] of wanted) {
+    const resource = result.resources.find((r) => r.name === name && r.datastore_active);
+    if (!resource) throw new Error(`${PACKAGE} has no datastore resource named ${name}`);
+    process.stdout.write(`${name}: downloading… `);
+    const res = await fetch(resource.url);
+    if (!res.ok) throw new Error(`${resource.url} -> ${res.status}`);
+    // The dump ends its header line with \r\n and every row after with \n,
+    // and Papa takes the line ending from the first line it sees.
+    const text = (await res.text()).replace(/\r\n/g, '\n');
+    if (!text.startsWith('_id,location_dir_id,location_name')) {
+      throw new Error(`${name}: unexpected header ${JSON.stringify(text.slice(0, 80))}`);
+    }
+    fs.writeFileSync(`${file}.part`, text);
+    fs.renameSync(`${file}.part`, file);
+    process.stdout.write(`${(text.length / 1024).toFixed(0)} KB\n`);
+  }
+}
 
 // Where each counter sits. The City publishes this in a separate locations
 // export, joined on location_dir_id — but that export lags the counts one, so

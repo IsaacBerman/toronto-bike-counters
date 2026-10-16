@@ -631,7 +631,7 @@ export default function BicycleCountersContent() {
               >
                 City of Toronto Open Data Portal
               </a>
-              . Last Updated: September 18th, 2026
+              . Last Updated: October 16th, 2026
             </p>
             <p className="text-sm mt-1" style={{ color: 'var(--ink-2)' }}>
               Bike share ridership through September 30, 2026 from{' '}

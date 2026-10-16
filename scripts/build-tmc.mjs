@@ -15,7 +15,11 @@
 // every single count in the export covers, which is what the page charts.
 // `full` keeps the whole count for reference alongside its length in hours.
 //
-// Regenerate with `npm run build:tmc` when a new export lands.
+// The current decade, tmc_raw_data_2020_2029, is pulled from the City's CKAN
+// portal on every run (and re-downloaded only when the City has republished
+// it); earlier decades are closed and read from data/ as saved. Pass
+// --offline to skip the check and use the saved 2020s file too. Regenerate
+// with `npm run build:tmc`.
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
@@ -44,6 +48,51 @@ const MODE_COLUMNS = {
 };
 const MODES = Object.keys(MODE_COLUMNS);
 
+// Bring data/tmc_raw_data_2020_2029.csv up to date with the portal. The static
+// .csv resource is used rather than the datastore dump of the same table
+// because it publishes a size and last_modified, so an unchanged file is not
+// downloaded again; data/.tmc-manifest.json remembers what was fetched.
+async function refreshCurrentDecade() {
+  const response = await fetch(CKAN);
+  if (!response.ok) throw new Error(`CKAN ${response.status}`);
+  const { result } = await response.json();
+  const resource = result.resources.find((r) => r.name === CURRENT);
+  if (!resource) throw new Error(`${PACKAGE} has no resource named ${CURRENT}`);
+
+  const file = path.join(DATA_DIR, CURRENT);
+  const manifestPath = path.join(DATA_DIR, '.tmc-manifest.json');
+  const manifest = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, 'utf8')) : {};
+  const stamp = { last_modified: resource.last_modified ?? null, size: resource.size ?? null };
+  const recorded = manifest[CURRENT];
+  if (
+    fs.existsSync(file) &&
+    fs.statSync(file).size === stamp.size &&
+    recorded?.last_modified === stamp.last_modified
+  ) {
+    console.log(`${CURRENT}: up to date (${stamp.last_modified})`);
+    return;
+  }
+
+  process.stdout.write(`${CURRENT}: downloading ${((stamp.size ?? 0) / 1e6).toFixed(0)} MB… `);
+  const download = await fetch(resource.url);
+  if (!download.ok) throw new Error(`${resource.url} -> ${download.status}`);
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  await fs.promises.writeFile(`${file}.part`, download.body);
+  const head = Buffer.alloc(40);
+  const fd = fs.openSync(`${file}.part`, 'r');
+  fs.readSync(fd, head, 0, head.length, 0);
+  fs.closeSync(fd);
+  const header = head.toString('utf8');
+  if (!header.startsWith('_id,count_id,count_date')) {
+    fs.rmSync(`${file}.part`);
+    throw new Error(`${CURRENT}: unexpected header ${JSON.stringify(header)}`);
+  }
+  fs.renameSync(`${file}.part`, file);
+  manifest[CURRENT] = stamp;
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 1));
+  process.stdout.write('done\n');
+}
+
 // Splits one CSV line. Only location_name is ever quoted, but it does contain
 // commas ("Bloor St W / Palmerston Blvd"), so the quote state has to be tracked.
 function splitCsv(line) {
@@ -63,6 +112,13 @@ function splitCsv(line) {
   out.push(cur);
   return out;
 }
+
+const PACKAGE = 'traffic-volumes-at-intersections-for-all-modes';
+const CKAN = `https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/package_show?id=${PACKAGE}`;
+const CURRENT = 'tmc_raw_data_2020_2029.csv';
+
+if (process.argv.includes('--offline')) console.log(`--offline: using data/${CURRENT} as saved`);
+else await refreshCurrentDecade();
 
 const files = fs
   .readdirSync(DATA_DIR)
