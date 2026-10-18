@@ -19,7 +19,9 @@ const WARD_FEED = 'https://mediaresults.toronto.ca/results/unofficialresult-ward
 
 export const dynamic = 'force-dynamic';
 
-const num = (v) => Number(v) || 0;
+// The feed sends numbers as strings. The City's spec shows one with a
+// thousands separator ("78,411"), so commas and spaces are stripped first.
+const num = (v) => Number(String(v ?? '').replace(/[,\s]/g, '')) || 0;
 
 async function getJson(url) {
   const res = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } });
