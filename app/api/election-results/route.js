@@ -24,7 +24,9 @@ export const dynamic = 'force-dynamic';
 const num = (v) => Number(String(v ?? '').replace(/[,\s]/g, '')) || 0;
 
 async function getJson(url) {
-  const res = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } });
+  // Ten seconds, so a City server that hangs fails fast instead of tying up
+  // requests until the platform gives up on them.
+  const res = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`${url} answered ${res.status}`);
   return res.json();
 }
@@ -93,6 +95,12 @@ function shape(main, byWard) {
   };
 }
 
+// The last results fetched successfully by this server instance, served as
+// they were if the City can't be reached: their fetch time already says how
+// current they are, so someone arriving mid-outage still sees the latest
+// count, timed like any other update.
+let lastGood = null;
+
 export async function GET() {
   try {
     const [main, byWard] = await Promise.all([getJson(FEED), getJson(WARD_FEED)]);
@@ -110,6 +118,7 @@ export async function GET() {
       console.error('needle history', e);
       body.needleHistory = null;
     }
+    lastGood = body;
     const ttl = Math.max(1, Math.floor(nextCheckDelay() / 1000));
     return NextResponse.json(body, {
       // Only 5 seconds of serving a stale copy while refreshing, so the copy
@@ -117,10 +126,15 @@ export async function GET() {
       headers: { 'Cache-Control': `public, max-age=0, s-maxage=${ttl}, stale-while-revalidate=5` },
     });
   } catch (e) {
-    // Not cached, so the next poll tries the City again.
-    return NextResponse.json({ error: `Couldn't reach the City's results feed (${e.message}).` }, {
-      status: 502,
-      headers: { 'Cache-Control': 'no-store' },
+    // A failure is cached at the edge like a success (up to a minute), so if
+    // the City's feed is down or throttling, it still gets at most one retry
+    // a minute per region rather than one per open page every few seconds.
+    // Sent as a 200 because the edge only caches successful responses. With
+    // nothing saved yet, the page gets `error` and treats it as a failed check.
+    console.error('city feed', e);
+    const ttl = Math.max(1, Math.min(60, Math.floor(nextCheckDelay() / 1000)));
+    return NextResponse.json(lastGood ?? { error: `Couldn't reach the City's results feed (${e.message}).` }, {
+      headers: { 'Cache-Control': `public, max-age=0, s-maxage=${ttl}, stale-while-revalidate=5` },
     });
   }
 }

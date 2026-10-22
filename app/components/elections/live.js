@@ -34,10 +34,16 @@ export function useLiveResults(enabled) {
       try {
         const res = await fetch('/api/election-results');
         const body = await res.json();
-        if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+        if (!res.ok && !body.seq) throw new Error(body.error || `HTTP ${res.status}`);
         if (cancelled) return;
-        setFeed((prev) => (prev && prev.seq === body.seq ? prev : body));
-        setFetchedAt(body.fetchedAt);
+        // During a City outage the server sends its last good results, timed
+        // when they were fetched; only show them if they're newer than
+        // what's on screen.
+        if (body.seq) {
+          setFeed((prev) => (prev && prev.seq >= body.seq ? prev : body));
+          setFetchedAt(body.fetchedAt);
+        }
+        if (body.error) throw new Error(body.error);
         setError(null);
       } catch (e) {
         // Keep showing the last good results; the next check retries.
@@ -153,13 +159,15 @@ export function LiveStatus({ data, mayor, fetchedAt, seq, error }) {
       <div className="text-xs text-right" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>
         {checked ? (
           <p>
-            Last checked <span style={{ color: 'var(--ink-2)' }}>{clock(checked)}</span> · {ago(Math.max(0, Math.round((now - checked) / 1000)))}
+            Last updated <span style={{ color: 'var(--ink-2)' }}>{clock(checked)}</span> · {ago(Math.max(0, Math.round((now - checked) / 1000)))}
           </p>
         ) : (
           <p>Checking…</p>
         )}
         {night && seq > POLLS_CLOSE && <p>City last published {clock(seq)}</p>}
-        {error && <p style={{ color: 'var(--ink-2)' }}>Couldn&rsquo;t reach the City at {clock(Date.parse(error.at))}, retrying</p>}
+        {/* An outage just shows as an older "last updated"; the error only
+            appears when there are no results to show at all. */}
+        {error && !checked && <p style={{ color: 'var(--ink-2)' }}>Couldn&rsquo;t reach the City at {clock(Date.parse(error.at))}, retrying</p>}
       </div>
     </div>
   );
