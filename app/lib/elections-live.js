@@ -28,4 +28,13 @@ export function nextCheckDelay(now = Date.now()) {
   return Math.max(1000, Math.min(IDLE_INTERVAL_MS, POLLS_CLOSE - now));
 }
 
+// How often an open page checks our server. Only the server talks to the
+// City (once a minute, per its guidance); pages read our edge-cached copy, so
+// checking it every 15 seconds costs the City nothing and means a new City
+// file reaches viewers within about a minute and a quarter at worst.
+export const PAGE_LIVE_INTERVAL_MS = 15 * 1000;
+export function pageCheckDelay(now = Date.now()) {
+  return now >= POLLS_CLOSE && now < LIVE_UNTIL ? PAGE_LIVE_INTERVAL_MS : nextCheckDelay(now);
+}
+
 export const isElectionNight = (now = Date.now()) => now >= POLLS_CLOSE;

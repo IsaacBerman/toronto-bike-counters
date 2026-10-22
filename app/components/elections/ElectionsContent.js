@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
   RACES, SLOT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
-  SWING_BINS, marginOpacity, shareBreaks, shareColor, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
+  SWING_BINS, TURNOUT_BREAKS, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets, LiveStatus } from './live';
 import { computeNeedle, Needle } from './needle';
@@ -102,18 +102,25 @@ export default function ElectionsContent() {
     : isElectionNight() ? 'mayor-2026' : 'mayor-2023';
   const initialWard = Number(searchParams.get('ward'));
   const initialVotes = VOTE_TYPES.some((t) => t.value === searchParams.get('votes')) ? searchParams.get('votes') : 'day';
+  const initialWardLevel = searchParams.get('by') === 'ward';
 
   const [raceId, setRaceId] = useState(initialRace);
   const [cache, setCache] = useState({});
   const [error, setError] = useState(null);
   const [viewPick, setView] = useState('leader'); // 'leader' | 'share' | 'swing'
   // Swing only exists for the live mayor's race, which has a 2023 to swing from.
-  const view = viewPick === 'swing' && raceId !== 'mayor-2026' ? 'leader' : viewPick;
+  // Swing only exists for the live mayor's race, which has a 2023 to swing from;
+  // turnout only for the live races, the only ones with official elector
+  // counts by ward (the boundary files' counts are off for 2022 and 2023).
+  const view = (viewPick === 'swing' && raceId !== 'mayor-2026')
+    || (viewPick === 'turnout' && !RACES.find((r) => r.id === raceId)?.live) ? 'leader' : viewPick;
   const [votesPick, setVotes] = useState(initialVotes);
+  // Past races can be shown ward by ward instead of poll by poll.
+  const [wardLevel, setWardLevel] = useState(initialWardLevel);
   // Live results are ward totals only, with no split by how people voted.
   const isLive = Boolean(RACES.find((r) => r.id === raceId)?.live);
   const votes = isLive ? 'all' : votesPick;
-  const byWard = votes !== 'day';
+  const byWard = votes !== 'day' || wardLevel;
   // Mayor: a candidate index, per race (each has its own candidate list).
   // Council: a finishing position in each ward.
   const [shareTarget, setShareTarget] = useState({ council: 0 });
@@ -170,10 +177,11 @@ export default function ElectionsContent() {
 
   useEffect(() => {
     const q = new URLSearchParams({ race: raceId });
-    if (byWard && !isLive) q.set('votes', votes);
+    if (votes !== 'day' && !isLive) q.set('votes', votes);
+    if (wardLevel && !isLive && votes === 'day') q.set('by', 'ward');
     if (selectedWard) q.set('ward', String(selectedWard));
     router.replace(`?${q.toString()}`, { scroll: false });
-  }, [raceId, selectedWard, votes, byWard, isLive, router]);
+  }, [raceId, selectedWard, votes, wardLevel, isLive, router]);
 
   const meta = data?.meta;
   const isMayor = raceId.startsWith('mayor');
@@ -201,6 +209,17 @@ export default function ElectionsContent() {
     return shareBreaks(shares);
   }, [data, view, targetPos, byWard, votes]);
 
+  // The share view shades in the chosen candidate's own colour: the mayoral
+  // candidates' map colours, or a council finishing position's. Anyone
+  // without one (and 2026 council, coloured by incumbency) falls back to blue.
+  const shareRamp = useMemo(() => {
+    if (!meta || view !== 'share') return SHARE_RAMP;
+    const color = isMayor
+      ? (meta.citySlot.has(target) ? meta.palette[meta.citySlot.get(target)] : null)
+      : (data.colorRule ? null : SLOT_COLORS[target]);
+    return color ? rampFrom(color) : SHARE_RAMP;
+  }, [meta, view, isMayor, target, data]);
+
   // The fill for a set of votes (a poll's, or a ward's of one type) in ward `w`.
   const fillFor = useCallback((w, v) => {
     const total = sum(v);
@@ -208,12 +227,12 @@ export default function ElectionsContent() {
     if (view === 'share') {
       const pos = targetPos(w);
       const share = pos >= 0 ? (v[pos] ?? 0) / total : 0;
-      return { fillColor: shareColor(share, breaks), fillOpacity: 0.85 };
+      return { fillColor: shareColor(share, breaks, shareRamp), fillOpacity: 0.85 };
     }
     const lead = pollLeader(v);
     if (lead < 0) return { fillColor: OTHER_COLOR, fillOpacity: 0.25 };
     return { fillColor: colorOfSlot(meta.slotOf(w, lead), meta.palette), fillOpacity: marginOpacity(v[lead] / total) };
-  }, [view, targetPos, breaks, meta]);
+  }, [view, targetPos, breaks, meta, shareRamp]);
 
   const styleFor = useCallback(
     (p) => (p.ltc || p.none ? { fillColor: NO_RESULT_COLOR, fillOpacity: 0.35 } : fillFor(p.w, p.v)),
@@ -231,6 +250,13 @@ export default function ElectionsContent() {
   }, [baseline, needle]);
 
   const wardStyleFor = useCallback((w) => {
+    if (view === 'turnout') {
+      const ward = data.wards[w];
+      const votesCast = sum(ward.totals);
+      return ward.electors && votesCast
+        ? { fillColor: shareColor(votesCast / ward.electors, TURNOUT_BREAKS), fillOpacity: 0.85 }
+        : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
+    }
     if (view === 'swing') {
       const s = wardSwing(w);
       return s ? { fillColor: swingColor(s.swing), fillOpacity: 0.85 } : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
@@ -270,6 +296,17 @@ export default function ElectionsContent() {
   }, [data, resultRows]);
 
   const wardTooltipFor = useCallback((w) => {
+    if (view === 'turnout') {
+      const ward = data.wards[w];
+      const votesCast = sum(ward.totals);
+      const done = ward.polls > 0 && ward.pollsReceived >= ward.polls;
+      return `<div style="font-size:12px">
+        <div style="font-weight:700;margin-bottom:4px">${escapeHtml(ward.name)}</div>
+        ${ward.electors ? `<div><b>${pct(votesCast, ward.electors)}</b> turnout${done ? '' : ' so far'}</div>
+        <div style="opacity:0.7">${fmt(votesCast)} of ${fmt(ward.electors)} eligible voters</div>
+        <div style="opacity:0.7">${fmt(ward.pollsReceived)} of ${fmt(ward.polls)} polls reporting</div>` : '<div style="opacity:0.7">No elector count</div>'}
+      </div>`;
+    }
     if (view === 'swing') {
       const s = wardSwing(w);
       const sgn = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}`;
@@ -355,12 +392,32 @@ export default function ElectionsContent() {
             value={view}
             options={[
               { value: 'leader', label: 'Who led' },
-              { value: 'share', label: 'Vote share' },
               ...(raceId === 'mayor-2026' ? [{ value: 'swing', label: 'Swing' }] : []),
+              { value: 'share', label: 'Vote share' },
+              ...(isLive ? [{ value: 'turnout', label: 'Turnout' }] : []),
             ]}
             onChange={setView}
           />
           {!isLive && <Segmented label="Votes" value={votes} options={VOTE_TYPES} onChange={switchVotes} />}
+          {!isLive && (
+            // Advance and mail-in votes only exist by ward, so the box reads
+            // ticked for those. Ticking it shows every vote by ward; unticking
+            // goes back to the election-day poll map.
+            <label className="flex items-center gap-2 text-sm font-semibold select-none" style={{ color: 'var(--ink-2)' }}>
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                style={{ accentColor: 'var(--ink)' }}
+                checked={byWard}
+                onChange={(e) => {
+                  setWardLevel(e.target.checked);
+                  setVotes(e.target.checked ? 'all' : 'day');
+                  setSelectedPoll(null);
+                }}
+              />
+              By ward
+            </label>
+          )}
           {view === 'share' && meta && (
             <div className="flex items-center gap-2">
               <label htmlFor="shareTarget" className="dd-kicker" style={{ color: 'var(--ink-2)' }}>For</label>
@@ -441,9 +498,11 @@ export default function ElectionsContent() {
               <Legend
                 view={view}
                 votes={votes}
+                byWard={byWard}
                 isMayor={isMayor}
                 data={data}
                 breaks={breaks}
+                ramp={shareRamp}
                 targetLabel={isMayor ? data.candidates[target] : RANK_LABELS[target]?.toLowerCase()}
               />
             )}
@@ -518,10 +577,29 @@ const Swatch = ({ color, opacity = 1 }) => (
   <span className="inline-block shrink-0 rounded-sm" style={{ width: 12, height: 12, background: color, opacity }} />
 );
 
-function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
-  const byWard = votes !== 'day';
+function Legend({ view, votes, byWard, isMayor, data, breaks, ramp, targetLabel }) {
   if (data.live && !data.meta.allVotes) {
     return <p className="mt-3 text-xs" style={{ color: 'var(--ink-3)' }}>Wards fill in as results are counted.</p>;
+  }
+  if (view === 'turnout') {
+    const done = data.reporting?.polls > 0 && data.reporting.pollsReceived >= data.reporting.polls;
+    return (
+      <div className="mt-3">
+        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>
+          Turnout{done ? '' : ' so far'}, share of eligible voters
+        </p>
+        <div className="flex flex-wrap items-end gap-0.5">
+          {SHARE_RAMP.map((c, i) => (
+            <div key={c} className="flex flex-col items-start" style={{ width: 52 }}>
+              <span className="block w-full" style={{ height: 12, background: c }} />
+              <span className="text-xs mt-0.5" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>
+                {i === SHARE_RAMP.length - 1 ? `${pctRound(TURNOUT_BREAKS[i])}+` : pctRound(TURNOUT_BREAKS[i])}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
   if (view === 'swing') {
     return (
@@ -551,11 +629,11 @@ function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
           {isMayor ? `${targetLabel}'s` : `The ${targetLabel}'s`} share of {byWard ? `each ward's ${VOTE_NOUN[votes]}` : 'each poll'}
         </p>
         <div className="flex flex-wrap items-end gap-0.5">
-          {SHARE_RAMP.map((c, i) => (
+          {ramp.map((c, i) => (
             <div key={c} className="flex flex-col items-start" style={{ width: 52 }}>
               <span className="block w-full" style={{ height: 12, background: c }} />
               <span className="text-xs mt-0.5" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>
-                {i === SHARE_RAMP.length - 1 ? `${pctRound(breaks[i])}+` : pctRound(breaks[i])}
+                {i === ramp.length - 1 ? `${pctRound(breaks[i])}+` : pctRound(breaks[i])}
               </span>
             </div>
           ))}
@@ -569,7 +647,7 @@ function Legend({ view, votes, isMayor, data, breaks, targetLabel }) {
   return (
     <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
       <div>
-        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>{!byWard ? 'Poll led by' : votes === 'all' ? 'Ward led by' : `${VOTE_TYPES.find((t) => t.value === votes).label} vote led by`}</p>
+        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>{!byWard ? 'Poll led by' : votes === 'all' ? 'Ward led by' : votes === 'day' ? 'Election-day vote led by' : `${VOTE_TYPES.find((t) => t.value === votes).label} vote led by`}</p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs" style={{ color: 'var(--ink-2)' }}>
           {labels.map((label, i) => (
             <span key={label} className="flex items-center gap-1.5"><Swatch color={isMayor ? data.meta.palette[i] : SLOT_COLORS[i]} />{label}</span>
@@ -679,7 +757,7 @@ function WardCard({ data, ward: w, votes }) {
         <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{ward.name}</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
           {data.live
-            ? `${fmt(ward.pollsReceived)} of ${fmt(ward.polls)} polls reporting · ${fmt(ward.allVotes)} votes`
+            ? `${fmt(ward.pollsReceived)} of ${fmt(ward.polls)} polls reporting · ${fmt(ward.allVotes)} votes${ward.electors ? ` · ${pct(ward.allVotes, ward.electors)} turnout` : ''}`
             : votes === 'all'
             ? `${data.meta.isMayor ? 'Mayoral votes cast in this ward' : ward.note ?? 'Council race result'} · ${fmt(ward.allVotes)} votes`
             : `${fmt(sum(shown))} ${VOTE_NOUN[votes]} of ${fmt(ward.allVotes)}`}
@@ -711,6 +789,13 @@ function SpecialRow({ label, votes, total }) {
   );
 }
 
+// Citywide turnout so far, when every ward has an elector count.
+function cityTurnout(data, votesCast) {
+  const wards = Object.values(data.wards);
+  const electors = sum(wards.map((w) => w.electors ?? 0));
+  return electors && wards.every((w) => w.electors) ? ` · ${pct(votesCast, electors)} turnout` : '';
+}
+
 function CityCard({ data, votes: type }) {
   const { cityRanked, allVotes } = data.meta;
   const names = cityRanked.map(([c]) => data.candidates[c]);
@@ -726,7 +811,7 @@ function CityCard({ data, votes: type }) {
         <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{data.title}</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
           {data.live
-            ? `${fmt(data.reporting.pollsReceived)} of ${fmt(data.reporting.polls)} polls reporting · ${fmt(allVotes)} votes`
+            ? `${fmt(data.reporting.pollsReceived)} of ${fmt(data.reporting.polls)} polls reporting · ${fmt(allVotes)} votes${cityTurnout(data, allVotes)}`
             : type === 'all'
             ? `${fmt(allVotes)} votes, ${data.candidates.length} candidates`
             : `${fmt(sum(votes))} ${VOTE_NOUN[type]} of ${fmt(allVotes)}`}

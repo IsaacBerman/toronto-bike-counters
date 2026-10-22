@@ -72,10 +72,22 @@ export function swingColor(swing) {
   return SWING_BINS.find((b) => swing < b.max)?.color ?? SWING_BINS[SWING_BINS.length - 1].color;
 }
 
-export function shareColor(share, breaks) {
+// Turnout, as a share of eligible voters, on the same light-to-dark ramp.
+export const TURNOUT_BREAKS = [0, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4];
+
+// A light-to-dark ramp in one candidate's colour, the same length as
+// SHARE_RAMP: tints toward white for small shares, the full colour (then a
+// touch darker) for the largest.
+export function rampFrom(hex) {
+  const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const mix = (t, toward) => `#${rgb.map((c) => Math.round(c + (toward - c) * t).toString(16).padStart(2, '0')).join('')}`;
+  return [0.88, 0.74, 0.58, 0.42, 0.24, 0].map((t) => mix(t, 255)).concat(mix(0.22, 0));
+}
+
+export function shareColor(share, breaks, ramp = SHARE_RAMP) {
   let i = 0;
   while (i + 1 < breaks.length && share >= breaks[i + 1]) i++;
-  return SHARE_RAMP[i];
+  return ramp[i];
 }
 
 export const sum = (arr) => arr.reduce((s, v) => s + v, 0);

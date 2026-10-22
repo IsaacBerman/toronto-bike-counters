@@ -59,6 +59,8 @@ export function liveDatasets(feed, outlines) {
       special: {},
       polls: w.polls,
       pollsReceived: w.pollsReceived,
+      // Registered electors, for turnout.
+      electors: w.totalVoters,
       // Advance votes already cast in this ward, for the needle.
       advanceExpected: ADVANCE_RATE_2026[w.num] && w.totalVoters ? (ADVANCE_RATE_2026[w.num] / 100) * w.totalVoters : 0,
     };
@@ -79,6 +81,7 @@ export function liveDatasets(feed, outlines) {
       special: {},
       polls: w.polls,
       pollsReceived: w.pollsReceived,
+      electors: w.totalVoters,
     };
   }
 

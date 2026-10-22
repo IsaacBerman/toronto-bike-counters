@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { POLLS_CLOSE, isElectionNight, nextCheckDelay } from '../../lib/elections-live';
+import { POLLS_CLOSE, isElectionNight, pageCheckDelay } from '../../lib/elections-live';
 import { fmt, sum, CANDIDATE_COLORS_2026 } from './results';
 
 export { liveDatasets } from './live-data';
 
 /**
- * Polls /api/election-results while `enabled`: once a minute from poll close,
+ * Polls /api/election-results while `enabled`: every 15 seconds from poll close
+ * (our edge-cached copy, refreshed from the City once a minute),
  * once a day before that (waking at poll close regardless). `feed` only
  * changes identity when the City publishes something new, so the map isn't
  * rebuilt for an unchanged file; `fetchedAt` is when our server last pulled
@@ -44,14 +45,14 @@ export function useLiveResults(enabled) {
         if (!cancelled) setError({ message: e.message, at: new Date().toISOString() });
       }
       // A failed check retries within a minute, even in the daily phase.
-      due = Date.now() + Math.min(nextCheckDelay(), failed ? 60000 : Infinity);
+      due = Date.now() + Math.min(pageCheckDelay(), failed ? 60000 : Infinity);
       checking = false;
     };
     const tick = () => { if (!cancelled && Date.now() >= due) check(); };
     // Coming back to the tab checks straight away if a check came due.
     const onVisible = () => { if (document.visibilityState === 'visible') tick(); };
     check();
-    const timer = setInterval(tick, 10 * 1000);
+    const timer = setInterval(tick, 5 * 1000);
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', tick);
     return () => {

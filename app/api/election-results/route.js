@@ -112,7 +112,9 @@ export async function GET() {
     }
     const ttl = Math.max(1, Math.floor(nextCheckDelay() / 1000));
     return NextResponse.json(body, {
-      headers: { 'Cache-Control': `public, max-age=0, s-maxage=${ttl}, stale-while-revalidate=30` },
+      // Only 5 seconds of serving a stale copy while refreshing, so the copy
+      // pages see is never much more than a minute old.
+      headers: { 'Cache-Control': `public, max-age=0, s-maxage=${ttl}, stale-while-revalidate=5` },
     });
   } catch (e) {
     // Not cached, so the next poll tries the City again.
