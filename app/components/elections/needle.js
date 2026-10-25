@@ -115,7 +115,7 @@ function useEased(target, ms = 1200) {
   return value;
 }
 
-export function Needle({ needle, history, seq }) {
+export function Needle({ needle, history, seq, reporting }) {
   const gradientId = useId();
   const waiting = !needle || needle.waiting;
   const p = waiting ? 0.5 : needle.p;
@@ -183,10 +183,8 @@ export function Needle({ needle, history, seq }) {
             <dl className="mt-3 pt-3 text-xs grid grid-cols-[1fr_auto] gap-x-3 gap-y-1" style={{ borderTop: '1px solid var(--line)', color: 'var(--ink-2)', fontVariantNumeric: 'tabular-nums' }}>
               <dt>Projected margin, Chow over {rival}</dt>
               <dd className="text-right font-semibold" style={{ color: 'var(--ink)' }}>{signed(needle.projected)}</dd>
-              <dt>Chow&rsquo;s margin vs 2023, counted wards</dt>
-              <dd className="text-right">{signed(needle.swing)} pts</dd>
-              <dt>Wards reporting</dt>
-              <dd className="text-right">{fmt(needle.wardsReporting)} of 25</dd>
+              <dt>Polls reporting</dt>
+              <dd className="text-right">{fmt(reporting?.pollsReceived ?? 0)} of {fmt(reporting?.polls ?? 0)}</dd>
               <dt>Expected vote counted</dt>
               <dd className="text-right">{Math.round(needle.share * 100)}%</dd>
             </dl>
@@ -208,8 +206,10 @@ function NightChart({ title, points, lo, hi, mid, ticks, bColor, tip, aria }) {
   const [hover, setHover] = useState(null);
   if (points.length < 2) return null;
 
+  // Poll close on the left, the latest update on the right, so the line
+  // always fills the chart and stretches as the night goes on.
   const t0 = Math.min(POLLS_CLOSE, points[0][0]);
-  const t1 = Math.max(points[points.length - 1][0], t0 + 2 * 60 * 60 * 1000);
+  const t1 = Math.max(points[points.length - 1][0], t0 + 60 * 1000);
   const x = (t) => M.l + ((t - t0) / (t1 - t0)) * (W - M.l - M.r);
   const y = (v) => M.t + ((hi - Math.min(hi, Math.max(lo, v))) / (hi - lo)) * (H - M.t - M.b);
   const line = points.map(([t, v], i) => `${i ? 'L' : 'M'}${x(t).toFixed(1)},${y(v).toFixed(1)}`).join('');

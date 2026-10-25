@@ -296,15 +296,19 @@ export default function ElectionsContent() {
   }, [data, resultRows]);
 
   const wardTooltipFor = useCallback((w) => {
+    const ward = data.wards[w];
+    // Live races: how much of the ward is in.
+    const reporting = ward.polls > 0
+      ? `<div style="opacity:0.7">${fmt(ward.pollsReceived)} of ${fmt(ward.polls)} polls reporting</div>`
+      : '';
     if (view === 'turnout') {
-      const ward = data.wards[w];
       const votesCast = sum(ward.totals);
       const done = ward.polls > 0 && ward.pollsReceived >= ward.polls;
       return `<div style="font-size:12px">
         <div style="font-weight:700;margin-bottom:4px">${escapeHtml(ward.name)}</div>
         ${ward.electors ? `<div><b>${pct(votesCast, ward.electors)}</b> turnout${done ? '' : ' so far'}</div>
-        <div style="opacity:0.7">${fmt(votesCast)} of ${fmt(ward.electors)} eligible voters</div>
-        <div style="opacity:0.7">${fmt(ward.pollsReceived)} of ${fmt(ward.polls)} polls reporting</div>` : '<div style="opacity:0.7">No elector count</div>'}
+        <div style="opacity:0.7">${fmt(votesCast)} of ${fmt(ward.electors)} eligible voters</div>` : '<div style="opacity:0.7">No elector count</div>'}
+        ${reporting}
       </div>`;
     }
     if (view === 'swing') {
@@ -318,6 +322,7 @@ export default function ElectionsContent() {
           <tr><td style="padding-right:10px">Chow over ${last(s.rivalThen)}, 2023</td><td style="text-align:right">${sgn(s.then)}</td></tr>
           <tr style="font-weight:700"><td style="padding-right:10px">Swing ${s.swing >= 0 ? 'toward' : 'away from'} Chow</td><td style="text-align:right">${Math.abs(s.swing * 100).toFixed(1)} pts</td></tr>
         </table>` : '<div style="opacity:0.7">No results yet</div>'}
+        ${reporting}
       </div>`;
     }
     const v = wardVotes(data.wards[w], votes);
@@ -326,7 +331,7 @@ export default function ElectionsContent() {
       ${data.wards[w].note ? `<div style="opacity:0.7">${escapeHtml(data.wards[w].note)}</div>` : ''}
       <div style="margin-bottom:4px"></div>
       ${resultRows(w, v)}
-      <div style="margin-top:4px;opacity:0.7">${fmt(sum(v))} ${VOTE_NOUN[votes]}</div></div>`;
+      <div style="margin-top:4px;opacity:0.7">${fmt(sum(v))} ${VOTE_NOUN[votes]}</div>${reporting}</div>`;
   }, [data, votes, resultRows, view, wardSwing]);
 
   const handleSelectWard = useCallback((w) => {
@@ -467,7 +472,7 @@ export default function ElectionsContent() {
         <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_1fr]">
           {showNeedle && needle && (
             <div className="min-w-0 lg:col-start-2 lg:row-start-1">
-              <Needle needle={needle} history={live.feed?.needleHistory} seq={live.feed?.seq} />
+              <Needle needle={needle} history={live.feed?.needleHistory} seq={live.feed?.seq} reporting={liveData?.['mayor-2026']?.reporting} />
             </div>
           )}
           <div className="dd-panel-ruled p-3 sm:p-4 min-w-0 lg:col-start-1 lg:row-start-1 lg:row-span-2">
