@@ -277,18 +277,24 @@ function NightChart({ title, points, lo, hi, mid, ticks, bColor, tip, aria }) {
 }
 
 // History points are [seq, p, share, projected]; the current reading is added
-// if the server's history hasn't caught up to it.
-function series(history, needle, seq, index, current) {
-  const points = (history ?? []).filter((pt) => pt[index] != null).map((pt) => [pt[0], pt[index]]);
-  if (seq && (!points.length || points[points.length - 1][0] < seq)) points.push([seq, current]);
-  return points;
+// if the server's history hasn't caught up to it. Once every poll is in, the
+// City keeps republishing the same final count; those repeats are dropped so
+// the chart ends when the count did instead of squeezing the night against
+// the left edge for anyone looking the next day. Compared loosely, since the
+// database stores readings at lower precision than the live one.
+const same = (a, b) => [1, 2, 3].every((i) => Math.abs(a[i] - b[i]) < 1e-5);
+function series(history, needle, seq, index) {
+  const rows = [...(history ?? [])];
+  if (seq && (!rows.length || rows[rows.length - 1][0] < seq)) rows.push([seq, needle.p, needle.share, needle.projected]);
+  if (needle.allIn) while (rows.length > 1 && same(rows[rows.length - 1], rows[rows.length - 2])) rows.pop();
+  return rows.filter((pt) => pt[index] != null).map((pt) => [pt[0], pt[index]]);
 }
 
 function ChanceChart({ history, needle, seq, rival, bColor }) {
   return (
     <NightChart
       title="Chow’s chance of winning through the night"
-      points={series(history, needle, seq, 1, needle.p)}
+      points={series(history, needle, seq, 1)}
       lo={0}
       hi={1}
       mid={0.5}
@@ -301,7 +307,7 @@ function ChanceChart({ history, needle, seq, rival, bColor }) {
 }
 
 function MarginChart({ history, needle, seq, rival, bColor }) {
-  const points = series(history, needle, seq, 3, needle.projected);
+  const points = series(history, needle, seq, 3);
   // Symmetric around a tie, wide enough for the biggest swing so far, in
   // steps of 5 points.
   const top = Math.max(0.05, Math.ceil((Math.max(...points.map(([, v]) => Math.abs(v)), 0) * 1.1) / 0.05) * 0.05);
