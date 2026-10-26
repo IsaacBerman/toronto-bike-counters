@@ -15,17 +15,23 @@ function ensureTable() {
          projected REAL NOT NULL,
          share REAL NOT NULL,
          challenger TEXT,
+         shares JSONB,
          recorded_at TIMESTAMPTZ DEFAULT now()
        )`
-    ).catch((e) => {
-      tableReady = null;
-      throw e;
-    });
+    )
+      // The leading candidates' vote shares, as [name, share] pairs, came
+      // later; adds the column to a table made before them.
+      .then(() => query('ALTER TABLE needle_history ADD COLUMN IF NOT EXISTS shares JSONB'))
+      .catch((e) => {
+        tableReady = null;
+        throw e;
+      });
   }
   return tableReady;
 }
 
-const toPoints = (rows) => rows.map((r) => [Number(r.seq), r.p, r.share, r.projected]);
+const toPoints = (rows) => rows.map((r) => [Number(r.seq), r.p, r.share, r.projected, r.shares ?? null]);
+const SELECT = 'SELECT seq, p, share, projected, shares FROM needle_history ORDER BY seq';
 
 // After election night the history no longer changes, so each server instance
 // reads it once and keeps it.
@@ -33,13 +39,13 @@ let frozen = null;
 
 /**
  * Records this reading (during election night only) and returns the history
- * as [seq, p, share, projected] points, oldest first. Outside the window nothing is
+ * as [seq, p, share, projected, shares] points, oldest first. Outside the window nothing is
  * written, and before poll close the database isn't touched at all.
  */
 export async function recordNeedle(seq, needle, now = Date.now()) {
   if (now < POLLS_CLOSE) return [];
   if (now >= HISTORY_UNTIL) {
-    if (!frozen) frozen = query('SELECT seq, p, share, projected FROM needle_history ORDER BY seq').then(toPoints);
+    if (!frozen) frozen = query(SELECT).then(toPoints);
     try {
       return await frozen;
     } catch (e) {
@@ -50,10 +56,10 @@ export async function recordNeedle(seq, needle, now = Date.now()) {
   await ensureTable();
   if (needle && !needle.waiting && seq) {
     await query(
-      `INSERT INTO needle_history (seq, p, projected, share, challenger)
-       VALUES ($1, $2, $3, $4, $5) ON CONFLICT (seq) DO NOTHING`,
-      [seq, needle.p, needle.projected, needle.share, needle.challenger]
+      `INSERT INTO needle_history (seq, p, projected, share, challenger, shares)
+       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (seq) DO NOTHING`,
+      [seq, needle.p, needle.projected, needle.share, needle.challenger, JSON.stringify(needle.topShares ?? null)]
     );
   }
-  return toPoints(await query('SELECT seq, p, share, projected FROM needle_history ORDER BY seq'));
+  return toPoints(await query(SELECT));
 }

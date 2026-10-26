@@ -80,7 +80,8 @@ const TOWER = [
   'L7,0', 'Z',
 ].join(' ');
 
-const signed = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}`;
+// A margin as whoever is ahead: "Chow +4.2" or "Bradford +1.3".
+const marginText = (x, rival) => `${x >= 0 ? NEEDLE.aShort : rival} +${Math.abs(x * 100).toFixed(1)}`;
 const pctText = (p, allIn) => (!allIn && p >= 0.995 ? '>99' : p <= 0.005 && !allIn ? '<1' : Math.round(p * 100));
 const clock = (ms) => new Date(ms).toLocaleTimeString('en-CA', { timeZone: 'America/Toronto', hour: 'numeric', minute: '2-digit' });
 
@@ -123,6 +124,7 @@ export function Needle({ needle, history, seq, reporting }) {
   const rival = surname(needle?.challenger ?? NEEDLE.b);
   const bColor = colorOf(needle?.challenger ?? NEEDLE.b);
   const leader = p >= 0.5 ? NEEDLE.aShort : rival;
+  const rows = waiting ? [] : nightRows(history, needle, seq);
 
   return (
     <div className="dd-panel">
@@ -178,11 +180,12 @@ export function Needle({ needle, history, seq, reporting }) {
                 {needle.allIn ? 'all polls reporting' : 'chance of winning'}
               </span>
             </p>
-            <ChanceChart history={history} needle={needle} seq={seq} rival={rival} bColor={bColor} />
-            <MarginChart history={history} needle={needle} seq={seq} rival={rival} bColor={bColor} />
+            <ShareChart rows={rows} challenger={needle.challenger ?? NEEDLE.b} />
+            <MarginChart rows={rows} rival={rival} bColor={bColor} />
+            <ChanceChart rows={rows} rival={rival} bColor={bColor} />
             <dl className="mt-3 pt-3 text-xs grid grid-cols-[1fr_auto] gap-x-3 gap-y-1" style={{ borderTop: '1px solid var(--line)', color: 'var(--ink-2)', fontVariantNumeric: 'tabular-nums' }}>
-              <dt>Projected margin, Chow over {rival}</dt>
-              <dd className="text-right font-semibold" style={{ color: 'var(--ink)' }}>{signed(needle.projected)}</dd>
+              <dt>Projected margin</dt>
+              <dd className="text-right font-semibold" style={{ color: 'var(--ink)' }}>{marginText(needle.projected, rival)}</dd>
               <dt>Polls reporting</dt>
               <dd className="text-right">{fmt(reporting?.pollsReceived ?? 0)} of {fmt(reporting?.polls ?? 0)}</dd>
               <dt>Expected vote counted</dt>
@@ -196,38 +199,54 @@ export function Needle({ needle, history, seq, reporting }) {
 }
 
 // The needle's path over the night: one point per results file the City
-// published. Two charts share this: Chow's chance, and her projected margin.
+// published. Three charts share this: Chow and her challenger's vote shares,
+// the projected margin, and the chance of winning.
 const W = 300;
 const H = 118;
-const M = { l: 30, r: 8, t: 8, b: 18 };
+const M = { l: 34, r: 8, t: 8, b: 18 };
 
-function NightChart({ title, points, lo, hi, mid, ticks, bColor, tip, aria }) {
+// `times` are the points' timestamps; each line has a colour and one value per
+// time (null where it has none). With `mid`, the area between the first line
+// and it is shaded in Chow's colour above and the challenger's below.
+// `sides` names who the top and bottom of the chart belong to, in their colours.
+function NightChart({ title, legend, times, lines, lo, hi, mid, ticks, sides, bColor, tip, aria }) {
   const clipId = useId();
   const [hover, setHover] = useState(null);
-  if (points.length < 2) return null;
+  if (times.length < 2) return null;
 
   // Poll close on the left, the latest update on the right, so the line
   // always fills the chart and stretches as the night goes on.
-  const t0 = Math.min(POLLS_CLOSE, points[0][0]);
-  const t1 = Math.max(points[points.length - 1][0], t0 + 60 * 1000);
+  const t0 = Math.min(POLLS_CLOSE, times[0]);
+  const t1 = Math.max(times[times.length - 1], t0 + 60 * 1000);
   const x = (t) => M.l + ((t - t0) / (t1 - t0)) * (W - M.l - M.r);
   const y = (v) => M.t + ((hi - Math.min(hi, Math.max(lo, v))) / (hi - lo)) * (H - M.t - M.b);
-  const line = points.map(([t, v], i) => `${i ? 'L' : 'M'}${x(t).toFixed(1)},${y(v).toFixed(1)}`).join('');
-  const last = points[points.length - 1];
-  const area = `${line}L${x(last[0]).toFixed(1)},${y(mid)}L${x(points[0][0]).toFixed(1)},${y(mid)}Z`;
+  const pathOf = (values) => {
+    let d = '';
+    let pen = false;
+    values.forEach((v, i) => {
+      if (v == null) { pen = false; return; }
+      d += `${pen ? 'L' : 'M'}${x(times[i]).toFixed(1)},${y(v).toFixed(1)}`;
+      pen = true;
+    });
+    return d;
+  };
+  const main = pathOf(lines[0].values);
+  const area = mid != null
+    ? `${main}L${x(times[times.length - 1]).toFixed(1)},${y(mid)}L${x(times[0]).toFixed(1)},${y(mid)}Z`
+    : null;
 
   const onMove = (e) => {
     const box = e.currentTarget.getBoundingClientRect();
     const t = t0 + (((e.clientX - box.left) / box.width) * W - M.l) / (W - M.l - M.r) * (t1 - t0);
     let best = 0;
-    for (let i = 1; i < points.length; i++) if (Math.abs(points[i][0] - t) < Math.abs(points[best][0] - t)) best = i;
+    for (let i = 1; i < times.length; i++) if (Math.abs(times[i] - t) < Math.abs(times[best] - t)) best = i;
     setHover(best);
   };
-  const h = hover != null ? points[hover] : null;
 
   return (
     <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
       <p className="text-xs font-semibold mb-1" style={{ color: 'var(--ink-2)' }}>{title}</p>
+      {legend}
       <div className="relative">
         {/* Touch: a tap shows that point, dragging sideways scrubs the night, and
             vertical swipes still scroll the page. The readout stays up after a
@@ -235,40 +254,60 @@ function NightChart({ title, points, lo, hi, mid, ticks, bColor, tip, aria }) {
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ touchAction: 'pan-y' }}
           onPointerMove={onMove} onPointerDown={onMove}
           onPointerLeave={(e) => { if (e.pointerType === 'mouse') setHover(null); }}
-          role="img" aria-label={aria(points[0][1], last[1])}>
-          <defs>
-            <clipPath id={`${clipId}a`}><rect x="0" y="0" width={W} height={y(mid)} /></clipPath>
-            <clipPath id={`${clipId}b`}><rect x="0" y={y(mid)} width={W} height={H} /></clipPath>
-          </defs>
+          role="img" aria-label={aria}>
+          {area && (
+            <defs>
+              <clipPath id={`${clipId}a`}><rect x="0" y="0" width={W} height={y(mid)} /></clipPath>
+              <clipPath id={`${clipId}b`}><rect x="0" y={y(mid)} width={W} height={H} /></clipPath>
+            </defs>
+          )}
           {ticks.map(({ v, label }) => (
             <g key={v}>
               <line x1={M.l} x2={W - M.r} y1={y(v)} y2={y(v)} stroke="var(--line)" strokeDasharray={v === mid ? '3 3' : undefined} />
               <text x={M.l - 4} y={y(v) + 3} fontSize="9" textAnchor="end" fill="var(--ink-3)">{label}</text>
             </g>
           ))}
-          <path d={area} fill={A_COLOR} fillOpacity="0.2" clipPath={`url(#${clipId}a)`} />
-          <path d={area} fill={bColor} fillOpacity="0.2" clipPath={`url(#${clipId}b)`} />
-          <path d={line} fill="none" stroke="var(--ink)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          {sides && (
+            <>
+              <text x={M.l + 3} y={M.t + 9} fontSize="9" fontWeight="700" fill={sides.top.color}>{sides.top.label}</text>
+              <text x={M.l + 3} y={H - M.b - 3} fontSize="9" fontWeight="700" fill={sides.bottom.color}>{sides.bottom.label}</text>
+            </>
+          )}
+          {area && (
+            <>
+              <path d={area} fill={A_COLOR} fillOpacity="0.2" clipPath={`url(#${clipId}a)`} />
+              <path d={area} fill={bColor} fillOpacity="0.2" clipPath={`url(#${clipId}b)`} />
+            </>
+          )}
+          {lines.map((ln, i) => (
+            <path key={i} d={i ? pathOf(ln.values) : main} fill="none" stroke={ln.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          ))}
           <text x={M.l} y={H - 4} fontSize="9" fill="var(--ink-3)">{clock(t0)}</text>
           <text x={W - M.r} y={H - 4} fontSize="9" textAnchor="end" fill="var(--ink-3)">{clock(t1)}</text>
-          {h && (
+          {hover != null && (
             <g>
-              <line x1={x(h[0])} x2={x(h[0])} y1={M.t} y2={H - M.b} stroke="var(--ink-3)" />
-              <circle cx={x(h[0])} cy={y(h[1])} r="4" fill="var(--ink)" stroke="var(--panel)" strokeWidth="2" />
+              <line x1={x(times[hover])} x2={x(times[hover])} y1={M.t} y2={H - M.b} stroke="var(--ink-3)" />
+              {lines.map((ln, i) => ln.values[hover] != null && (
+                <circle key={i} cx={x(times[hover])} cy={y(ln.values[hover])} r="4" fill={ln.color} stroke="var(--panel)" strokeWidth="2" />
+              ))}
             </g>
           )}
         </svg>
-        {h && (
+        {hover != null && (
           <div className="absolute pointer-events-none text-xs rounded px-2 py-1 whitespace-nowrap"
             style={{
-              left: `${(x(h[0]) / W) * 100}%`,
+              left: `${(x(times[hover]) / W) * 100}%`,
               top: 0,
-              transform: `translateX(${x(h[0]) > W / 2 ? '-105%' : '5%'})`,
+              transform: `translateX(${x(times[hover]) > W / 2 ? '-105%' : '5%'})`,
               background: 'var(--ink)',
               color: '#fff',
               fontVariantNumeric: 'tabular-nums',
             }}>
-            {clock(h[0])} · {tip(h[1])}
+            {/* A list stacks one row per line, so a three-way readout stays
+                narrow enough to fit beside the cursor. */}
+            {Array.isArray(tip(hover))
+              ? <>{clock(times[hover])}{tip(hover).map((t) => <div key={t}>{t}</div>)}</>
+              : <>{clock(times[hover])} · {tip(hover)}</>}
           </div>
         )}
       </div>
@@ -276,53 +315,101 @@ function NightChart({ title, points, lo, hi, mid, ticks, bColor, tip, aria }) {
   );
 }
 
-// History points are [seq, p, share, projected]; the current reading is added
-// if the server's history hasn't caught up to it. Once every poll is in, the
-// City keeps republishing the same final count; those repeats are dropped so
-// the chart ends when the count did instead of squeezing the night against
-// the left edge for anyone looking the next day. Compared loosely, since the
-// database stores readings at lower precision than the live one.
+// History points are [seq, p, share, projected, shares]; the current reading
+// is added if the server's history hasn't caught up to it. Once every poll is
+// in, the City keeps republishing the same final count; those repeats are
+// dropped so the charts end when the count did instead of squeezing the night
+// against the left edge for anyone looking the next day. Compared loosely,
+// since the database stores readings at lower precision than the live one.
 const same = (a, b) => [1, 2, 3].every((i) => Math.abs(a[i] - b[i]) < 1e-5);
-function series(history, needle, seq, index) {
+function nightRows(history, needle, seq) {
   const rows = [...(history ?? [])];
-  if (seq && (!rows.length || rows[rows.length - 1][0] < seq)) rows.push([seq, needle.p, needle.share, needle.projected]);
+  if (seq && (!rows.length || rows[rows.length - 1][0] < seq)) {
+    rows.push([seq, needle.p, needle.share, needle.projected, needle.topShares ?? null]);
+  }
   if (needle.allIn) while (rows.length > 1 && same(rows[rows.length - 1], rows[rows.length - 2])) rows.pop();
-  return rows.filter((pt) => pt[index] != null).map((pt) => [pt[0], pt[index]]);
+  return rows;
 }
 
-function ChanceChart({ history, needle, seq, rival, bColor }) {
+const pct1 = (v) => `${(v * 100).toFixed(1)}%`;
+const chanceText = (p, rival) => (p >= 0.5 ? `${NEEDLE.aShort} ${pctText(p)}%` : `${rival} ${pctText(1 - p)}%`);
+
+function ShareChart({ rows, challenger }) {
+  const usable = rows.filter((r) => Array.isArray(r[4]) && r[4].length);
+  if (usable.length < 2) return null;
+  // Chow and her challenger, ordered by where they stand now.
+  const latest = new Map(usable[usable.length - 1][4]);
+  const names = [NEEDLE.a, challenger].sort((a, b) => (latest.get(b) ?? 0) - (latest.get(a) ?? 0));
+  const lines = names.map((n) => ({
+    name: n,
+    color: colorOf(n),
+    values: usable.map((r) => r[4].find(([m]) => m === n)?.[1] ?? null),
+  }));
+  // Zero to just above the leader's best, in steps of 10 points.
+  const top = Math.min(1, Math.max(0.2, Math.ceil(Math.max(...lines.flatMap((l) => l.values.filter((v) => v != null))) * 1.05 / 0.1) * 0.1));
+  const ticks = [0, top / 2, top].map((v) => ({ v, label: `${Math.round(v * 100)}%` }));
   return (
     <NightChart
-      title="Chow’s chance of winning through the night"
-      points={series(history, needle, seq, 1)}
+      title="Vote share over time"
+      legend={(
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-1 text-xs" style={{ color: 'var(--ink-2)', fontVariantNumeric: 'tabular-nums' }}>
+          {lines.map((l) => (
+            <span key={l.name} className="flex items-center gap-1">
+              <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: l.color }} />
+              {surname(l.name)} {latest.has(l.name) ? pct1(latest.get(l.name)) : ''}
+            </span>
+          ))}
+        </div>
+      )}
+      times={usable.map((r) => r[0])}
+      lines={lines}
       lo={0}
-      hi={1}
-      mid={0.5}
-      ticks={[{ v: 0, label: '0%' }, { v: 0.5, label: '50%' }, { v: 1, label: '100%' }]}
-      bColor={bColor}
-      tip={(p) => (p >= 0.5 ? `Chow ${pctText(p)}%` : `${rival} ${pctText(1 - p)}%`)}
-      aria={(a, b) => `Chow's chance moved from ${Math.round(a * 100)}% to ${Math.round(b * 100)}%`}
+      hi={top}
+      ticks={ticks}
+      tip={(i) => lines.filter((l) => l.values[i] != null).map((l) => `${surname(l.name)} ${pct1(l.values[i])}`)}
+      aria={`Vote share over time: ${lines.map((l) => `${surname(l.name)} ${latest.has(l.name) ? pct1(latest.get(l.name)) : ''}`).join(', ')}`}
     />
   );
 }
 
-function MarginChart({ history, needle, seq, rival, bColor }) {
-  const points = series(history, needle, seq, 3);
-  // Symmetric around a tie, wide enough for the biggest swing so far, in
-  // steps of 5 points.
-  const top = Math.max(0.05, Math.ceil((Math.max(...points.map(([, v]) => Math.abs(v)), 0) * 1.1) / 0.05) * 0.05);
-  const pts = (v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.round(Math.abs(v) * 100)}`;
+function ChanceChart({ rows, rival, bColor }) {
+  const values = rows.map((r) => r[1]);
   return (
     <NightChart
-      title={`Chow’s projected margin over ${rival}`}
-      points={points}
+      title="Chance of winning over time"
+      times={rows.map((r) => r[0])}
+      lines={[{ color: 'var(--ink)', values }]}
+      lo={0}
+      hi={1}
+      mid={0.5}
+      ticks={[{ v: 0, label: '100%' }, { v: 0.5, label: '50/50' }, { v: 1, label: '100%' }]}
+      sides={{ top: { label: NEEDLE.aShort, color: A_COLOR }, bottom: { label: rival, color: bColor } }}
+      bColor={bColor}
+      tip={(i) => chanceText(values[i], rival)}
+      aria={`Chance of winning moved from ${chanceText(values[0], rival)} to ${chanceText(values[values.length - 1], rival)}`}
+    />
+  );
+}
+
+function MarginChart({ rows, rival, bColor }) {
+  const values = rows.map((r) => r[3]);
+  // Symmetric around a tie, wide enough for the biggest swing so far, in
+  // steps of 5 points.
+  const top = Math.max(0.05, Math.ceil((Math.max(...values.map((v) => Math.abs(v)), 0) * 1.1) / 0.05) * 0.05);
+  const pts = (v) => `+${Math.round(Math.abs(v) * 100)}`;
+  return (
+    <NightChart
+      title="Projected margin over time"
+      times={rows.map((r) => r[0])}
+      lines={[{ color: 'var(--ink)', values }]}
       lo={-top}
       hi={top}
       mid={0}
       ticks={[{ v: -top, label: pts(-top) }, { v: 0, label: 'Tie' }, { v: top, label: pts(top) }]}
+      sides={{ top: { label: NEEDLE.aShort, color: A_COLOR }, bottom: { label: rival, color: bColor } }}
       bColor={bColor}
-      tip={(v) => (v >= 0 ? `Chow +${(v * 100).toFixed(1)}` : `${rival} +${(-v * 100).toFixed(1)}`)}
-      aria={(a, b) => `Chow's projected margin moved from ${(a * 100).toFixed(1)} to ${(b * 100).toFixed(1)} points`}
+      tip={(i) => marginText(values[i], rival)}
+      aria={`Projected margin moved from ${marginText(values[0], rival)} to ${marginText(values[values.length - 1], rival)}`}
     />
   );
 }

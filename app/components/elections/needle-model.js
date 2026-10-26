@@ -63,6 +63,11 @@ export function computeNeedle(baseline, data) {
     return { waiting: true, challenger: fallback };
   }
   const challenger = data.candidates[ci];
+  // The three leading candidates' shares of the votes counted so far, for the
+  // vote-share chart.
+  const cityTotal = [...city.values()].reduce((s, v) => s + v, 0);
+  const topShares = [...city].sort((x, y) => y[1] - x[1]).slice(0, 3)
+    .map(([c, v]) => [data.candidates[c], v / cityTotal]);
 
   // Each ward's count mixes two kinds of votes: the regular election-day
   // polls, and four special polls (two advance, mail-in, care homes) that
@@ -317,6 +322,7 @@ export function computeNeedle(baseline, data) {
     // care-home voters than on election day, as learned so far.
     advanceGap: blend((r) => r.gap),
     share: blend((r) => r.share),
+    topShares,
     wardsReporting: reported.length,
     allIn,
     // Per ward, for the swing map: Chow's margin now, what her 2023
