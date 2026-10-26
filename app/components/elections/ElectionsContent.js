@@ -9,7 +9,6 @@ import {
 } from './results';
 import { useLiveResults, liveDatasets, LiveStatus } from './live';
 import { computeNeedle, Needle } from './needle';
-import { isElectionNight } from '../../lib/elections-live';
 
 const ElectionMap = dynamic(() => import('./ElectionMap'), {
   ssr: false,
@@ -33,6 +32,11 @@ const VOTE_TYPES = [
   { value: 'mail', label: 'Mail-in' },
   { value: 'all', label: 'All votes' },
 ];
+// The page heading for the live races; past races keep the general one.
+const HEADINGS = {
+  'mayor-2026': '2026 Toronto Mayor Election Results',
+  'council-2026': '2026 Toronto Council Election Results',
+};
 const VOTE_NOUN = { day: 'election-day votes', advance: 'advance votes', mail: 'mail-in votes', all: 'votes' };
 
 // A ward's votes of one type, aligned to its ranked candidates.
@@ -96,10 +100,10 @@ const colorOfSlot = (slot, palette = SLOT_COLORS) => (slot >= 0 ? palette[slot] 
 export default function ElectionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // The live tab leads from election night on; until then, the last real race.
+  // The 2026 mayoral race leads unless a link asks for another.
   const initialRace = RACES.some((r) => r.id === searchParams.get('race'))
     ? searchParams.get('race')
-    : isElectionNight() ? 'mayor-2026' : 'mayor-2023';
+    : 'mayor-2026';
   const initialWard = Number(searchParams.get('ward'));
   const initialVotes = VOTE_TYPES.some((t) => t.value === searchParams.get('votes')) ? searchParams.get('votes') : 'day';
   const initialWardLevel = searchParams.get('by') === 'ward';
@@ -381,7 +385,7 @@ export default function ElectionsContent() {
       <div className="container mx-auto px-4 max-w-7xl">
         <div className="mb-4">
           <h1 className="dd-title text-4xl sm:text-5xl mb-2" style={{ color: 'var(--ink)' }}>
-            Toronto Poll-by-Poll Results
+            {HEADINGS[raceId] ?? 'Toronto Poll-by-Poll Results'}
           </h1>
         </div>
 
