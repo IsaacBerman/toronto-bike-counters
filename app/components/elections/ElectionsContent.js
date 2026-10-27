@@ -8,7 +8,7 @@ import {
   SWING_BINS, TURNOUT_BREAKS, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets, LiveStatus } from './live';
-import { computeNeedle, Needle } from './needle';
+import { computeNeedle, Needle, NEEDLE } from './needle';
 import { applyIncumbents } from './incumbents';
 
 const ElectionMap = dynamic(() => import('./ElectionMap'), {
@@ -259,14 +259,21 @@ export default function ElectionsContent() {
   );
 
   // Chow's margin over her closest challenger in a ward now (the needle's
-  // challenger) against her 2023 margin over her closest challenger there in
-  // the same kind of votes, as the needle computes it — so before the advance
-  // votes arrive, election day is measured against election day.
+  // challenger) against her 2023 margin over her closest challenger there,
+  // both as shares of all votes cast. A plain comparison: the needle's own
+  // ward swings net out an advance-vote gap it learns, which helps it project
+  // but, once the count was complete, distorted the swing itself.
   const wardSwing = useCallback((w) => {
-    const s = needle?.wardSwings?.[w];
-    if (!s) return null;
-    return { ...s, rivalThen: baseline?.wards[w]?.rivalName ?? 'Bailão', rivalNow: needle.challenger };
-  }, [baseline, needle]);
+    const ward = data?.wards[w];
+    const base = baseline?.wards[w];
+    const total = ward ? sum(ward.totals) : 0;
+    if (!total || !base?.total) return null;
+    const rivalNow = needle?.challenger ?? NEEDLE.b;
+    const votesOf = (name) => ward.totals[ward.cand.indexOf(data.candidates.indexOf(name))] ?? 0;
+    const now = (votesOf(NEEDLE.a) - votesOf(rivalNow)) / total;
+    const then = (base.candidate - base.rival) / base.total;
+    return { now, then, swing: now - then, rivalThen: base.rivalName ?? 'Bailão', rivalNow };
+  }, [data, baseline, needle]);
 
   const wardStyleFor = useCallback((w) => {
     if (view === 'turnout') {
