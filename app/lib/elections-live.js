@@ -17,8 +17,10 @@ export const LIVE_UNTIL = POLLS_CLOSE + 72 * HOUR;
 
 // The needle's history is written to the database only during election night
 // itself; after that it's read once per server instance and held in memory,
-// so the database can go back to sleep.
-export const HISTORY_UNTIL = POLLS_CLOSE + 24 * HOUR;
+// so the database can go back to sleep. Ended at 10:48 p.m., once the count
+// had settled (13 polls still out, the result unchanged since 10:41); the
+// charts end here too.
+export const HISTORY_UNTIL = Date.parse('2026-10-26T22:48:00-04:00');
 
 // How long until the next check: once a minute from poll close, otherwise
 // once a day — but never sleeping past poll close itself.

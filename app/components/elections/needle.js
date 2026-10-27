@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { CANDIDATE_COLORS_2026, OTHER_COLOR, fmt } from './results';
 import { NEEDLE, surname } from './needle-model';
-import { POLLS_CLOSE } from '../../lib/elections-live';
+import { HISTORY_UNTIL, POLLS_CLOSE } from '../../lib/elections-live';
 
 export { NEEDLE, computeNeedle } from './needle-model';
 
@@ -325,8 +325,10 @@ const same = (a, b) => [1, 2, 3].every((i) => Math.abs(a[i] - b[i]) < 1e-5);
 function nightRows(history, needle, seq) {
   // Only tonight: the City's first file with votes can still carry its
   // pre-election timestamp, which would stretch the charts back weeks.
-  const rows = (history ?? []).filter((r) => r[0] >= POLLS_CLOSE);
-  if (seq && (!rows.length || rows[rows.length - 1][0] < seq)) {
+  // And no later than the history's end, so the charts stay frozen there even
+  // as the City keeps republishing.
+  const rows = (history ?? []).filter((r) => r[0] >= POLLS_CLOSE && r[0] <= HISTORY_UNTIL);
+  if (seq && seq <= HISTORY_UNTIL && (!rows.length || rows[rows.length - 1][0] < seq)) {
     rows.push([seq, needle.p, needle.share, needle.projected, needle.topShares ?? null]);
   }
   if (needle.allIn) while (rows.length > 1 && same(rows[rows.length - 1], rows[rows.length - 2])) rows.pop();
