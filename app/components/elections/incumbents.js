@@ -2,7 +2,7 @@
 // coloured like 2026's: incumbent, closest and second challengers, or an open
 // seat's leader. 2018 merged 44 wards into 25, so ten wards pitted two
 // incumbents against each other; the one with more votes is the incumbent's
-// blue, the other a second blue. 2022's Ward 20 is the 2023 by-election (an
+// blue, the other gold. 2022's Ward 20 is the 2023 by-election (an
 // open seat), and in Ward 23 Cynthia Lai died before the vote and her votes
 // weren't counted, so it is open too.
 // Source: Wikipedia's 2018 and 2022 Toronto municipal election results.

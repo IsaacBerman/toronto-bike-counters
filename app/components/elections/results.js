@@ -17,8 +17,8 @@ export const RACES = [
 export const SLOT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a'];
 // Council maps coloured by incumbency: incumbent, closest challenger, second
 // challenger, open-seat leader, and (2018, where merged wards had two) the
-// other incumbent in a darker blue.
-export const INCUMBENT_COLORS = ['#2a78d6', '#eb6834', '#8e6bbf', '#1baf7a', '#163f86'];
+// second incumbent in gold.
+export const INCUMBENT_COLORS = ['#2a78d6', '#eb6834', '#8e6bbf', '#1baf7a', '#d9a400'];
 export const OTHER_COLOR = '#8a887c';
 
 // 2026 mayoral candidates in their campaign colours, matching the polling

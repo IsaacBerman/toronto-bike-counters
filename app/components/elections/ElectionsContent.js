@@ -24,7 +24,7 @@ const RANK_LABELS = ['Ward winner', 'Runner-up', 'Third place'];
 // Council maps coloured by incumbency (2026, and past races with their
 // sitting councillors marked): the incumbent stays blue; open seats, with no
 // incumbent, show their leader in the last colour.
-const INCUMBENT_LABELS = ['Incumbent', 'Top challenger', 'Second challenger', 'Open-seat leader', 'Other incumbent'];
+const INCUMBENT_LABELS = ['Incumbent', 'Top challenger', 'Second challenger', 'Open-seat leader', 'Second incumbent'];
 // Legend order: both incumbents together, then challengers.
 const INCUMBENT_LEGEND = [0, 4, 1, 2, 3];
 const SPECIAL_LABELS = { advance: 'Advance polls', mail: 'Mail-in', ltc: 'Care-home polls', unmapped: 'Election-day polls with no boundary' };
@@ -82,8 +82,8 @@ function prepare(data) {
     if (data.colorRule === 'incumbent') {
       const wd = data.wards[ward];
       if (!wd.totals[pos]) return -1;
-      // Incumbents first (a second one, where merged wards had two, in the
-      // darker blue), or in an open seat the leader; everyone else is ranked
+      // Incumbents first (a second one, where merged wards had two, in
+      // gold), or in an open seat the leader. Everyone else is ranked
       // by votes (candidates are already in vote order), so the first two
       // others are the closest and second challengers.
       const c = wd.cand[pos];
@@ -665,12 +665,14 @@ function Legend({ view, votes, byWard, isMayor, data, breaks, ramp, targetLabel 
       </div>
     );
   }
-  // [slot, label] pairs; "Other incumbent" only where a ward had two.
+  // [slot, label] pairs. Where a ward had two incumbents (2018), they're the
+  // top and second incumbents; elsewhere just "Incumbent".
   const twoIncumbents = Object.values(data.wards).some((w) => (w.incumbents?.length ?? 0) > 1);
   const labels = isMayor
     ? data.meta.slotOrder.slice(0, data.meta.palette.length).map((c, i) => [i, data.candidates[c]])
     : data.colorRule === 'incumbent'
-      ? INCUMBENT_LEGEND.filter((i) => i !== 4 || twoIncumbents).map((i) => [i, INCUMBENT_LABELS[i]])
+      ? INCUMBENT_LEGEND.filter((i) => i !== 4 || twoIncumbents)
+        .map((i) => [i, i === 0 && twoIncumbents ? 'Top incumbent' : INCUMBENT_LABELS[i]])
       : RANK_LABELS.map((label, i) => [i, label]);
   return (
     <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
