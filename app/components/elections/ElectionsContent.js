@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
-  RACES, SLOT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
+  RACES, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
   SWING_BINS, TURNOUT_BREAKS, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets, LiveStatus } from './live';
 import { computeNeedle, Needle } from './needle';
+import { applyIncumbents } from './incumbents';
 
 const ElectionMap = dynamic(() => import('./ElectionMap'), {
   ssr: false,
@@ -20,9 +21,12 @@ const ElectionMap = dynamic(() => import('./ElectionMap'), {
 });
 
 const RANK_LABELS = ['Ward winner', 'Runner-up', 'Third place'];
-// The 2026 council map's slots: the incumbent stays blue all night; open
-// seats, with no incumbent, show their leader in the third colour.
-const INCUMBENT_LABELS = ['Incumbent', 'Closest challenger', 'Open-seat leader'];
+// Council maps coloured by incumbency (2026, and past races with their
+// sitting councillors marked): the incumbent stays blue; open seats, with no
+// incumbent, show their leader in the last colour.
+const INCUMBENT_LABELS = ['Incumbent', 'Top challenger', 'Second challenger', 'Open-seat leader', 'Other incumbent'];
+// Legend order: both incumbents together, then challengers.
+const INCUMBENT_LEGEND = [0, 4, 1, 2, 3];
 const SPECIAL_LABELS = { advance: 'Advance polls', mail: 'Mail-in', ltc: 'Care-home polls', unmapped: 'Election-day polls with no boundary' };
 
 // Election-day votes are reported poll by poll; the rest only by ward.
@@ -78,13 +82,21 @@ function prepare(data) {
     if (data.colorRule === 'incumbent') {
       const wd = data.wards[ward];
       if (!wd.totals[pos]) return -1;
-      if (wd.incumbent != null) {
-        if (wd.cand[pos] === wd.incumbent) return 0;
-        // Candidates are ranked by votes, so the first non-incumbent is the
-        // closest challenger.
-        return pos === wd.cand.findIndex((c) => c !== wd.incumbent) ? 1 : -1;
+      // Incumbents first (a second one, where merged wards had two, in the
+      // darker blue), or in an open seat the leader; everyone else is ranked
+      // by votes (candidates are already in vote order), so the first two
+      // others are the closest and second challengers.
+      const c = wd.cand[pos];
+      const incs = wd.incumbents ?? (wd.incumbent != null ? [wd.incumbent] : []);
+      if (incs.length) {
+        if (c === incs[0]) return 0;
+        if (incs.includes(c)) return 4;
+      } else if (pos === 0) {
+        return 3;
       }
-      return pos === 0 ? 2 : pos === 1 ? 1 : -1;
+      const head = incs.length ? incs : [wd.cand[0]];
+      const rank = wd.cand.slice(0, pos + 1).filter((x) => !head.includes(x)).length;
+      return rank === 1 ? 1 : rank === 2 ? 2 : -1;
     }
     if (isMayor) return citySlot.get(data.wards[ward].cand[pos]) ?? -1;
     return pos < palette.length ? pos : -1;
@@ -172,7 +184,10 @@ export default function ElectionsContent() {
       })
       .then((d) => {
         if (cancelled) return;
-        if (d.id) d.meta = prepare(d);
+        if (d.id) {
+          applyIncumbents(d, INCUMBENT_COLORS);
+          d.meta = prepare(d);
+        }
         setCache((c) => ({ ...c, [fileId]: d }));
       })
       .catch((e) => { if (!cancelled) setError(e.message); });
@@ -650,16 +665,20 @@ function Legend({ view, votes, byWard, isMayor, data, breaks, ramp, targetLabel 
       </div>
     );
   }
+  // [slot, label] pairs; "Other incumbent" only where a ward had two.
+  const twoIncumbents = Object.values(data.wards).some((w) => (w.incumbents?.length ?? 0) > 1);
   const labels = isMayor
-    ? data.meta.slotOrder.slice(0, data.meta.palette.length).map((c) => data.candidates[c])
-    : data.colorRule === 'incumbent' ? INCUMBENT_LABELS : RANK_LABELS;
+    ? data.meta.slotOrder.slice(0, data.meta.palette.length).map((c, i) => [i, data.candidates[c]])
+    : data.colorRule === 'incumbent'
+      ? INCUMBENT_LEGEND.filter((i) => i !== 4 || twoIncumbents).map((i) => [i, INCUMBENT_LABELS[i]])
+      : RANK_LABELS.map((label, i) => [i, label]);
   return (
     <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
       <div>
         <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>{!byWard ? 'Poll led by' : votes === 'all' ? 'Ward led by' : votes === 'day' ? 'Election-day vote led by' : `${VOTE_TYPES.find((t) => t.value === votes).label} vote led by`}</p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs" style={{ color: 'var(--ink-2)' }}>
-          {labels.map((label, i) => (
-            <span key={label} className="flex items-center gap-1.5"><Swatch color={isMayor ? data.meta.palette[i] : SLOT_COLORS[i]} />{label}</span>
+          {labels.map(([i, label]) => (
+            <span key={label} className="flex items-center gap-1.5"><Swatch color={data.meta.palette[i]} />{label}</span>
           ))}
           <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} />Anyone else</span>
           <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} opacity={0.25} />Tie</span>
@@ -758,7 +777,7 @@ function PollCard({ data, poll, onClose }) {
 function WardCard({ data, ward: w, votes }) {
   const ward = data.wards[w];
   const shown = wardVotes(ward, votes);
-  const names = ward.cand.map((c) => `${data.candidates[c]}${c === ward.incumbent ? ' (incumbent)' : ''}`);
+  const names = ward.cand.map((c) => `${data.candidates[c]}${(ward.incumbents ?? []).includes(c) ? ' (incumbent)' : ''}`);
   const onMap = ward.allVotes - ward.offMap;
   return (
     <div className="dd-panel">

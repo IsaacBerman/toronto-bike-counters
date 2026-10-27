@@ -1,7 +1,7 @@
 // Turns the City's live feed (as /api/election-results shapes it) into the
 // same structure as the past races' files. Plain JS so the API route can use
 // it too.
-import { sum, CANDIDATE_COLORS_2026 } from './results';
+import { sum, CANDIDATE_COLORS_2026, INCUMBENT_COLORS } from './results';
 import { ADVANCE_RATE_2026 } from './advance-2026';
 
 // Councillors seeking re-election in 2026, by ward: the 2022 winners, plus
@@ -75,6 +75,7 @@ export function liveDatasets(feed, outlines) {
     const incumbent = w.candidates.findIndex((c) => c.name === INCUMBENTS_2026[w.num]);
     councilWards[w.num] = {
       incumbent: incumbent >= 0 ? base + incumbent : null,
+      incumbents: incumbent >= 0 ? [base + incumbent] : [],
       name: w.name || outlines.wards[w.num],
       cand: ranked.map((c) => base + c.i),
       totals: ranked.map((c) => c.votes),
@@ -108,6 +109,7 @@ export function liveDatasets(feed, outlines) {
       candidates: councilNames,
       wards: councilWards,
       colorRule: 'incumbent',
+      palette: INCUMBENT_COLORS,
       reporting: {
         polls: sum(feed.council.map((w) => w.polls)),
         pollsReceived: sum(feed.council.map((w) => w.pollsReceived)),
