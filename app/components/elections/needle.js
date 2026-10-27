@@ -215,31 +215,40 @@ function NightChart({ title, legend, times, lines, lo, hi, mid, ticks, sides, bC
   if (times.length < 2) return null;
 
   // Poll close on the left, the latest update on the right, so the line
-  // always fills the chart and stretches as the night goes on.
+  // always fills the chart and stretches as the night goes on. Once the count
+  // settled (HISTORY_UNTIL), the clock stops: each later change gets its own
+  // small, equal step after a dashed line, however long it took to come in.
   const t0 = Math.min(POLLS_CLOSE, times[0]);
-  const t1 = Math.max(times[times.length - 1], t0 + 60 * 1000);
-  const x = (t) => M.l + ((t - t0) / (t1 - t0)) * (W - M.l - M.r);
+  const late = times.filter((t) => t > HISTORY_UNTIL).length;
+  const t1 = late ? HISTORY_UNTIL : Math.max(times[times.length - 1], t0 + 60 * 1000);
+  const plotW = W - M.l - M.r;
+  const lateW = Math.min(0.25, 0.015 * late) * plotW;
+  const onTime = times.length - late;
+  const xs = times.map((t, i) => (i < onTime
+    ? M.l + ((Math.min(t, t1) - t0) / (t1 - t0)) * (plotW - lateW)
+    : M.l + plotW - lateW + ((i - onTime + 1) / late) * lateW));
+  const cutX = M.l + plotW - lateW;
   const y = (v) => M.t + ((hi - Math.min(hi, Math.max(lo, v))) / (hi - lo)) * (H - M.t - M.b);
   const pathOf = (values) => {
     let d = '';
     let pen = false;
     values.forEach((v, i) => {
       if (v == null) { pen = false; return; }
-      d += `${pen ? 'L' : 'M'}${x(times[i]).toFixed(1)},${y(v).toFixed(1)}`;
+      d += `${pen ? 'L' : 'M'}${xs[i].toFixed(1)},${y(v).toFixed(1)}`;
       pen = true;
     });
     return d;
   };
   const main = pathOf(lines[0].values);
   const area = mid != null
-    ? `${main}L${x(times[times.length - 1]).toFixed(1)},${y(mid)}L${x(times[0]).toFixed(1)},${y(mid)}Z`
+    ? `${main}L${xs[xs.length - 1].toFixed(1)},${y(mid)}L${xs[0].toFixed(1)},${y(mid)}Z`
     : null;
 
   const onMove = (e) => {
     const box = e.currentTarget.getBoundingClientRect();
-    const t = t0 + (((e.clientX - box.left) / box.width) * W - M.l) / (W - M.l - M.r) * (t1 - t0);
+    const px = ((e.clientX - box.left) / box.width) * W;
     let best = 0;
-    for (let i = 1; i < times.length; i++) if (Math.abs(times[i] - t) < Math.abs(times[best] - t)) best = i;
+    for (let i = 1; i < xs.length; i++) if (Math.abs(xs[i] - px) < Math.abs(xs[best] - px)) best = i;
     setHover(best);
   };
 
@@ -282,13 +291,14 @@ function NightChart({ title, legend, times, lines, lo, hi, mid, ticks, sides, bC
           {lines.map((ln, i) => (
             <path key={i} d={i ? pathOf(ln.values) : main} fill="none" stroke={ln.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
           ))}
+          {late > 0 && <line x1={cutX} x2={cutX} y1={M.t} y2={H - M.b} stroke="var(--ink-3)" strokeDasharray="2 2" />}
           <text x={M.l} y={H - 4} fontSize="9" fill="var(--ink-3)">{clock(t0)}</text>
-          <text x={W - M.r} y={H - 4} fontSize="9" textAnchor="end" fill="var(--ink-3)">{clock(t1)}</text>
+          <text x={late ? cutX : W - M.r} y={H - 4} fontSize="9" textAnchor="end" fill="var(--ink-3)">{clock(t1)}</text>
           {hover != null && (
             <g>
-              <line x1={x(times[hover])} x2={x(times[hover])} y1={M.t} y2={H - M.b} stroke="var(--ink-3)" />
+              <line x1={xs[hover]} x2={xs[hover]} y1={M.t} y2={H - M.b} stroke="var(--ink-3)" />
               {lines.map((ln, i) => ln.values[hover] != null && (
-                <circle key={i} cx={x(times[hover])} cy={y(ln.values[hover])} r="4" fill={ln.color} stroke="var(--panel)" strokeWidth="2" />
+                <circle key={i} cx={xs[hover]} cy={y(ln.values[hover])} r="4" fill={ln.color} stroke="var(--panel)" strokeWidth="2" />
               ))}
             </g>
           )}
@@ -296,9 +306,9 @@ function NightChart({ title, legend, times, lines, lo, hi, mid, ticks, sides, bC
         {hover != null && (
           <div className="absolute pointer-events-none text-xs rounded px-2 py-1 whitespace-nowrap"
             style={{
-              left: `${(x(times[hover]) / W) * 100}%`,
+              left: `${(xs[hover] / W) * 100}%`,
               top: 0,
-              transform: `translateX(${x(times[hover]) > W / 2 ? '-105%' : '5%'})`,
+              transform: `translateX(${xs[hover] > W / 2 ? '-105%' : '5%'})`,
               background: 'var(--ink)',
               color: '#fff',
               fontVariantNumeric: 'tabular-nums',
@@ -325,11 +335,14 @@ const same = (a, b) => [1, 2, 3].every((i) => Math.abs(a[i] - b[i]) < 1e-5);
 function nightRows(history, needle, seq) {
   // Only tonight: the City's first file with votes can still carry its
   // pre-election timestamp, which would stretch the charts back weeks.
-  // And no later than the history's end, so the charts stay frozen there even
-  // as the City keeps republishing.
-  const rows = (history ?? []).filter((r) => r[0] >= POLLS_CLOSE && r[0] <= HISTORY_UNTIL);
-  if (seq && seq <= HISTORY_UNTIL && (!rows.length || rows[rows.length - 1][0] < seq)) {
+  const rows = (history ?? []).filter((r) => r[0] >= POLLS_CLOSE);
+  if (seq && (!rows.length || rows[rows.length - 1][0] < seq)) {
     rows.push([seq, needle.p, needle.share, needle.projected, needle.topShares ?? null]);
+  }
+  // After the count settled, only changes count: a republished file with the
+  // same reading adds no step.
+  for (let i = rows.length - 1; i > 0; i--) {
+    if (rows[i][0] > HISTORY_UNTIL && same(rows[i], rows[i - 1])) rows.splice(i, 1);
   }
   if (needle.allIn) while (rows.length > 1 && same(rows[rows.length - 1], rows[rows.length - 2])) rows.pop();
   return rows;

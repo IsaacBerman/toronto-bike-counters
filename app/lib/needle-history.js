@@ -1,5 +1,5 @@
 import { query } from './db-pool';
-import { HISTORY_UNTIL, POLLS_CLOSE } from './elections-live';
+import { HISTORY_UNTIL, LIVE_UNTIL, POLLS_CLOSE } from './elections-live';
 
 // Chow's chance of winning each time the City published new results on
 // election night, so the chart under the needle can show the whole night to
@@ -33,35 +33,51 @@ function ensureTable() {
 const toPoints = (rows) => rows.map((r) => [Number(r.seq), r.p, r.share, r.projected, r.shares ?? null]);
 const SELECT = 'SELECT seq, p, share, projected, shares FROM needle_history ORDER BY seq';
 
-// After election night the history no longer changes, so each server instance
-// reads it once and keeps it.
+// After the count settled the history rarely changes, so each server instance
+// reads it once and keeps it, and only goes back to the database when a
+// late poll actually moves the reading.
 let frozen = null;
+
+// Compared loosely, since the database stores readings at lower precision.
+const sameReading = (row, needle) => row
+  && Math.abs(row[1] - needle.p) < 1e-5
+  && Math.abs(row[2] - needle.share) < 1e-5
+  && Math.abs(row[3] - needle.projected) < 1e-5;
+
+const INSERT = `INSERT INTO needle_history (seq, p, projected, share, challenger, shares)
+       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (seq) DO NOTHING`;
+const insertArgs = (seq, needle) => [seq, needle.p, needle.projected, needle.share, needle.challenger, JSON.stringify(needle.topShares ?? null)];
 
 /**
  * Records this reading (during election night only) and returns the history
- * as [seq, p, share, projected, shares] points, oldest first. Outside the window nothing is
- * written, and before poll close the database isn't touched at all.
+ * as [seq, p, share, projected, shares] points, oldest first. Before poll
+ * close the database isn't touched at all; after the count settled, only a
+ * changed reading is written.
  */
 export async function recordNeedle(seq, needle, now = Date.now()) {
   if (now < POLLS_CLOSE) return [];
   if (now >= HISTORY_UNTIL) {
     if (!frozen) frozen = query(SELECT).then(toPoints);
+    let points;
     try {
-      return await frozen;
+      points = await frozen;
     } catch (e) {
       frozen = null;
       throw e;
     }
+    const last = points[points.length - 1];
+    if (now < LIVE_UNTIL && needle && !needle.waiting && seq && Number(seq) > (last?.[0] ?? 0) && !sameReading(last, needle)) {
+      await query(INSERT, insertArgs(seq, needle));
+      frozen = query(SELECT).then(toPoints);
+      return frozen;
+    }
+    return points;
   }
   await ensureTable();
   // A file timestamped before poll close is the City's pre-election one,
   // even if it already carries votes; its time would distort the chart.
   if (needle && !needle.waiting && seq && Number(seq) >= POLLS_CLOSE) {
-    await query(
-      `INSERT INTO needle_history (seq, p, projected, share, challenger, shares)
-       VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (seq) DO NOTHING`,
-      [seq, needle.p, needle.projected, needle.share, needle.challenger, JSON.stringify(needle.topShares ?? null)]
-    );
+    await query(INSERT, insertArgs(seq, needle));
   }
   return toPoints(await query(SELECT));
 }
