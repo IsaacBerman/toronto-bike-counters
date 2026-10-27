@@ -53,6 +53,7 @@ const structuredData = {
       url: URL,
       keywords: ['TTC', 'reduced speed zones', 'slow zones', 'Toronto subway', 'public transit'],
       isAccessibleForFree: true,
+      license: 'https://creativecommons.org/licenses/by/4.0/',
       creator: {
         '@type': 'Organization',
         name: 'Observing the City',
