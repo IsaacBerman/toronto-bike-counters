@@ -54,7 +54,9 @@ export async function recordNeedle(seq, needle, now = Date.now()) {
     }
   }
   await ensureTable();
-  if (needle && !needle.waiting && seq) {
+  // A file timestamped before poll close is the City's pre-election one,
+  // even if it already carries votes; its time would distort the chart.
+  if (needle && !needle.waiting && seq && Number(seq) >= POLLS_CLOSE) {
     await query(
       `INSERT INTO needle_history (seq, p, projected, share, challenger, shares)
        VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (seq) DO NOTHING`,

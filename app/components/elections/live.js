@@ -107,9 +107,8 @@ function MayorTotals({ mayor }) {
         const votes = city.get(mayor.candidates.indexOf(name)) ?? 0;
         return (
           <div key={name} className="flex items-baseline gap-2">
-            <span className="inline-block w-3 h-3 rounded-sm self-center" style={{ background: CANDIDATE_COLORS_2026[name] }} />
             <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>{name.split(' ').slice(-1)[0]}</span>
-            <span className="dd-title text-3xl" style={{ color: 'var(--ink)' }}>{((votes / total) * 100).toFixed(1)}%</span>
+            <span className="dd-title text-3xl" style={{ color: CANDIDATE_COLORS_2026[name] }}>{((votes / total) * 100).toFixed(1)}%</span>
             <span className="text-xs" style={{ color: 'var(--ink-3)' }}>{fmt(votes)} votes</span>
           </div>
         );

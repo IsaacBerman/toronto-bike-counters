@@ -323,7 +323,9 @@ function NightChart({ title, legend, times, lines, lo, hi, mid, ticks, sides, bC
 // since the database stores readings at lower precision than the live one.
 const same = (a, b) => [1, 2, 3].every((i) => Math.abs(a[i] - b[i]) < 1e-5);
 function nightRows(history, needle, seq) {
-  const rows = [...(history ?? [])];
+  // Only tonight: the City's first file with votes can still carry its
+  // pre-election timestamp, which would stretch the charts back weeks.
+  const rows = (history ?? []).filter((r) => r[0] >= POLLS_CLOSE);
   if (seq && (!rows.length || rows[rows.length - 1][0] < seq)) {
     rows.push([seq, needle.p, needle.share, needle.projected, needle.topShares ?? null]);
   }
