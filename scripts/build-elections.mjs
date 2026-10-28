@@ -2,10 +2,11 @@
 // boundaries, for the elections page.
 //
 // Input:  data/2022-results/2022_Toronto_Poll_By_Poll_Councillor.xlsx
-//         data/2023 Councillor Ward 20 Poll by Poll.xlsx (replaces Ward 20)
 //         data/voting-subdivisions-2022 - 4326.geojson
 //         data/2023 Office of the Mayor (1).xlsx
 //         data/voting-subdivisions-2023 - 4326 (1).geojson
+//         data/2023 Councillor Ward 20 Poll by Poll.xlsx, 2024 ... Ward 15 ...,
+//         2025 ... Ward 25 ... (the council by-elections since 2022)
 //         data/2018_Toronto_Poll_By_Poll_Mayor.xlsx, data/2022-results/..._Mayor.xlsx
 //         2006, 2010 and 2014 mayor and council, as .json converted from the
 //         City's .xls by scripts/convert-old-elections.py, with the 2006,
@@ -57,19 +58,20 @@ const ELECTIONS = [
     date: '2022-10-24',
     results: '2022-results/2022_Toronto_Poll_By_Poll_Councillor.xlsx',
     boundaries: 'voting-subdivisions-2022 - 4326.geojson',
-    // Ward 20's seat was refilled in a by-election after Gary Crawford left
-    // for Queen's Park, so the map shows the race that decided its current
-    // councillor. It ran on the 2023 poll boundaries.
     // Source of public/elections/wards.json; 2026 uses the same 25 wards.
     wardsFile: true,
-    replaceWards: [
-      {
-        ward: 20,
-        note: 'November 2023 by-election',
-        results: '2023 Councillor Ward 20 Poll by Poll.xlsx',
-        boundaries: 'voting-subdivisions-2023 - 4326 (1).geojson',
-      },
-    ],
+  },
+  {
+    // Every council by-election of the 2022-2026 term, one ward each, all on
+    // the 2023 poll boundaries.
+    id: 'council-2023',
+    title: '2023–2025 Council By-elections',
+    date: '2023-11-06',
+    byElections: [
+      { ward: 20, note: '2023 by-election', results: '2023 Councillor Ward 20 Poll by Poll.xlsx' },
+      { ward: 15, note: '2024 by-election', results: '2024 Councillor Ward 15 Poll by Poll.xlsx' },
+      { ward: 25, note: '2025 by-election', results: '2025 Councillor Ward 25 Poll by Poll.xlsx' },
+    ].map((b) => ({ ...b, boundaries: 'voting-subdivisions-2023 - 4326 (1).geojson' })),
   },
   {
     id: 'council-2018',
@@ -173,6 +175,8 @@ const NAME_OVERRIDES = {
   'Vintila Ion Gelu': 'Ion Gelu Vintila',
   'Yagiz Mehmet Ali': 'Mehmet Ali Yagiz',
   'Ledrew Stephen': 'Stephen LeDrew',
+  'Chernos Lin Rachel': 'Rachel Chernos Lin',
+  'Moreno Garcia Jose': 'Jose Moreno Garcia',
 };
 
 // Before 2018 names are in capitals ("HALL SUZAN").
@@ -351,17 +355,20 @@ function build(election) {
     }
   };
 
-  readResults(election.results);
-  const replaced = new Map((election.replaceWards ?? []).map((rep) => [rep.ward, rep]));
+  // A by-election set has no general-election file, only its wards' own.
+  if (election.results) readResults(election.results);
+  const replaced = new Map((election.byElections ?? []).map((rep) => [rep.ward, rep]));
   for (const rep of replaced.values()) {
     readResults(rep.results, rep.ward);
     wards[rep.ward].note = rep.note;
   }
 
-  // The race's own boundaries, with any replaced ward's polls swapped for the
-  // ones its by-election used.
+  // The race's own boundaries, plus each by-election ward's polls from the
+  // boundaries it ran on.
   const wardOf = (f) => Number(f.properties.AREA_LONG_CODE.slice(0, 2));
-  const geo = JSON.parse(fs.readFileSync(path.join(DATA_DIR, election.boundaries), 'utf8'));
+  const geo = election.boundaries
+    ? JSON.parse(fs.readFileSync(path.join(DATA_DIR, election.boundaries), 'utf8'))
+    : { features: [] };
   geo.features = geo.features.filter((f) => !replaced.has(wardOf(f)));
   for (const rep of replaced.values()) {
     const repGeo = JSON.parse(fs.readFileSync(path.join(DATA_DIR, rep.boundaries), 'utf8'));

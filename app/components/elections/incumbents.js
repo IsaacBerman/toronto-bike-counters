@@ -2,9 +2,9 @@
 // coloured like 2026's: incumbent, closest and second challengers, or an open
 // seat's leader. 2018 merged 44 wards into 25, so ten wards pitted two
 // incumbents against each other; the one with more votes is the incumbent's
-// blue, the other gold. 2022's Ward 20 is the 2023 by-election (an
-// open seat), and in Ward 23 Cynthia Lai died before the vote and her votes
-// weren't counted, so it is open too.
+// blue, the other gold. In 2022's Ward 23 Cynthia Lai died before the vote
+// and her votes weren't counted, so it is open. The 2023-2025 by-elections
+// were all open seats.
 // 2006: the 2003 winners who ran again, as Wikipedia marks them; Wards 14,
 // 20, 26, 35, 41, 43 and 44 were open. 2010 and 2014: the previous
 // election's winner where they ran again; no councillor appointed mid-term
@@ -151,6 +151,7 @@ export const PAST_INCUMBENTS = {
     24: ['Paul Ainslie'],
     25: ['Neethan Shan'],
   },
+  'council-2023': {},
   'council-2022': {
     2: ['Stephen Holyday'],
     3: ['Mark Grimes'],
@@ -164,6 +165,7 @@ export const PAST_INCUMBENTS = {
     15: ['Jaye Robinson'],
     17: ['Shelley Carroll'],
     19: ['Brad Bradford'],
+    20: ['Gary Crawford'],
     21: ['Michael Thompson'],
     22: ['Nick Mantas'],
     24: ['Paul Ainslie'],

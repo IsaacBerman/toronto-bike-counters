@@ -401,7 +401,7 @@ export default function ElectionsContent() {
     setSelectedPoll(null);
     setFocusWard(keepWard ? { ward: keepWard } : null);
   };
-  // 2023 had no council race, so picking it shows the mayor's.
+  // Every election has both races; this falls back to mayor if one doesn't.
   const pickElection = (election) => switchRace((raceFor(election, race.office) ?? raceFor(election, 'mayor')).id);
   const pickOffice = (office) => {
     const r = raceFor(race.election, office);
@@ -587,13 +587,6 @@ export default function ElectionsContent() {
           ) : (
             <p></p>
           )}
-          {data && Object.values(data.wards).some((w) => w.note) && (
-            <p>
-              {Object.entries(data.wards).filter(([, w]) => w.note).map(([n, w]) => (
-                `Ward ${n} ${w.name} shows the ${w.note} that elected its current councillor, not the ${race.label.slice(0, 4)} race.`
-              )).join(' ')}
-            </p>
-          )}
           <p>
             Poll-by-poll results and voting subdivision boundaries from the{' '}
             <a href="https://open.toronto.ca/dataset/elections-voting-subdivisions/" target="_blank" rel="noopener noreferrer" className="dd-link-accent">
@@ -709,10 +702,13 @@ function Legend({ view, votes, byWard, isMayor, data, breaks, ramp, targetLabel 
   // [slot, label] pairs. Where a ward had two incumbents (2018), they're the
   // top and second incumbents; elsewhere just "Incumbent".
   const twoIncumbents = Object.values(data.wards).some((w) => (w.incumbents?.length ?? 0) > 1);
+  // Only the entries that occur: the by-elections had no incumbents.
+  const anyIncumbent = Object.values(data.wards).some((w) => w.incumbent != null);
+  const anyOpen = Object.values(data.wards).some((w) => w.incumbent == null);
   const labels = isMayor
     ? data.meta.slotOrder.slice(0, data.meta.palette.length).map((c, i) => [i, data.candidates[c]])
     : data.colorRule === 'incumbent'
-      ? INCUMBENT_LEGEND.filter((i) => i !== 4 || twoIncumbents)
+      ? INCUMBENT_LEGEND.filter((i) => (i !== 4 || twoIncumbents) && (i !== 0 || anyIncumbent) && (i !== 3 || anyOpen))
         .map((i) => [i, i === 0 && twoIncumbents ? 'Top incumbent' : INCUMBENT_LABELS[i]])
       : RANK_LABELS.map((label, i) => [i, label]);
   return (

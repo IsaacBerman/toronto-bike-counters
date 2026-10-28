@@ -2,10 +2,11 @@
 // panel, so all three agree on what a colour means.
 
 // Each election (picked from a menu) and the offices it decided (a toggle).
-// The 2023 by-election was for mayor only. Before 2018 the city had 44 wards.
+// 2023-2025: the mayoral by-election and three ward by-elections. Before
+// 2018 the city had 44 wards.
 export const ELECTIONS = [
   { id: '2026', label: '2026' },
-  { id: '2023', label: '2023 by-election' },
+  { id: '2023', label: '2023–2025 by-elections' },
   { id: '2022', label: '2022' },
   { id: '2018', label: '2018' },
   { id: '2014', label: '2014', wards: 44 },
@@ -23,6 +24,7 @@ export const RACES = [
   { id: 'mayor-2026', label: '2026 Mayoral Election', live: true },
   { id: 'council-2026', label: '2026 City Council', live: true },
   { id: 'mayor-2023', label: '2023 Mayoral By-election' },
+  { id: 'council-2023', label: '2023–2025 Council By-elections' },
   ...['2022', '2018', '2014', '2010', '2006'].flatMap((y) => [
     { id: `mayor-${y}`, label: `${y} Mayoral Election` },
     { id: `council-${y}`, label: `${y} City Council` },
