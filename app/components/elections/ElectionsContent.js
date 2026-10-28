@@ -453,9 +453,9 @@ export default function ElectionsContent() {
             label="Show"
             value={view}
             options={[
-              { value: 'leader', label: 'Who led' },
+              { value: 'leader', label: 'Lead' },
+              { value: 'share', label: 'Share' },
               ...(raceId === 'mayor-2026' ? [{ value: 'swing', label: 'Swing' }] : []),
-              { value: 'share', label: 'Vote share' },
               ...(isLive ? [{ value: 'turnout', label: 'Turnout' }] : []),
             ]}
             onChange={setView}
