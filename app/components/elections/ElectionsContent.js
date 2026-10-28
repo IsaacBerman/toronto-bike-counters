@@ -36,11 +36,13 @@ const VOTE_TYPES = [
   { value: 'mail', label: 'Mail-in' },
   { value: 'all', label: 'All votes' },
 ];
-// The page heading for the live races; past races keep the general one.
-const HEADINGS = {
-  'mayor-2026': '2026 Toronto Mayor Election Results',
-  'council-2026': '2026 Toronto Council Election Results',
-};
+// The page heading, one format for every race: "2018 Toronto Mayor Election
+// Results", or "... By-election Results" for the 2023-2025 by-elections.
+function heading(race) {
+  const office = race.office === 'mayor' ? 'Mayor' : 'Council';
+  const year = race.election === '2023' && race.office === 'council' ? '2023\u20132025' : race.election;
+  return `${year} Toronto ${office} ${race.election === '2023' ? 'By-election' : 'Election'} Results`;
+}
 const VOTE_NOUN = { day: 'election-day votes', advance: 'advance votes', mail: 'mail-in votes', all: 'votes' };
 
 // A ward's votes of one type, aligned to its ranked candidates.
@@ -425,7 +427,7 @@ export default function ElectionsContent() {
       <div className="container mx-auto px-4 max-w-7xl">
         <div className="mb-4">
           <h1 className="dd-title text-4xl sm:text-5xl mb-2" style={{ color: 'var(--ink)' }}>
-            {HEADINGS[raceId] ?? 'Toronto Poll-by-Poll Results'}
+            {heading(race)}
           </h1>
         </div>
 
@@ -523,15 +525,8 @@ export default function ElectionsContent() {
         {/* On election night, LiveStatus (from ./live) goes here: polls
             reporting, the headline totals and when the feed last updated. */}
 
-        {/* On phones the dial comes first, above the map, so the headline is
-            the first thing on screen; on desktop it heads the right column. */}
-        <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_1fr]">
-          {showNeedle && needle && (
-            <div className="min-w-0 lg:col-start-2 lg:row-start-1">
-              <Needle needle={needle} history={live.feed?.needleHistory} seq={live.feed?.seq} reporting={liveData?.['mayor-2026']?.reporting} />
-            </div>
-          )}
-          <div className="dd-panel-ruled p-3 sm:p-4 min-w-0 lg:col-start-1 lg:row-start-1 lg:row-span-2">
+        <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="dd-panel-ruled p-3 sm:p-4 min-w-0">
             {data ? (
               <ElectionMap
                 data={data}
@@ -569,7 +564,9 @@ export default function ElectionsContent() {
             )}
           </div>
 
-          <div className={`flex flex-col gap-4 min-w-0 lg:col-start-2 ${showNeedle && needle ? 'lg:row-start-2' : 'lg:row-start-1 lg:row-span-2'}`}>
+          {/* The results head the right column; election night's dial sits
+              below them, folded away as an archive. */}
+          <div className="flex flex-col gap-4 min-w-0">
             {data && selectedPoll && (
               <PollCard data={data} poll={selectedPoll} onClose={() => setSelectedPoll(null)} />
             )}
@@ -577,6 +574,9 @@ export default function ElectionsContent() {
             {data && !selectedWard && (isMayor
               ? <CityCard data={data} votes={votes} />
               : <WardList data={data} votes={votes} onPick={pickWard} />)}
+            {showNeedle && needle && (
+              <Needle archived needle={needle} history={live.feed?.needleHistory} seq={live.feed?.seq} reporting={liveData?.['mayor-2026']?.reporting} />
+            )}
           </div>
         </div>
 

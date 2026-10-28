@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { CANDIDATE_COLORS_2026, OTHER_COLOR, fmt } from './results';
 import { NEEDLE, surname } from './needle-model';
 import { HISTORY_UNTIL, POLLS_CLOSE } from '../../lib/elections-live';
@@ -116,8 +117,12 @@ function useEased(target, ms = 1200) {
   return value;
 }
 
-export function Needle({ needle, history, seq, reporting }) {
+// `archived`: after election night the dial is kept as a record, folded
+// away under its heading until opened.
+export function Needle({ needle, history, seq, reporting, archived = false }) {
   const gradientId = useId();
+  const bodyId = useId();
+  const [open, setOpen] = useState(!archived);
   const waiting = !needle || needle.waiting;
   const p = waiting ? 0.5 : needle.p;
   const angle = useEased((p - 0.5) * 180);
@@ -128,10 +133,32 @@ export function Needle({ needle, history, seq, reporting }) {
 
   return (
     <div className="dd-panel">
-      <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
-        <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>Who will win?</h2>
-      </div>
-      <div className="p-4">
+      {archived ? (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-controls={bodyId}
+          className="w-full p-4 flex items-start justify-between gap-3 text-left"
+          style={open ? { borderBottom: '1px solid var(--line)' } : undefined}
+        >
+          <span>
+            <span className="block dd-title text-lg" style={{ color: 'var(--ink)' }}>Who will win?</span>
+            <span className="block text-xs mt-1" style={{ color: 'var(--ink-3)' }}>Archive from election night</span>
+          </span>
+          <ChevronDown
+            size={20}
+            className="shrink-0 mt-1 transition-transform"
+            style={{ color: 'var(--ink-2)', transform: open ? 'rotate(180deg)' : undefined }}
+            aria-hidden="true"
+          />
+        </button>
+      ) : (
+        <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
+          <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>Who will win?</h2>
+        </div>
+      )}
+      {open && <div className="p-4" id={bodyId}>
         <svg viewBox="-44 0 408 196" className="w-full" role="img"
           aria-label={waiting ? 'Dial waiting for results' : `${leader} ${pctText(Math.max(p, 1 - p), needle.allIn)}% likely to win`}>
           {SPOKES.map((sp, i) => (
@@ -193,7 +220,7 @@ export function Needle({ needle, history, seq, reporting }) {
             </dl>
           </>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
