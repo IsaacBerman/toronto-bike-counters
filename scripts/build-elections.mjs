@@ -6,17 +6,24 @@
 //         data/voting-subdivisions-2022 - 4326.geojson
 //         data/2023 Office of the Mayor (1).xlsx
 //         data/voting-subdivisions-2023 - 4326 (1).geojson
+//         data/2018_Toronto_Poll_By_Poll_Mayor.xlsx, data/2022-results/..._Mayor.xlsx
+//         2006, 2010 and 2014 mayor and council, as .json converted from the
+//         City's .xls by scripts/convert-old-elections.py, with the 2006,
+//         2010 and 2014 voting subdivisions (2006's also converted there)
 //         One sheet per ward: a row of subdivision numbers, then a row per
 //         candidate with their votes in each subdivision, then a totals row.
 // Output: public/elections/<id>.json for each entry in ELECTIONS, plus
 //         public/elections/wards.json (outlines only, for the live results)
 //         public/elections/needle-baseline.json (2023 Chow vs closest challenger by ward)
 //
-// Subdivisions 96-99 have no polygon: 96 is every long-term care and retirement
+// From 2018, subdivisions 96-99 have no polygon: 96 is every long-term care and retirement
 // home in the ward pooled together (2023 only), 97 is mail-in, 98 and 99 are
 // advance polls. They are kept per ward so the ward totals still add up, but
 // can't go on the map. In 2023 the 94 polygons for the care homes themselves
 // have no results of their own, since their votes went into 96.
+// Before 2018 (44 wards) the citywide advance polls are 93-99; their totals
+// match the City's reported advance turnout (about 76,000 in 2010, 160,000 in
+// 2014). There was no mail-in vote.
 //
 // Regenerate with `npm run build:elections`.
 import fs from 'fs';
@@ -29,6 +36,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const DATA_DIR = path.join(root, 'data');
 const OUT_DIR = path.join(root, 'public', 'elections');
+
+const SPECIAL = { 96: 'ltc', 97: 'mail', 98: 'advance', 99: 'advance' };
+const SPECIAL_44 = Object.fromEntries([93, 94, 95, 96, 97, 98, 99].map((s) => [s, 'advance']));
+
+// The pre-2018 sheets name only the ward number. These are the 44 wards'
+// names from 2000 to 2018, two per provincial riding.
+const WARD_NAMES_44 = [
+  'Etobicoke North', 'Etobicoke Centre', 'Etobicoke-Lakeshore', 'York West', 'York Centre',
+  'York South-Weston', 'Parkdale-High Park', 'Eglinton-Lawrence', 'Davenport', 'Trinity-Spadina',
+  "St. Paul's", 'Willowdale', 'Don Valley West', 'Toronto Centre-Rosedale', 'Toronto-Danforth',
+  'Beaches-East York', 'Don Valley East', 'Scarborough Southwest', 'Scarborough Centre',
+  'Scarborough-Agincourt', 'Scarborough-Rouge River', 'Scarborough East',
+].flatMap((n) => [n, n]);
 
 const ELECTIONS = [
   {
@@ -63,6 +83,38 @@ const ELECTIONS = [
     allowUnmapped: true,
   },
   {
+    id: 'mayor-2022',
+    title: '2022 Mayoral Election',
+    date: '2022-10-24',
+    results: '2022-results/2022_Toronto_Poll_By_Poll_Mayor.xlsx',
+    boundaries: 'voting-subdivisions-2022 - 4326.geojson',
+  },
+  {
+    id: 'mayor-2018',
+    title: '2018 Mayoral Election',
+    date: '2018-10-22',
+    results: '2018_Toronto_Poll_By_Poll_Mayor.xlsx',
+    boundaries: 'voting-subdivisions-2018 - 4326.geojson',
+    allowUnmapped: true,
+  },
+  ...[
+    // The 44-ward city. Like 2018, each year's boundaries omit a few hundred
+    // small polls, pooled per ward.
+    { year: 2014, date: '2014-10-27', mayor: '2014-results/MAYOR.json', council: '2014-results/COUNCILLOR.json' },
+    { year: 2010, date: '2010-10-25', mayor: '2010-results/2010_Toronto_Poll_by_Poll_Mayor.json', council: '2010-results/2010_Toronto_Poll_by_Poll_Councillor.json' },
+    { year: 2006, date: '2006-11-13', mayor: '2006-results/2006 Results/2006_Toronto_Poll_by_Poll_Mayor.json', council: '2006-results/2006 Results/2006_Toronto_Poll_by_Poll_Councillor.json' },
+  ].flatMap(({ year, date, mayor, council }) => [
+    { id: `mayor-${year}`, title: `${year} Mayoral Election`, results: mayor },
+    { id: `council-${year}`, title: `${year} City Council`, results: council },
+  ].map((e) => ({
+    ...e,
+    date,
+    boundaries: `voting-subdivisions-${year} - 4326.geojson`,
+    allowUnmapped: true,
+    special: SPECIAL_44,
+    wardNames: WARD_NAMES_44,
+  }))),
+  {
     id: 'mayor-2023',
     title: '2023 Mayoral By-election',
     date: '2023-06-26',
@@ -72,8 +124,6 @@ const ELECTIONS = [
     boundaries: 'voting-subdivisions-2023 - 4326 (1).geojson',
   },
 ];
-
-const SPECIAL = { 96: 'ltc', 97: 'mail', 98: 'advance', 99: 'advance' };
 
 // The sheets list candidates surname first ("Chow Olivia"). Two-word names
 // just swap; past two words the split between surname and given name isn't
@@ -100,10 +150,39 @@ const NAME_OVERRIDES = {
   'Park Chung Jin': 'Chung Jin Park',
   'Nadeem Zamir ul hassan': 'Zamir ul hassan Nadeem',
   'Mamun MD Abdullah Al': 'MD Abdullah Al Mamun',
+  'Basantes Espinoza Wilson': 'Wilson Basantes Espinoza',
+  'Dang Tan Hau': 'Tan Hau Dang',
+  'De Baeremaeker Glenn': 'Glenn De Baeremaeker',
+  'De Boer Eric': 'Eric De Boer',
+  'De Jong Frank': 'Frank De Jong',
+  'Del Grande Mike': 'Mike Del Grande',
+  'Del Grande Tony': 'Tony Del Grande',
+  'Di Ciano Justin': 'Justin Di Ciano',
+  'Di Fiore James': 'James Di Fiore',
+  'Di Nizio Nick': 'Nick Di Nizio',
+  'Di Paola Rocco': 'Rocco Di Paola',
+  'Gondor Berkovits Magda': 'Magda Gondor Berkovits',
+  'Khan Nawab Salim': 'Nawab Salim Khan',
+  'Li Preti Peter': 'Peter Li Preti',
+  'Lindsay Luby Gloria': 'Gloria Lindsay Luby',
+  'Mac Donald Chris': 'Chris Mac Donald',
+  'Otoya Salazar Sergio': 'Sergio Otoya Salazar',
+  'Van Altenberg Jackelyn': 'Jackelyn Van Altenberg',
+  'Van Eyck Christina': 'Christina Van Eyck',
+  'Van Zandwijk James': 'James Van Zandwijk',
+  'Vintila Ion Gelu': 'Ion Gelu Vintila',
+  'Yagiz Mehmet Ali': 'Mehmet Ali Yagiz',
+  'Ledrew Stephen': 'Stephen LeDrew',
 };
 
+// Before 2018 names are in capitals ("HALL SUZAN").
+const titleCase = (s) => s.toLowerCase()
+  .replace(/(^|[\s'’-])(\p{L})/gu, (_, sep, ch) => sep + ch.toUpperCase())
+  .replace(/\bMc(\p{L})/gu, (_, ch) => `Mc${ch.toUpperCase()}`);
+
 function givenNameFirst(listed) {
-  const name = listed.replace(/\s+/g, ' ').trim();
+  let name = listed.replace(/\s+/g, ' ').trim();
+  if (name === name.toUpperCase()) name = titleCase(name);
   if (NAME_OVERRIDES[name]) return NAME_OVERRIDES[name];
   const words = name.split(' ');
   if (words.length > 2) console.warn(`  no override for "${name}", guessing the surname is "${words[0]}"`);
@@ -163,6 +242,7 @@ function colIndex(ref) {
 
 // Returns { sheetName: rows[][] } with cells as numbers or strings.
 function readWorkbook(file) {
+  if (file.endsWith('.json')) return JSON.parse(fs.readFileSync(file, 'utf8'));
   const get = readZip(file);
   const shared = [...(get('xl/sharedStrings.xml') ?? '').matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => textOf(m[1]));
   const rels = new Map(
@@ -216,26 +296,26 @@ function build(election) {
   const readResults = (file, onlyWard) => {
     const sheets = readWorkbook(path.join(DATA_DIR, file));
     for (const [sheetName, rows] of Object.entries(sheets)) {
-      const wardMatch = sheetName.match(/^Ward (\d+)$/);
+      const wardMatch = sheetName.match(/^Ward ?(\d+)$/);
       if (!wardMatch) continue;
       const ward = Number(wardMatch[1]);
       if (onlyWard && ward !== onlyWard) continue;
       for (const key of [...pollVotes.keys()]) if (key.startsWith(`${ward}-`)) pollVotes.delete(key);
       hasLtcPoll.delete(ward);
       const title = String(rows[0][0]).trim();
-      const name = title.replace(/^City Ward \d+\s*/, '');
+      const name = election.wardNames?.[ward - 1] ?? title.replace(/^City Ward \d+\s*/, '');
       const header = rows.find((r) => r[0] === 'Subdivision');
       const totalsAt = rows.findIndex((r) => typeof r[0] === 'string' && /Totals$/.test(r[0]));
-      // Candidate rows sit between the office label row (just under the header)
-      // and the totals row.
-      const candRows = rows.slice(rows.indexOf(header) + 2, totalsAt).filter((r) => r[0]);
       const cols = [];
       let totalCol = -1;
       header.forEach((h, j) => {
-        if (j === 0 || h == null) return;
+        if (j === 0 || h == null || h === '') return;
         if (h === 'Total') totalCol = j;
         else cols.push([j, Number(h)]);
       });
+      // Candidate rows sit between the header and the totals row; from 2018
+      // an office label row with no votes comes first.
+      const candRows = rows.slice(rows.indexOf(header) + 1, totalsAt).filter((r) => r[0] && typeof r[totalCol] === 'number');
 
       // Each ward's candidates ordered by their ward total, so index 0 is the
       // ward's winner and the page can colour by finishing position.
@@ -255,7 +335,7 @@ function build(election) {
       for (const key of Object.keys(special)) special[key] = ranked.map(() => 0);
       for (const [j, sub] of cols) {
         const votes = ranked.map((c) => Number(c.row[j]) || 0);
-        const kind = SPECIAL[sub];
+        const kind = (election.special ?? SPECIAL)[sub];
         if (sub === 96) hasLtcPoll.add(ward);
         if (kind) votes.forEach((v, i) => { special[kind][i] += v; });
         else pollVotes.set(`${ward}-${sub}`, votes);

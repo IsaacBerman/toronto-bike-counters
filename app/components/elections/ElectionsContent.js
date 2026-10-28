@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
-  RACES, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
+  RACES, ELECTIONS, OFFICES, raceFor, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
   SWING_BINS, TURNOUT_BREAKS, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets, LiveStatus } from './live';
@@ -61,6 +61,15 @@ const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(
 function prepare(data) {
   const isMayor = data.id.startsWith('mayor');
   const cityTotals = new Map();
+  // The 44 wards came in pairs sharing a name, so those need their number.
+  const names = Object.values(data.wards).map((w) => w.name);
+  for (const [w, ward] of Object.entries(data.wards)) {
+    ward.title = names.indexOf(ward.name) !== names.lastIndexOf(ward.name) ? `Ward ${w} ${ward.name}` : ward.name;
+  }
+  // Vote types this race reported: no mail-in before 2022, no advance live.
+  const voteTypes = VOTE_TYPES.filter((t) => ['day', 'all'].includes(t.value)
+    || Object.values(data.wards).some((w) => w.special?.[t.value]));
+  const hasLtc = Boolean(data.polls?.features.some((f) => f.properties.ltc));
   for (const ward of Object.values(data.wards)) {
     ward.cand.forEach((c, i) => cityTotals.set(c, (cityTotals.get(c) ?? 0) + ward.totals[i]));
     ward.allVotes = sum(ward.totals);
@@ -104,7 +113,7 @@ function prepare(data) {
   const offMap = sum(Object.values(data.wards).map((w) => w.offMap));
   const allVotes = sum(Object.values(data.wards).map((w) => w.allVotes));
   const unmapped = sum(Object.values(data.wards).map((w) => w.unmapped));
-  return { isMayor, cityRanked, citySlot, slotOrder, slotOf, palette, offMap, unmapped, allVotes };
+  return { isMayor, cityRanked, citySlot, slotOrder, slotOf, palette, offMap, unmapped, allVotes, voteTypes, hasLtc };
 }
 
 const colorOfSlot = (slot, palette = SLOT_COLORS) => (slot >= 0 ? palette[slot] : OTHER_COLOR);
@@ -117,33 +126,23 @@ export default function ElectionsContent() {
     ? searchParams.get('race')
     : 'mayor-2026';
   const initialWard = Number(searchParams.get('ward'));
+  const initialWards = RACES.find((r) => r.id === initialRace).wards;
   const initialVotes = VOTE_TYPES.some((t) => t.value === searchParams.get('votes')) ? searchParams.get('votes') : 'day';
   const initialWardLevel = searchParams.get('by') === 'ward';
 
   const [raceId, setRaceId] = useState(initialRace);
+  const race = RACES.find((r) => r.id === raceId);
   const [cache, setCache] = useState({});
   const [error, setError] = useState(null);
   const [viewPick, setView] = useState('leader'); // 'leader' | 'share' | 'swing'
-  // Swing only exists for the live mayor's race, which has a 2023 to swing from.
   // Swing only exists for the live mayor's race, which has a 2023 to swing from;
   // turnout only for the live races, the only ones with official elector
   // counts by ward (the boundary files' counts are off for 2022 and 2023).
   const view = (viewPick === 'swing' && raceId !== 'mayor-2026')
-    || (viewPick === 'turnout' && !RACES.find((r) => r.id === raceId)?.live) ? 'leader' : viewPick;
+    || (viewPick === 'turnout' && !race.live) ? 'leader' : viewPick;
   const [votesPick, setVotes] = useState(initialVotes);
-  // Past races can be shown ward by ward instead of poll by poll.
-  const [wardLevel, setWardLevel] = useState(initialWardLevel);
   // Live results are ward totals only, with no split by how people voted.
-  const isLive = Boolean(RACES.find((r) => r.id === raceId)?.live);
-  const votes = isLive ? 'all' : votesPick;
-  const byWard = votes !== 'day' || wardLevel;
-  // Mayor: a candidate index, per race (each has its own candidate list).
-  // Council: a finishing position in each ward.
-  const [shareTarget, setShareTarget] = useState({ council: 0 });
-  const [selectedWard, setSelectedWard] = useState(Number.isInteger(initialWard) && initialWard >= 1 && initialWard <= 25 ? initialWard : null);
-  const [focusWard, setFocusWard] = useState(selectedWard ? { ward: selectedWard } : null);
-  const [selectedPoll, setSelectedPoll] = useState(null);
-
+  const isLive = Boolean(race.live);
   const live = useLiveResults(isLive);
   const outlines = cache.wards;
   const liveData = useMemo(() => {
@@ -152,8 +151,20 @@ export default function ElectionsContent() {
     for (const d of Object.values(sets)) d.meta = prepare(d);
     return sets;
   }, [live.feed, outlines]);
-
+  // Past races can be shown ward by ward instead of poll by poll.
+  const [wardLevel, setWardLevel] = useState(initialWardLevel);
   const data = isLive ? liveData?.[raceId] : cache[raceId];
+  // A vote type this race didn't have (mail-in before 2022) reads as election day.
+  const votes = isLive ? 'all'
+    : !data || data.meta.voteTypes.some((t) => t.value === votesPick) ? votesPick : 'day';
+  const byWard = votes !== 'day' || wardLevel;
+  // Mayor: a candidate index, per race (each has its own candidate list).
+  // Council: a finishing position in each ward.
+  const [shareTarget, setShareTarget] = useState({ council: 0 });
+  const [selectedWard, setSelectedWard] = useState(Number.isInteger(initialWard) && initialWard >= 1 && initialWard <= initialWards ? initialWard : null);
+  const [focusWard, setFocusWard] = useState(selectedWard ? { ward: selectedWard } : null);
+  const [selectedPoll, setSelectedPoll] = useState(null);
+
 
   // The needle compares Chow's live ward margins with her 2023 ones.
   const showNeedle = raceId === 'mayor-2026';
@@ -331,7 +342,7 @@ export default function ElectionsContent() {
       const votesCast = sum(ward.totals);
       const done = ward.polls > 0 && ward.pollsReceived >= ward.polls;
       return `<div style="font-size:12px">
-        <div style="font-weight:700;margin-bottom:4px">${escapeHtml(ward.name)}</div>
+        <div style="font-weight:700;margin-bottom:4px">${escapeHtml(ward.title)}</div>
         ${ward.electors ? `<div><b>${pct(votesCast, ward.electors)}</b> turnout${done ? '' : ' so far'}</div>
         <div style="opacity:0.7">${fmt(votesCast)} of ${fmt(ward.electors)} eligible voters</div>` : '<div style="opacity:0.7">No elector count</div>'}
         ${reporting}
@@ -342,7 +353,7 @@ export default function ElectionsContent() {
       const sgn = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}`;
       const last = (name) => escapeHtml(name.split(' ').slice(-1)[0]);
       return `<div style="font-size:12px">
-        <div style="font-weight:700;margin-bottom:4px">${escapeHtml(data.wards[w].name)}</div>
+        <div style="font-weight:700;margin-bottom:4px">${escapeHtml(data.wards[w].title)}</div>
         ${s ? `<table style="border-collapse:collapse;font-variant-numeric:tabular-nums">
           <tr><td style="padding-right:10px">Chow over ${last(s.rivalNow)}, now</td><td style="text-align:right">${sgn(s.now)}</td></tr>
           <tr><td style="padding-right:10px">Chow over ${last(s.rivalThen)}, 2023</td><td style="text-align:right">${sgn(s.then)}</td></tr>
@@ -353,7 +364,7 @@ export default function ElectionsContent() {
     }
     const v = wardVotes(data.wards[w], votes);
     return `<div style="font-size:12px">
-      <div style="font-weight:700">${escapeHtml(data.wards[w].name)}</div>
+      <div style="font-weight:700">${escapeHtml(data.wards[w].title)}</div>
       ${data.wards[w].note ? `<div style="opacity:0.7">${escapeHtml(data.wards[w].note)}</div>` : ''}
       <div style="margin-bottom:4px"></div>
       ${resultRows(w, v)}
@@ -383,9 +394,18 @@ export default function ElectionsContent() {
 
   const switchRace = (id) => {
     if (id === raceId) return;
+    // Ward numbers mean different places in the 44- and 25-ward cities.
+    const keepWard = RACES.find((r) => r.id === id).wards === race.wards ? selectedWard : null;
     setRaceId(id);
+    setSelectedWard(keepWard);
     setSelectedPoll(null);
-    setFocusWard(selectedWard ? { ward: selectedWard } : null);
+    setFocusWard(keepWard ? { ward: keepWard } : null);
+  };
+  // 2023 had no council race, so picking it shows the mayor's.
+  const pickElection = (election) => switchRace((raceFor(election, race.office) ?? raceFor(election, 'mayor')).id);
+  const pickOffice = (office) => {
+    const r = raceFor(race.election, office);
+    if (r) switchRace(r.id);
   };
 
   if (error) {
@@ -400,8 +420,6 @@ export default function ElectionsContent() {
     );
   }
 
-  const race = RACES.find((r) => r.id === raceId);
-
   return (
     <div className="min-h-screen pt-4 pb-10" style={{ background: 'var(--paper)' }}>
       <div className="container mx-auto px-4 max-w-7xl">
@@ -412,11 +430,22 @@ export default function ElectionsContent() {
         </div>
 
         <div className="mb-4 dd-panel-ruled p-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="flex items-center gap-2">
+            <label htmlFor="electionSelect" className="dd-kicker" style={{ color: 'var(--ink-2)' }}>Election</label>
+            <select
+              id="electionSelect"
+              className="dd-select"
+              value={race.election}
+              onChange={(e) => pickElection(e.target.value)}
+            >
+              {ELECTIONS.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+            </select>
+          </div>
           <Segmented
             label="Race"
-            value={raceId}
-            options={RACES.map((r) => ({ value: r.id, label: r.short }))}
-            onChange={switchRace}
+            value={race.office}
+            options={OFFICES.map((o) => ({ ...o, disabled: !raceFor(race.election, o.value) }))}
+            onChange={pickOffice}
           />
           <Segmented
             label="Show"
@@ -429,7 +458,7 @@ export default function ElectionsContent() {
             ]}
             onChange={setView}
           />
-          {!isLive && <Segmented label="Votes" value={votes} options={VOTE_TYPES} onChange={switchVotes} />}
+          {!isLive && <Segmented label="Votes" value={votes} options={meta?.voteTypes ?? VOTE_TYPES} onChange={switchVotes} />}
           {!isLive && (
             // Advance and mail-in votes only exist by ward, so the box reads
             // ticked for those. Ticking it shows every vote by ward; unticking
@@ -591,9 +620,14 @@ function Segmented({ label, value, options, onChange }) {
               key={o.value}
               type="button"
               aria-pressed={on}
+              disabled={o.disabled}
               onClick={() => onChange(o.value)}
-              className="px-3 py-1.5 text-sm font-semibold transition-colors whitespace-nowrap"
-              style={{ background: on ? 'var(--ink)' : 'var(--panel)', color: on ? '#fff' : 'var(--ink-2)' }}
+              className="px-3 py-1.5 text-sm font-semibold transition-colors whitespace-nowrap disabled:cursor-not-allowed"
+              style={{
+                background: on ? 'var(--ink)' : 'var(--panel)',
+                color: on ? '#fff' : o.disabled ? 'var(--ink-3)' : 'var(--ink-2)',
+                opacity: o.disabled ? 0.5 : 1,
+              }}
             >
               {o.label}
             </button>
@@ -691,7 +725,7 @@ function Legend({ view, votes, byWard, isMayor, data, breaks, ramp, targetLabel 
           ))}
           <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} />Anyone else</span>
           <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} opacity={0.25} />Tie</span>
-          {isMayor && !byWard && <span className="flex items-center gap-1.5"><Swatch color={NO_RESULT_COLOR} opacity={0.5} />Care home, no separate result</span>}
+          {data.meta.hasLtc && !byWard && <span className="flex items-center gap-1.5"><Swatch color={NO_RESULT_COLOR} opacity={0.5} />Care home, no separate result</span>}
         </div>
       </div>
       <div>
@@ -791,7 +825,7 @@ function WardCard({ data, ward: w, votes }) {
   return (
     <div className="dd-panel">
       <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
-        <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{ward.name}</h2>
+        <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{ward.title}</h2>
         <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
           {data.live
             ? `${fmt(ward.pollsReceived)} of ${fmt(ward.polls)} polls reporting · ${fmt(ward.allVotes)} votes${ward.electors ? ` · ${pct(ward.allVotes, ward.electors)} turnout` : ''}`

@@ -5,7 +5,7 @@ import ElectionsContent from '../components/elections/ElectionsContent';
 const TITLE = '2026 Toronto Election Results: Live Mayor and Council Map';
 const DESCRIPTION =
   'Live unofficial results for the 2026 Toronto mayor and council races by ward, with a projection of who will win, '
-  + 'vote share, swing from 2023 and turnout. Plus poll-by-poll maps of the 2023, 2022 and 2018 races.';
+  + 'vote share, swing from 2023 and turnout. Plus poll-by-poll maps of every mayor and council race since 2006.';
 
 export const metadata = {
   title: TITLE,
@@ -37,8 +37,8 @@ export default function ElectionsPage() {
             <p className="max-w-2xl" style={{ color: 'var(--ink-2)' }}>
               Live unofficial results for the 2026 Toronto mayor and council races, ward by ward, as the City
               reports them after polls close at 8 p.m. on October 26. With a projection of who will win, vote
-              share, swing from 2023 and turnout, plus poll-by-poll maps of the 2023 mayoral by-election and the
-              2022 and 2018 council races.
+              share, swing from 2023 and turnout, plus poll-by-poll maps of every mayor and council race since
+              2006.
             </p>
             <p className="mt-6 text-xl font-sans" style={{ color: 'var(--ink-3)' }}>Loading election results…</p>
           </div>

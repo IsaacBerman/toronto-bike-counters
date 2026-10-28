@@ -1,14 +1,38 @@
 // Shared colour and arithmetic for the election map, its legend and the side
 // panel, so all three agree on what a colour means.
 
+// Each election (picked from a menu) and the offices it decided (a toggle).
+// The 2023 by-election was for mayor only. Before 2018 the city had 44 wards.
+export const ELECTIONS = [
+  { id: '2026', label: '2026' },
+  { id: '2023', label: '2023 by-election' },
+  { id: '2022', label: '2022' },
+  { id: '2018', label: '2018' },
+  { id: '2014', label: '2014', wards: 44 },
+  { id: '2010', label: '2010', wards: 44 },
+  { id: '2006', label: '2006', wards: 44 },
+];
+
+export const OFFICES = [
+  { value: 'mayor', label: 'Mayor' },
+  { value: 'council', label: 'Council' },
+];
+
 export const RACES = [
   // Live on election night, October 26, 2026: ward totals from the City's feed.
-  { id: 'mayor-2026', label: '2026 Mayoral Election', short: '2026 Mayor', live: true },
-  { id: 'council-2026', label: '2026 City Council', short: '2026 Council', live: true },
-  { id: 'mayor-2023', label: '2023 Mayoral By-election', short: '2023 Mayor' },
-  { id: 'council-2022', label: '2022 City Council', short: '2022 Council' },
-  { id: 'council-2018', label: '2018 City Council', short: '2018 Council' },
-];
+  { id: 'mayor-2026', label: '2026 Mayoral Election', live: true },
+  { id: 'council-2026', label: '2026 City Council', live: true },
+  { id: 'mayor-2023', label: '2023 Mayoral By-election' },
+  ...['2022', '2018', '2014', '2010', '2006'].flatMap((y) => [
+    { id: `mayor-${y}`, label: `${y} Mayoral Election` },
+    { id: `council-${y}`, label: `${y} City Council` },
+  ]),
+].map((r) => {
+  const [office, election] = r.id.split('-');
+  return { ...r, office, election, wards: ELECTIONS.find((e) => e.id === election).wards ?? 25 };
+});
+
+export const raceFor = (election, office) => RACES.find((r) => r.election === election && r.office === office);
 
 // The first three slots of the validated categorical palette, which are the
 // only ones that stay distinguishable from every other slot on a choropleth
