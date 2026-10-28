@@ -7,7 +7,7 @@ import {
   RACES, ELECTIONS, OFFICES, raceFor, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
   SWING_BINS, TURNOUT_BREAKS, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
-import { useLiveResults, liveDatasets, LiveStatus } from './live';
+import { useLiveResults, liveDatasets } from './live';
 import { computeNeedle, Needle, NEEDLE } from './needle';
 import { applyIncumbents } from './incumbents';
 
@@ -520,7 +520,8 @@ export default function ElectionsContent() {
           </div>
         </div>
 
-        {isLive && <LiveStatus data={data} mayor={liveData?.['mayor-2026']} fetchedAt={live.fetchedAt} seq={live.feed?.seq} error={live.error} />}
+        {/* On election night, LiveStatus (from ./live) goes here: polls
+            reporting, the headline totals and when the feed last updated. */}
 
         {/* On phones the dial comes first, above the map, so the headline is
             the first thing on screen; on desktop it heads the right column. */}
