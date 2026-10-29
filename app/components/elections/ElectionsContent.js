@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
   RACES, ELECTIONS, OFFICES, raceFor, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
-  SWING_BINS, TURNOUT_BREAKS, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
+  SWING_BINS, turnoutBreaks, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets } from './live';
 import { computeNeedle, Needle, NEEDLE } from './needle';
@@ -288,12 +288,16 @@ export default function ElectionsContent() {
     return { now, then, swing: now - then, rivalThen: base.rivalName ?? 'Bailão', rivalNow };
   }, [data, baseline, needle]);
 
+  const tBreaks = useMemo(() => (data && view === 'turnout'
+    ? turnoutBreaks(Object.values(data.wards).map((w) => (w.electors ? sum(w.totals) / w.electors : 0)))
+    : null), [data, view]);
+
   const wardStyleFor = useCallback((w) => {
     if (view === 'turnout') {
       const ward = data.wards[w];
       const votesCast = sum(ward.totals);
       return ward.electors && votesCast
-        ? { fillColor: shareColor(votesCast / ward.electors, TURNOUT_BREAKS), fillOpacity: 0.85 }
+        ? { fillColor: shareColor(votesCast / ward.electors, tBreaks), fillOpacity: 0.85 }
         : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
     }
     if (view === 'swing') {
@@ -301,7 +305,7 @@ export default function ElectionsContent() {
       return s ? { fillColor: swingColor(s.swing), fillOpacity: 0.85 } : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
     }
     return fillFor(w, wardVotes(data.wards[w], votes));
-  }, [view, wardSwing, fillFor, data, votes]);
+  }, [view, wardSwing, fillFor, data, votes, tBreaks]);
 
   // Top three in a set of votes, plus the share view's candidate if they're
   // further down.
@@ -560,6 +564,7 @@ export default function ElectionsContent() {
                 isMayor={isMayor}
                 data={data}
                 breaks={breaks}
+                tBreaks={tBreaks}
                 ramp={shareRamp}
                 targetLabel={isMayor ? data.candidates[target] : RANK_LABELS[target]?.toLowerCase()}
               />
@@ -638,7 +643,7 @@ const Swatch = ({ color, opacity = 1 }) => (
   <span className="inline-block shrink-0 rounded-sm" style={{ width: 12, height: 12, background: color, opacity }} />
 );
 
-function Legend({ view, votes, byWard, isMayor, data, breaks, ramp, targetLabel }) {
+function Legend({ view, votes, byWard, isMayor, data, breaks, tBreaks, ramp, targetLabel }) {
   if (data.live && !data.meta.allVotes) {
     return <p className="mt-3 text-xs" style={{ color: 'var(--ink-3)' }}>Wards fill in as results are counted.</p>;
   }
@@ -654,7 +659,7 @@ function Legend({ view, votes, byWard, isMayor, data, breaks, ramp, targetLabel 
             <div key={c} className="flex flex-col items-start" style={{ width: 52 }}>
               <span className="block w-full" style={{ height: 12, background: c }} />
               <span className="text-xs mt-0.5" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>
-                {i === SHARE_RAMP.length - 1 ? `${pctRound(TURNOUT_BREAKS[i])}+` : pctRound(TURNOUT_BREAKS[i])}
+                {i === SHARE_RAMP.length - 1 ? `${pctRound(tBreaks[i])}+` : pctRound(tBreaks[i])}
               </span>
             </div>
           ))}

@@ -102,8 +102,25 @@ export function swingColor(swing) {
   return SWING_BINS.find((b) => swing < b.max)?.color ?? SWING_BINS[SWING_BINS.length - 1].color;
 }
 
-// Turnout, as a share of eligible voters, on the same light-to-dark ramp.
-export const TURNOUT_BREAKS = [0, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4];
+// Turnout, as a share of eligible voters, on the same light-to-dark ramp,
+// spanning the wards' actual range: from the lowest ward (rounded down) in
+// the smallest whole-point step that puts the highest ward in the darkest.
+export function turnoutBreaks(turnouts) {
+  const values = turnouts.filter((t) => t > 0);
+  if (!values.length) return SHARE_RAMP.map((_, i) => i * 0.05);
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const steps = [0.01, 0.02, 0.03, 0.04, 0.05, 0.1];
+  for (const step of steps) {
+    const start = Math.floor(lo / step) * step;
+    // The last step is open-ended ("56%+"), so the highest ward only has to
+    // fall below where an eighth step would start.
+    if (start + SHARE_RAMP.length * step > hi || step === steps[steps.length - 1]) {
+      return SHARE_RAMP.map((_, i) => start + i * step);
+    }
+  }
+  return null;
+}
 
 // A light-to-dark ramp in one candidate's colour, the same length as
 // SHARE_RAMP: tints toward white for small shares, the full colour (then a
