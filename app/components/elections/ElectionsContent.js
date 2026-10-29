@@ -773,10 +773,11 @@ function Legend({ view, votes, byWard, isMayor, data, breaks, tBreaks, ramp, tar
           ))}
         </tbody>
       </table>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5" style={{ color: 'var(--ink-2)' }}>
-        <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} opacity={0.25} />Tie</span>
-        {data.meta.hasLtc && !byWard && <span className="flex items-center gap-1.5"><Swatch color={NO_RESULT_COLOR} opacity={0.5} />Care home, no separate result</span>}
-      </div>
+      {data.meta.hasLtc && !byWard && (
+        <p className="flex items-center gap-1.5 mt-1.5" style={{ color: 'var(--ink-2)' }}>
+          <Swatch color={NO_RESULT_COLOR} opacity={0.5} />Care home, no separate result
+        </p>
+      )}
     </>
   );
 }
