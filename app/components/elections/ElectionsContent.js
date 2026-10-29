@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
-  RACES, ELECTIONS, OFFICES, raceFor, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
+  RACES, ELECTIONS, OFFICES, raceFor, applyRaceColors, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
   SWING_BINS, turnoutBreaks, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets } from './live';
@@ -72,6 +72,7 @@ function prepare(data) {
   const voteTypes = VOTE_TYPES.filter((t) => ['day', 'all'].includes(t.value)
     || Object.values(data.wards).some((w) => w.special?.[t.value]));
   const hasLtc = Boolean(data.polls?.features.some((f) => f.properties.ltc));
+  const hasElectors = Object.values(data.wards).every((w) => w.electors > 0);
   for (const ward of Object.values(data.wards)) {
     ward.cand.forEach((c, i) => cityTotals.set(c, (cityTotals.get(c) ?? 0) + ward.totals[i]));
     ward.allVotes = sum(ward.totals);
@@ -115,7 +116,7 @@ function prepare(data) {
   const offMap = sum(Object.values(data.wards).map((w) => w.offMap));
   const allVotes = sum(Object.values(data.wards).map((w) => w.allVotes));
   const unmapped = sum(Object.values(data.wards).map((w) => w.unmapped));
-  return { isMayor, cityRanked, citySlot, slotOrder, slotOf, palette, offMap, unmapped, allVotes, voteTypes, hasLtc };
+  return { isMayor, cityRanked, citySlot, slotOrder, slotOf, palette, offMap, unmapped, allVotes, voteTypes, hasLtc, hasElectors };
 }
 
 const colorOfSlot = (slot, palette = SLOT_COLORS) => (slot >= 0 ? palette[slot] : OTHER_COLOR);
@@ -136,14 +137,10 @@ export default function ElectionsContent() {
   const race = RACES.find((r) => r.id === raceId);
   const [cache, setCache] = useState({});
   const [error, setError] = useState(null);
-  const [viewPick, setView] = useState('leader'); // 'leader' | 'share' | 'swing'
-  // Swing only exists for the live mayor's race, which has a 2023 to swing from;
-  // turnout only for the live races, the only ones with official elector
-  // counts by ward (the boundary files' counts are off for 2022 and 2023).
-  const view = (viewPick === 'swing' && raceId !== 'mayor-2026')
-    || (viewPick === 'turnout' && !race.live) ? 'leader' : viewPick;
+  const [viewPick, setView] = useState('leader'); // 'leader' | 'share' | 'swing' | 'turnout'
   const [votesPick, setVotes] = useState(initialVotes);
-  // Live results are ward totals only, with no split by how people voted.
+  // A race marked live reads the City's election-night feed: ward totals
+  // only, with no split by how people voted. None is live between elections.
   const isLive = Boolean(race.live);
   const live = useLiveResults(isLive);
   const outlines = cache.wards;
@@ -156,8 +153,15 @@ export default function ElectionsContent() {
   // Past races can be shown ward by ward instead of poll by poll.
   const [wardLevel, setWardLevel] = useState(initialWardLevel);
   const data = isLive ? liveData?.[raceId] : cache[raceId];
+  // Swing only exists for 2026's mayor, which has a 2023 to swing from;
+  // turnout only where the City gave each ward's electors (2026, from its
+  // election-night feed; the boundary files' counts are off for 2022 and 2023).
+  const view = (viewPick === 'swing' && raceId !== 'mayor-2026')
+    || (viewPick === 'turnout' && !data?.meta.hasElectors) ? 'leader' : viewPick;
+  // Both compare whole wards on all their votes.
+  const wardOnlyView = view === 'swing' || view === 'turnout';
   // A vote type this race didn't have (mail-in before 2022) reads as election day.
-  const votes = isLive ? 'all'
+  const votes = isLive || wardOnlyView ? 'all'
     : !data || data.meta.voteTypes.some((t) => t.value === votesPick) ? votesPick : 'day';
   const byWard = votes !== 'day' || wardLevel;
   // Mayor: a candidate index, per race (each has its own candidate list).
@@ -168,24 +172,35 @@ export default function ElectionsContent() {
   const [selectedPoll, setSelectedPoll] = useState(null);
 
 
-  // The needle compares Chow's live ward margins with her 2023 ones.
+  // The needle compares Chow's ward margins on election night with her 2023
+  // ones. Live, it reads the feed; afterwards, the feed as it stood at the end
+  // of the count (night-2026.json), kept as an archive.
   const showNeedle = raceId === 'mayor-2026';
   const baseline = cache['needle-baseline'];
+  const night = isLive ? live.feed : cache['night-2026'];
   useEffect(() => {
-    if (!showNeedle || baseline) return undefined;
+    if (!showNeedle) return undefined;
+    const wanted = ['needle-baseline', ...(isLive ? [] : ['night-2026', 'wards'])].filter((f) => !cache[f]);
+    if (!wanted.length) return undefined;
     let cancelled = false;
-    fetch('/elections/needle-baseline.json')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((b) => { if (b && !cancelled) setCache((c) => ({ ...c, 'needle-baseline': b })); })
-      .catch(() => {});
+    for (const f of wanted) {
+      fetch(`/elections/${f}.json`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((b) => { if (b && !cancelled) setCache((c) => ({ ...c, [f]: b })); })
+        .catch(() => {});
+    }
     return () => { cancelled = true; };
-  }, [showNeedle, baseline]);
+  }, [showNeedle, isLive, cache]);
+  const nightMayor = useMemo(
+    () => (isLive ? liveData?.['mayor-2026'] : night && outlines ? liveDatasets(night, outlines)['mayor-2026'] : null),
+    [isLive, liveData, night, outlines]
+  );
   const needle = useMemo(
-    () => (showNeedle && baseline && data ? computeNeedle(baseline, data) : null),
-    [showNeedle, baseline, data]
+    () => (showNeedle && baseline && nightMayor ? computeNeedle(baseline, nightMayor) : null),
+    [showNeedle, baseline, nightMayor]
   );
 
-  // The live tabs need only the ward outlines; past races their own file.
+  // A live race needs only the ward outlines; every other race its own file.
   const fileId = isLive ? 'wards' : raceId;
   useEffect(() => {
     if (cache[fileId]) return undefined;
@@ -199,6 +214,7 @@ export default function ElectionsContent() {
         if (cancelled) return;
         if (d.id) {
           applyIncumbents(d, INCUMBENT_COLORS);
+          applyRaceColors(d);
           d.meta = prepare(d);
         }
         setCache((c) => ({ ...c, [fileId]: d }));
@@ -209,11 +225,11 @@ export default function ElectionsContent() {
 
   useEffect(() => {
     const q = new URLSearchParams({ race: raceId });
-    if (votes !== 'day' && !isLive) q.set('votes', votes);
+    if (votes !== 'day' && !isLive && !wardOnlyView) q.set('votes', votes);
     if (wardLevel && !isLive && votes === 'day') q.set('by', 'ward');
     if (selectedWard) q.set('ward', String(selectedWard));
     router.replace(`?${q.toString()}`, { scroll: false });
-  }, [raceId, selectedWard, votes, wardLevel, isLive, router]);
+  }, [raceId, selectedWard, votes, wardLevel, isLive, wardOnlyView, router]);
 
   const meta = data?.meta;
   const isMayor = raceId.startsWith('mayor');
@@ -346,7 +362,7 @@ export default function ElectionsContent() {
       : '';
     if (view === 'turnout') {
       const votesCast = sum(ward.totals);
-      const done = ward.polls > 0 && ward.pollsReceived >= ward.polls;
+      const done = !data.live || (ward.polls > 0 && ward.pollsReceived >= ward.polls);
       return `<div style="font-size:12px">
         <div style="font-weight:700;margin-bottom:4px">${escapeHtml(ward.title)}</div>
         ${ward.electors ? `<div><b>${pct(votesCast, ward.electors)}</b> turnout${done ? '' : ' so far'}</div>
@@ -462,12 +478,12 @@ export default function ElectionsContent() {
               { value: 'leader', label: 'Lead' },
               { value: 'share', label: 'Share' },
               ...(raceId === 'mayor-2026' ? [{ value: 'swing', label: 'Swing' }] : []),
-              ...(isLive ? [{ value: 'turnout', label: 'Turnout' }] : []),
+              ...(meta?.hasElectors ? [{ value: 'turnout', label: 'Turnout' }] : []),
             ]}
             onChange={setView}
           />
-          {!isLive && <Segmented label="Votes" value={votes} options={meta?.voteTypes ?? VOTE_TYPES} onChange={switchVotes} />}
-          {!isLive && (
+          {!isLive && !wardOnlyView && <Segmented label="Votes" value={votes} options={meta?.voteTypes ?? VOTE_TYPES} onChange={switchVotes} />}
+          {!isLive && !wardOnlyView && (
             // Advance and mail-in votes only exist by ward, so the box reads
             // ticked for those. Ticking it shows every vote by ward; unticking
             // goes back to the election-day poll map.
@@ -582,7 +598,7 @@ export default function ElectionsContent() {
               ? <CityCard data={data} votes={votes} />
               : <WardList data={data} votes={votes} onPick={pickWard} />)}
             {showNeedle && needle && (
-              <Needle archived needle={needle} history={live.feed?.needleHistory} seq={live.feed?.seq} reporting={liveData?.['mayor-2026']?.reporting} />
+              <Needle archived={!isLive} needle={needle} history={night?.needleHistory} seq={night?.seq} reporting={nightMayor?.reporting} />
             )}
           </div>
         </div>
@@ -600,7 +616,15 @@ export default function ElectionsContent() {
             <a href="https://open.toronto.ca/dataset/elections-voting-subdivisions/" target="_blank" rel="noopener noreferrer" className="dd-link-accent">
               City of Toronto Open Data Portal
             </a>
-            .
+            {race.election === '2026' ? (
+              <>
+                , except the 2026 boundaries, from the City&rsquo;s{' '}
+                <a href="https://gis.toronto.ca/arcgis/rest/services/cot_geospatial6/MapServer/10" target="_blank" rel="noopener noreferrer" className="dd-link-accent">
+                  map server
+                </a>
+                . Turnout uses the eligible voters the City reported on election night.
+              </>
+            ) : '.'}
           </p>
         </div>
       </div>
@@ -648,7 +672,7 @@ function Legend({ view, votes, byWard, isMayor, data, breaks, tBreaks, ramp, tar
     return <p className="mt-3 text-xs" style={{ color: 'var(--ink-3)' }}>Wards fill in as results are counted.</p>;
   }
   if (view === 'turnout') {
-    const done = data.reporting?.polls > 0 && data.reporting.pollsReceived >= data.reporting.polls;
+    const done = !data.live || (data.reporting?.polls > 0 && data.reporting.pollsReceived >= data.reporting.polls);
     return (
       <div className="mt-3">
         <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>

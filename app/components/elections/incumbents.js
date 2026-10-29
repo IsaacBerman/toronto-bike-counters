@@ -1,3 +1,5 @@
+import { INCUMBENTS_2026 } from './live-data';
+
 // Sitting councillors on past council ballots, by ward, so those maps can be
 // coloured like 2026's: incumbent, closest and second challengers, or an open
 // seat's leader. 2018 merged 44 wards into 25, so ten wards pitted two
@@ -11,6 +13,8 @@
 // ran.
 // Source: Wikipedia's 2003, 2006, 2018 and 2022 Toronto municipal election results.
 export const PAST_INCUMBENTS = {
+  // The councillors who ran again in 2026, as the election-night map had them.
+  'council-2026': Object.fromEntries(Object.entries(INCUMBENTS_2026).map(([w, name]) => [w, [name]])),
   'council-2006': {
     1: ['Suzan Hall'],
     2: ['Rob Ford'],

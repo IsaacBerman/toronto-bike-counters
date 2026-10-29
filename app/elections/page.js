@@ -2,10 +2,10 @@ import { Suspense } from 'react';
 import SiteHeader from '../components/site-header';
 import ElectionsContent from '../components/elections/ElectionsContent';
 
-const TITLE = '2026 Toronto Election Results: Live Mayor and Council Map';
+const TITLE = '2026 Toronto Election Results: Mayor and Council Map, Poll by Poll';
 const DESCRIPTION =
-  'Live unofficial results for the 2026 Toronto mayor and council races by ward, with a projection of who will win, '
-  + 'vote share, swing from 2023 and turnout. Plus poll-by-poll maps of every mayor and council race since 2006.';
+  'Official 2026 Toronto mayor and council results, poll by poll and ward by ward: vote share, swing from 2023, '
+  + 'turnout and advance and mail-in votes. Plus every mayor and council race since 2006.';
 
 export const metadata = {
   title: TITLE,
@@ -35,10 +35,9 @@ export default function ElectionsPage() {
               2026 Toronto Election Results
             </h1>
             <p className="max-w-2xl" style={{ color: 'var(--ink-2)' }}>
-              Live unofficial results for the 2026 Toronto mayor and council races, ward by ward, as the City
-              reports them after polls close at 8 p.m. on October 26. With a projection of who will win, vote
-              share, swing from 2023 and turnout, plus poll-by-poll maps of every mayor and council race since
-              2006.
+              Official results for the 2026 Toronto mayor and council races, poll by poll and ward by ward,
+              with vote share, swing from 2023, turnout, and advance and mail-in votes. Plus every mayor and
+              council race since 2006.
             </p>
             <p className="mt-6 text-xl font-sans" style={{ color: 'var(--ink-3)' }}>Loading election results…</p>
           </div>

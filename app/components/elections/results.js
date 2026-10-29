@@ -20,9 +20,11 @@ export const OFFICES = [
 ];
 
 export const RACES = [
-  // Live on election night, October 26, 2026: ward totals from the City's feed.
-  { id: 'mayor-2026', label: '2026 Mayoral Election', live: true },
-  { id: 'council-2026', label: '2026 City Council', live: true },
+  // Poll by poll since the City certified the results. On election night
+  // these were `live: true`, reading ward totals from the City's feed; mark
+  // a race live again to do the same next time.
+  { id: 'mayor-2026', label: '2026 Mayoral Election' },
+  { id: 'council-2026', label: '2026 City Council' },
   { id: 'mayor-2023', label: '2023 Mayoral By-election' },
   { id: 'council-2023', label: '2023–2025 Council By-elections' },
   ...['2022', '2018', '2014', '2010', '2006'].flatMap((y) => [
@@ -56,6 +58,17 @@ export const CANDIDATE_COLORS_2026 = {
   'Chris Alexander': '#54c4cc',
 };
 export const NO_RESULT_COLOR = '#c9c7bc';
+
+// Races drawn in their campaigns' colours rather than the slot palette.
+export const RACE_COLORS = { 'mayor-2026': CANDIDATE_COLORS_2026 };
+
+// Pins a race's candidates to their campaign colours, in place.
+export function applyRaceColors(data) {
+  const colors = RACE_COLORS[data.id];
+  if (!colors) return;
+  data.pinned = Object.keys(colors);
+  data.palette = Object.values(colors);
+}
 
 // Fill opacity by the leader's share of the poll: a deeper fill is a more
 // lopsided poll.

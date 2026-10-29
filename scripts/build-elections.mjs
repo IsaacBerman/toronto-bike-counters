@@ -1,7 +1,13 @@
 // Join the City's poll-by-poll election results to its voting subdivision
 // boundaries, for the elections page.
 //
-// Input:  data/2022-results/2022_Toronto_Poll_By_Poll_Councillor.xlsx
+// Input:  data/2026-results/2026-results/Poll_By_Poll_{Mayor,Councillor}.xlsx
+//         data/voting-subdivisions-2026 - 4326.geojson (from the City's GIS
+//         server: gis.toronto.ca/arcgis/rest/services/cot_geospatial6/MapServer/10,
+//         "the most current" election's subdivisions, effective 2026-09-28)
+//         public/elections/night-2026.json (the election-night feed as it
+//         stood at the end of the count, for each ward's registered electors)
+//         data/2022-results/2022_Toronto_Poll_By_Poll_Councillor.xlsx
 //         data/voting-subdivisions-2022 - 4326.geojson
 //         data/2023 Office of the Mayor (1).xlsx
 //         data/voting-subdivisions-2023 - 4326 (1).geojson
@@ -52,6 +58,16 @@ const WARD_NAMES_44 = [
 ].flatMap((n) => [n, n]);
 
 const ELECTIONS = [
+  ...['mayor', 'council'].map((office) => ({
+    id: `${office}-2026`,
+    title: office === 'mayor' ? '2026 Mayoral Election' : '2026 City Council',
+    date: '2026-10-26',
+    results: `2026-results/2026-results/Poll_By_Poll_${office === 'mayor' ? 'Mayor' : 'Councillor'}.xlsx`,
+    boundaries: 'voting-subdivisions-2026 - 4326.geojson',
+    // Turnout needs each ward's registered electors, which the poll-by-poll
+    // files don't give; the City's election-night feed did.
+    electors: office,
+  })),
   {
     id: 'council-2022',
     title: '2022 City Council',
@@ -177,6 +193,18 @@ const NAME_OVERRIDES = {
   'Ledrew Stephen': 'Stephen LeDrew',
   'Chernos Lin Rachel': 'Rachel Chernos Lin',
   'Moreno Garcia Jose': 'Jose Moreno Garcia',
+  // 2026, spelled as the City's election-night feed spelled them.
+  'Di Giorgio Daniel': 'Daniel Di Giorgio',
+  'De Marco Peter': 'Peter De Marco',
+  'Noor Mohamed Hassan Mubarak': 'Hassan Mubarak Noor Mohamed',
+  'Nisha Kumari': 'Nisha Kumari',
+  "S'ree Jr Kannan": "Kannan S'ree Jr",
+  'Parker Odessa Paloma': 'Odessa Paloma Parker',
+  'Tong Kuo Yu': 'Kuo Yu Tong',
+  'McNally Diana Chan': 'Diana Chan McNally',
+  'Kavod Jethro Adir': 'Jethro Adir Kavod',
+  'Ali Syeda Jaana': 'Syeda Jaana Ali',
+  'Reza Mohammad Ali': 'Mohammad Ali Reza',
 };
 
 // Before 2018 names are in capitals ("HALL SUZAN").
@@ -430,6 +458,12 @@ function build(election) {
     pollVotes.clear();
   }
   if (pollVotes.size) throw new Error(`${election.id}: results with no boundary: ${[...pollVotes.keys()].join(', ')}`);
+
+  if (election.electors) {
+    const night = JSON.parse(fs.readFileSync(path.join(OUT_DIR, 'night-2026.json'), 'utf8'));
+    const feedWards = election.electors === 'mayor' ? night.mayor.wards : night.council;
+    for (const w of feedWards) if (wards[w.num]) wards[w.num].electors = w.totalVoters;
+  }
 
   const out = {
     id: election.id,

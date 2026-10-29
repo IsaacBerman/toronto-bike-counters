@@ -9,7 +9,7 @@ import { ADVANCE_RATE_2026 } from './advance-2026';
 // Rachel Chernos Lin (Ward 15) and Neethan Shan (Ward 25). Wards 4, 11, 14
 // and 19 are open seats. The live council map keeps each incumbent in one colour all
 // night rather than colouring by whoever is ahead.
-const INCUMBENTS_2026 = {
+export const INCUMBENTS_2026 = {
   1: 'Vincent Crisanti',
   2: 'Stephen Holyday',
   3: 'Amber Morley',

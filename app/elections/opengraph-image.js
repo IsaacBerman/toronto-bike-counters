@@ -34,7 +34,7 @@ export default function OgImage() {
             2026 Toronto Election Results
           </div>
           <div style={{ fontSize: '34px', color: '#57554b', marginTop: '24px', maxWidth: '980px' }}>
-            Live mayor and council results by ward, with a projection of who will win.
+            Mayor and council results, poll by poll and ward by ward.
           </div>
           <div style={{ display: 'flex', marginTop: '36px', height: '14px', width: '560px' }}>
             <div style={{ flex: 1, background: CHOW }} />
