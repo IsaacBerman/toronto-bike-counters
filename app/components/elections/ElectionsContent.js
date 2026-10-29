@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
   RACES, ELECTIONS, OFFICES, raceFor, applyRaceColors, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
-  SWING_BINS, turnoutBreaks, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
+  SWING_BINS, SCALE_OPACITY, turnoutBreaks, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets } from './live';
 import { computeNeedle, Needle, NEEDLE } from './needle';
@@ -275,7 +275,7 @@ export default function ElectionsContent() {
     if (view === 'share') {
       const pos = targetPos(w);
       const share = pos >= 0 ? (v[pos] ?? 0) / total : 0;
-      return { fillColor: shareColor(share, breaks, shareRamp), fillOpacity: 0.85 };
+      return { fillColor: shareColor(share, breaks, shareRamp), fillOpacity: SCALE_OPACITY };
     }
     const lead = pollLeader(v);
     if (lead < 0) return { fillColor: OTHER_COLOR, fillOpacity: 0.25 };
@@ -313,12 +313,12 @@ export default function ElectionsContent() {
       const ward = data.wards[w];
       const votesCast = sum(ward.totals);
       return ward.electors && votesCast
-        ? { fillColor: shareColor(votesCast / ward.electors, tBreaks), fillOpacity: 0.85 }
+        ? { fillColor: shareColor(votesCast / ward.electors, tBreaks), fillOpacity: SCALE_OPACITY }
         : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
     }
     if (view === 'swing') {
       const s = wardSwing(w);
-      return s ? { fillColor: swingColor(s.swing), fillOpacity: 0.85 } : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
+      return s ? { fillColor: swingColor(s.swing), fillOpacity: SCALE_OPACITY } : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
     }
     return fillFor(w, wardVotes(data.wards[w], votes));
   }, [view, wardSwing, fillFor, data, votes, tBreaks]);
