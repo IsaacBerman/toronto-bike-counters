@@ -373,8 +373,9 @@ export default function ElectionsContent() {
       <div style="margin-top:4px;opacity:0.7">${fmt(sum(v))} ${VOTE_NOUN[votes]}</div>${reporting}</div>`;
   }, [data, votes, resultRows, view, wardSwing]);
 
+  // Clicking the selected ward (or poll, below) again clears the selection.
   const handleSelectWard = useCallback((w) => {
-    setSelectedWard(w);
+    setSelectedWard((cur) => (cur === w ? null : w));
     setSelectedPoll(null);
   }, []);
 
@@ -384,9 +385,10 @@ export default function ElectionsContent() {
   };
 
   const handleSelectPoll = useCallback((p) => {
-    setSelectedPoll(p);
-    setSelectedWard(p.w);
-  }, []);
+    const same = selectedPoll && selectedPoll.w === p.w && selectedPoll.s === p.s;
+    setSelectedPoll(same ? null : p);
+    setSelectedWard(same ? null : p.w);
+  }, [selectedPoll]);
 
   const pickWard = (ward) => {
     setSelectedWard(ward);
