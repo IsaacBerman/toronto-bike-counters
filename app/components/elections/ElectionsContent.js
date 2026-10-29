@@ -587,14 +587,12 @@ export default function ElectionsContent() {
               >
                 <Legend
                   view={view}
-                  votes={votes}
                   byWard={byWard}
                   isMayor={isMayor}
                   data={data}
                   breaks={breaks}
                   tBreaks={tBreaks}
                   ramp={shareRamp}
-                  targetLabel={isMayor ? data.candidates[target] : RANK_LABELS[target]?.toLowerCase()}
                 />
               </div>
             )}
@@ -681,10 +679,6 @@ const Swatch = ({ color, opacity = 1, width = 14 }) => (
   <span className="inline-block shrink-0 rounded-sm" style={{ width, height: 12, background: color, opacity }} />
 );
 
-const LegendTitle = ({ children }) => (
-  <p className="font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>{children}</p>
-);
-
 // A light-to-dark ramp with a value under each step.
 function RampKey({ colors, labels, width = 34 }) {
   return (
@@ -699,41 +693,28 @@ function RampKey({ colors, labels, width = 34 }) {
   );
 }
 
-function Legend({ view, votes, byWard, isMayor, data, breaks, tBreaks, ramp, targetLabel }) {
+function Legend({ view, byWard, isMayor, data, breaks, tBreaks, ramp }) {
   if (data.live && !data.meta.allVotes) {
     return <p style={{ color: 'var(--ink-3)' }}>Wards fill in as results are counted.</p>;
   }
   const rampLabels = (b) => b.map((x, i) => (i === b.length - 1 ? `${pctRound(x)}+` : pctRound(x)));
   if (view === 'turnout') {
-    const done = !data.live || (data.reporting?.polls > 0 && data.reporting.pollsReceived >= data.reporting.polls);
-    return (
-      <>
-        <LegendTitle>Turnout{done ? '' : ' so far'}</LegendTitle>
-        <RampKey colors={SHARE_RAMP} labels={rampLabels(tBreaks)} />
-      </>
-    );
+    return <RampKey colors={SHARE_RAMP} labels={rampLabels(tBreaks)} />;
   }
   if (view === 'swing') {
     return (
       <>
-        <LegendTitle>Swing in Chow&rsquo;s margin since 2023, points</LegendTitle>
         <RampKey colors={SWING_BINS.map((b) => b.color)} labels={SWING_BINS.map((b) => b.label)} width={30} />
         <div className="flex justify-between mt-0.5" style={{ width: 32 * 7 - 2, color: 'var(--ink-2)' }}>
-          <span>&larr; Away</span>
-          <span>Toward &rarr;</span>
+          <span>&larr; From Chow</span>
+          <span style={{ color: 'var(--ink-3)' }}>vs 2023</span>
+          <span>To Chow &rarr;</span>
         </div>
       </>
     );
   }
   if (view === 'share') {
-    return (
-      <>
-        <LegendTitle>
-          {isMayor ? `${targetLabel}'s` : `The ${targetLabel}'s`} share of {byWard ? `each ward's ${VOTE_NOUN[votes]}` : 'each poll'}
-        </LegendTitle>
-        <RampKey colors={ramp} labels={rampLabels(breaks)} />
-      </>
-    );
+    return <RampKey colors={ramp} labels={rampLabels(breaks)} />;
   }
   // [slot, label] pairs. Where a ward had two incumbents (2018), they're the
   // top and second incumbents; elsewhere just "Incumbent".
@@ -752,7 +733,6 @@ function Legend({ view, votes, byWard, isMayor, data, breaks, tBreaks, ramp, tar
   // the leader's share was.
   return (
     <>
-      <LegendTitle>{!byWard ? 'Poll led by' : votes === 'all' ? 'Ward led by' : votes === 'day' ? 'Election-day vote led by' : `${VOTE_TYPES.find((t) => t.value === votes).label} vote led by`}</LegendTitle>
       <table className="border-collapse" style={{ color: 'var(--ink-2)' }}>
         <thead>
           <tr>
