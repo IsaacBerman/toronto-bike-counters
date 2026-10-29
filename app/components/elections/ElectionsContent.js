@@ -549,6 +549,9 @@ export default function ElectionsContent() {
 
         <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="dd-panel-ruled p-3 sm:p-4 min-w-0">
+            {/* The key floats over the map's top-left corner, beside the zoom
+                buttons. */}
+            <div className="relative">
             {data ? (
               <ElectionMap
                 data={data}
@@ -573,18 +576,29 @@ export default function ElectionsContent() {
               </div>
             )}
             {data && (
-              <Legend
-                view={view}
-                votes={votes}
-                byWard={byWard}
-                isMayor={isMayor}
-                data={data}
-                breaks={breaks}
-                tBreaks={tBreaks}
-                ramp={shareRamp}
-                targetLabel={isMayor ? data.candidates[target] : RANK_LABELS[target]?.toLowerCase()}
-              />
+              <div
+                className="absolute top-2.5 left-12 z-[1000] rounded p-2.5 text-xs"
+                style={{
+                  maxWidth: 'calc(100% - 3.75rem)',
+                  background: 'color-mix(in srgb, var(--panel) 92%, transparent)',
+                  border: '1px solid var(--line)',
+                  boxShadow: '0 1px 3px rgba(22, 21, 15, 0.12)',
+                }}
+              >
+                <Legend
+                  view={view}
+                  votes={votes}
+                  byWard={byWard}
+                  isMayor={isMayor}
+                  data={data}
+                  breaks={breaks}
+                  tBreaks={tBreaks}
+                  ramp={shareRamp}
+                  targetLabel={isMayor ? data.candidates[target] : RANK_LABELS[target]?.toLowerCase()}
+                />
+              </div>
             )}
+            </div>
           </div>
 
           {/* The results head the right column; election night's dial sits
@@ -663,72 +677,62 @@ function Segmented({ label, value, options, onChange }) {
   );
 }
 
-const Swatch = ({ color, opacity = 1 }) => (
-  <span className="inline-block shrink-0 rounded-sm" style={{ width: 12, height: 12, background: color, opacity }} />
+const Swatch = ({ color, opacity = 1, width = 14 }) => (
+  <span className="inline-block shrink-0 rounded-sm" style={{ width, height: 12, background: color, opacity }} />
 );
+
+const LegendTitle = ({ children }) => (
+  <p className="font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>{children}</p>
+);
+
+// A light-to-dark ramp with a value under each step.
+function RampKey({ colors, labels, width = 34 }) {
+  return (
+    <div className="flex items-end gap-0.5">
+      {colors.map((c, i) => (
+        <div key={i} className="flex flex-col items-start" style={{ width }}>
+          <span className="block w-full rounded-sm" style={{ height: 12, background: c, opacity: SCALE_OPACITY }} />
+          <span className="mt-0.5" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{labels[i]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function Legend({ view, votes, byWard, isMayor, data, breaks, tBreaks, ramp, targetLabel }) {
   if (data.live && !data.meta.allVotes) {
-    return <p className="mt-3 text-xs" style={{ color: 'var(--ink-3)' }}>Wards fill in as results are counted.</p>;
+    return <p style={{ color: 'var(--ink-3)' }}>Wards fill in as results are counted.</p>;
   }
+  const rampLabels = (b) => b.map((x, i) => (i === b.length - 1 ? `${pctRound(x)}+` : pctRound(x)));
   if (view === 'turnout') {
     const done = !data.live || (data.reporting?.polls > 0 && data.reporting.pollsReceived >= data.reporting.polls);
     return (
-      <div className="mt-3">
-        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>
-          Turnout{done ? '' : ' so far'}, share of eligible voters
-        </p>
-        <div className="flex flex-wrap items-end gap-0.5">
-          {SHARE_RAMP.map((c, i) => (
-            <div key={c} className="flex flex-col items-start" style={{ width: 52 }}>
-              <span className="block w-full" style={{ height: 12, background: c }} />
-              <span className="text-xs mt-0.5" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>
-                {i === SHARE_RAMP.length - 1 ? `${pctRound(tBreaks[i])}+` : pctRound(tBreaks[i])}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <>
+        <LegendTitle>Turnout{done ? '' : ' so far'}</LegendTitle>
+        <RampKey colors={SHARE_RAMP} labels={rampLabels(tBreaks)} />
+      </>
     );
   }
   if (view === 'swing') {
     return (
-      <div className="mt-3">
-        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>
-          Swing in Chow&rsquo;s margin over her closest challenger since 2023, points
-        </p>
-        <div className="flex items-end gap-0.5">
-          {SWING_BINS.map((b, i) => (
-            <div key={i} className="flex flex-col items-center" style={{ width: 46 }}>
-              <span className="block w-full" style={{ height: 12, background: b.color }} />
-              <span className="text-xs mt-0.5" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{b.label}</span>
-            </div>
-          ))}
+      <>
+        <LegendTitle>Swing in Chow&rsquo;s margin since 2023, points</LegendTitle>
+        <RampKey colors={SWING_BINS.map((b) => b.color)} labels={SWING_BINS.map((b) => b.label)} width={30} />
+        <div className="flex justify-between mt-0.5" style={{ width: 32 * 7 - 2, color: 'var(--ink-2)' }}>
+          <span>&larr; Away</span>
+          <span>Toward &rarr;</span>
         </div>
-        <div className="flex justify-between text-xs mt-0.5" style={{ width: 46 * 7 + 12, color: 'var(--ink-2)' }}>
-          <span>&larr; Away from Chow</span>
-          <span>Toward Chow &rarr;</span>
-        </div>
-      </div>
+      </>
     );
   }
   if (view === 'share') {
     return (
-      <div className="mt-3">
-        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>
+      <>
+        <LegendTitle>
           {isMayor ? `${targetLabel}'s` : `The ${targetLabel}'s`} share of {byWard ? `each ward's ${VOTE_NOUN[votes]}` : 'each poll'}
-        </p>
-        <div className="flex flex-wrap items-end gap-0.5">
-          {ramp.map((c, i) => (
-            <div key={c} className="flex flex-col items-start" style={{ width: 52 }}>
-              <span className="block w-full" style={{ height: 12, background: c }} />
-              <span className="text-xs mt-0.5" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>
-                {i === ramp.length - 1 ? `${pctRound(breaks[i])}+` : pctRound(breaks[i])}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+        </LegendTitle>
+        <RampKey colors={ramp} labels={rampLabels(breaks)} />
+      </>
     );
   }
   // [slot, label] pairs. Where a ward had two incumbents (2018), they're the
@@ -743,28 +747,37 @@ function Legend({ view, votes, byWard, isMayor, data, breaks, tBreaks, ramp, tar
       ? INCUMBENT_LEGEND.filter((i) => (i !== 4 || twoIncumbents) && (i !== 0 || anyIncumbent) && (i !== 3 || anyOpen))
         .map((i) => [i, i === 0 && twoIncumbents ? 'Top incumbent' : INCUMBENT_LABELS[i]])
       : RANK_LABELS.map((label, i) => [i, label]);
+  const rows = [...labels.map(([i, label]) => [label, data.meta.palette[i]]), ['Anyone else', OTHER_COLOR]];
+  // Each row is its own colour at the four depths the map uses for how big
+  // the leader's share was.
   return (
-    <div className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
-      <div>
-        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>{!byWard ? 'Poll led by' : votes === 'all' ? 'Ward led by' : votes === 'day' ? 'Election-day vote led by' : `${VOTE_TYPES.find((t) => t.value === votes).label} vote led by`}</p>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs" style={{ color: 'var(--ink-2)' }}>
-          {labels.map(([i, label]) => (
-            <span key={label} className="flex items-center gap-1.5"><Swatch color={data.meta.palette[i]} />{label}</span>
+    <>
+      <LegendTitle>{!byWard ? 'Poll led by' : votes === 'all' ? 'Ward led by' : votes === 'day' ? 'Election-day vote led by' : `${VOTE_TYPES.find((t) => t.value === votes).label} vote led by`}</LegendTitle>
+      <table className="border-collapse" style={{ color: 'var(--ink-2)' }}>
+        <thead>
+          <tr>
+            <th className="font-normal text-left pr-2" style={{ color: 'var(--ink-3)' }}>Leader&rsquo;s share, %</th>
+            {MARGIN_BINS.map((b) => (
+              <th key={b.label} className="font-normal text-left px-px" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{b.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([label, color]) => (
+            <tr key={label}>
+              <td className="pr-2 py-px whitespace-nowrap">{label}</td>
+              {MARGIN_BINS.map((b) => (
+                <td key={b.label} className="px-px py-px"><Swatch color={color} opacity={b.opacity} width={22} /></td>
+              ))}
+            </tr>
           ))}
-          <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} />Anyone else</span>
-          <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} opacity={0.25} />Tie</span>
-          {data.meta.hasLtc && !byWard && <span className="flex items-center gap-1.5"><Swatch color={NO_RESULT_COLOR} opacity={0.5} />Care home, no separate result</span>}
-        </div>
+        </tbody>
+      </table>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5" style={{ color: 'var(--ink-2)' }}>
+        <span className="flex items-center gap-1.5"><Swatch color={OTHER_COLOR} opacity={0.25} />Tie</span>
+        {data.meta.hasLtc && !byWard && <span className="flex items-center gap-1.5"><Swatch color={NO_RESULT_COLOR} opacity={0.5} />Care home, no separate result</span>}
       </div>
-      <div>
-        <p className="dd-kicker mb-1.5" style={{ color: 'var(--ink-2)' }}>Leader&rsquo;s share</p>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs" style={{ color: 'var(--ink-2)' }}>
-          {MARGIN_BINS.map((b) => (
-            <span key={b.label} className="flex items-center gap-1.5"><Swatch color="#16150f" opacity={b.opacity} />{b.label}</span>
-          ))}
-        </div>
-      </div>
-    </div>
+    </>
   );
 }
 

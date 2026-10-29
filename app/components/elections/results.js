@@ -60,7 +60,13 @@ export const CANDIDATE_COLORS_2026 = {
 export const NO_RESULT_COLOR = '#c9c7bc';
 
 // Races drawn in their campaigns' colours rather than the slot palette.
-export const RACE_COLORS = { 'mayor-2026': CANDIDATE_COLORS_2026 };
+// Chris Alexander led no poll or ward in 2026, so he folds into Anyone else.
+export const RACE_COLORS = {
+  'mayor-2026': {
+    'Olivia Chow': CANDIDATE_COLORS_2026['Olivia Chow'],
+    'Brad Bradford': CANDIDATE_COLORS_2026['Brad Bradford'],
+  },
+};
 
 // Pins a race's candidates to their campaign colours, in place.
 export function applyRaceColors(data) {
@@ -73,10 +79,10 @@ export function applyRaceColors(data) {
 // Fill opacity by the leader's share of the poll: a deeper fill is a more
 // lopsided poll.
 export const MARGIN_BINS = [
-  { min: 0, label: 'Under 40%', opacity: 0.28 },
-  { min: 0.4, label: '40–50%', opacity: 0.44 },
-  { min: 0.5, label: '50–60%', opacity: 0.6 },
-  { min: 0.6, label: '60%+', opacity: 0.76 },
+  { min: 0, label: '<40', opacity: 0.28 },
+  { min: 0.4, label: '40', opacity: 0.44 },
+  { min: 0.5, label: '50', opacity: 0.6 },
+  { min: 0.6, label: '60+', opacity: 0.76 },
 ];
 
 // The fill for the share, swing and turnout scales, light enough that the
