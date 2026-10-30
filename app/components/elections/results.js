@@ -79,10 +79,11 @@ export function applyRaceColors(data) {
 // Fill opacity by the leader's share of the poll: a deeper fill is a more
 // lopsided poll.
 export const MARGIN_BINS = [
-  { min: 0, label: '<40', opacity: 0.28 },
-  { min: 0.4, label: '40', opacity: 0.44 },
-  { min: 0.5, label: '50', opacity: 0.6 },
-  { min: 0.6, label: '60+', opacity: 0.76 },
+  { min: 0, label: '<40', opacity: 0.24 },
+  { min: 0.4, label: '40', opacity: 0.37 },
+  { min: 0.5, label: '50', opacity: 0.5 },
+  { min: 0.6, label: '60', opacity: 0.63 },
+  { min: 0.7, label: '70+', opacity: 0.76 },
 ];
 
 // The fill for the share, swing and turnout scales, light enough that the
@@ -95,8 +96,11 @@ export function marginOpacity(share) {
   return opacity;
 }
 
-// One hue, light to dark, for a single candidate's share.
-export const SHARE_RAMP = ['#e6eff9', '#c6dbf2', '#9fc2e8', '#73a5dc', '#4a88cf', '#2a6cbd', '#1b4f91'];
+// One hue, light to dark, for a single candidate's share: eight steps, so a
+// 10-point scale runs to 70%+.
+export const SHARE_RAMP = ['#e6eff9', '#c6dbf2', '#9fc2e8', '#73a5dc', '#4a88cf', '#2a6cbd', '#1b4f91', '#11335f'];
+// Turnout keeps seven: the wards span about 25 points.
+export const TURNOUT_RAMP = SHARE_RAMP.slice(0, 7);
 
 // Breaks for the share view. Fixed 10-point steps would paint a 3% candidate's
 // whole map in the palest step, so the step scales to how well they did.
@@ -130,7 +134,7 @@ export function swingColor(swing) {
 // the smallest whole-point step that puts the highest ward in the darkest.
 export function turnoutBreaks(turnouts) {
   const values = turnouts.filter((t) => t > 0);
-  if (!values.length) return SHARE_RAMP.map((_, i) => i * 0.05);
+  if (!values.length) return TURNOUT_RAMP.map((_, i) => i * 0.05);
   const lo = Math.min(...values);
   const hi = Math.max(...values);
   const steps = [0.01, 0.02, 0.03, 0.04, 0.05, 0.1];
@@ -138,8 +142,8 @@ export function turnoutBreaks(turnouts) {
     const start = Math.floor(lo / step) * step;
     // The last step is open-ended ("56%+"), so the highest ward only has to
     // fall below where an eighth step would start.
-    if (start + SHARE_RAMP.length * step > hi || step === steps[steps.length - 1]) {
-      return SHARE_RAMP.map((_, i) => start + i * step);
+    if (start + TURNOUT_RAMP.length * step > hi || step === steps[steps.length - 1]) {
+      return TURNOUT_RAMP.map((_, i) => start + i * step);
     }
   }
   return null;
@@ -151,7 +155,7 @@ export function turnoutBreaks(turnouts) {
 export function rampFrom(hex) {
   const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
   const mix = (t, toward) => `#${rgb.map((c) => Math.round(c + (toward - c) * t).toString(16).padStart(2, '0')).join('')}`;
-  return [0.88, 0.74, 0.58, 0.42, 0.24, 0].map((t) => mix(t, 255)).concat(mix(0.22, 0));
+  return [0.88, 0.74, 0.58, 0.42, 0.24, 0].map((t) => mix(t, 255)).concat(mix(0.22, 0), mix(0.42, 0));
 }
 
 export function shareColor(share, breaks, ramp = SHARE_RAMP) {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
-  RACES, ELECTIONS, OFFICES, raceFor, applyRaceColors, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP,
+  RACES, ELECTIONS, OFFICES, raceFor, applyRaceColors, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP, TURNOUT_RAMP,
   SWING_BINS, SCALE_OPACITY, turnoutBreaks, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets } from './live';
@@ -343,7 +343,7 @@ export default function ElectionsContent() {
       const ward = data.wards[w];
       const votesCast = sum(ward.totals);
       return ward.electors && votesCast
-        ? { fillColor: shareColor(votesCast / ward.electors, tBreaks), fillOpacity: SCALE_OPACITY }
+        ? { fillColor: shareColor(votesCast / ward.electors, tBreaks, TURNOUT_RAMP), fillOpacity: SCALE_OPACITY }
         : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
     }
     if (view === 'swing') {
@@ -754,7 +754,7 @@ function Legend({ view, byWard, isMayor, data, breaks, tBreaks, ramp, showPlaces
   }
   const rampLabels = (b) => b.map((x, i) => (i === b.length - 1 ? `${pctRound(x)}+` : pctRound(x)));
   if (view === 'turnout') {
-    return <RampKey colors={SHARE_RAMP} labels={rampLabels(tBreaks)} />;
+    return <RampKey colors={TURNOUT_RAMP} labels={rampLabels(tBreaks)} />;
   }
   if (view === 'swing') {
     return (
