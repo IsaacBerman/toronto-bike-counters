@@ -302,17 +302,20 @@ export default function ElectionsContent() {
   // places as circles over the ward fills, sized by votes cast there.
   const places = votes === 'advance' && data?.advancePlaces ? data.advancePlaces : null;
   const placeMax = useMemo(() => (places ? Math.max(...places.map((p) => sum(p.v))) : 1), [places]);
+  // A selected place shares selectedPoll with the election-day polls, so its
+  // results open in the same card; it's drawn with a heavier ring.
   const placeStyleFor = useCallback((p) => {
     const { fillColor, fillOpacity } = fillFor(p.w, p.v);
+    const selected = selectedPoll?.name && selectedPoll.w === p.w && selectedPoll.s === p.s;
     return {
       radius: Math.max(PLACE_MIN_RADIUS, PLACE_MAX_RADIUS * Math.sqrt(sum(p.v) / placeMax)),
       fillColor: overWhite(fillColor, fillOpacity),
       fillOpacity: 1,
       color: '#16150f',
-      weight: 1.25,
-      opacity: 0.9,
+      weight: selected ? 3 : 1.25,
+      opacity: selected ? 1 : 0.9,
     };
-  }, [fillFor, placeMax]);
+  }, [fillFor, placeMax, selectedPoll]);
 
   // Chow's margin over her closest challenger in a ward now (the needle's
   // challenger) against her 2023 margin over her closest challenger there,
@@ -865,6 +868,7 @@ function wardColors(data, w) {
   return data.wards[w].cand.map((_, pos) => colorOfSlot(data.meta.slotOf(w, pos), data.meta.palette));
 }
 
+// An election-day poll, or an advance voting place (which has a name).
 function PollCard({ data, poll, onClose }) {
   const ward = data.wards[poll.w];
   const names = ward.cand.map((c) => data.candidates[c]);
@@ -873,9 +877,14 @@ function PollCard({ data, poll, onClose }) {
     <div className="dd-panel">
       <div className="p-4 flex items-start justify-between gap-3" style={{ borderBottom: '1px solid var(--line)' }}>
         <div>
-          <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>Poll {pollLabel(poll.w, poll.s)}</h2>
+          <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{poll.name ?? `Poll ${pollLabel(poll.w, poll.s)}`}</h2>
+          {poll.name && (
+            <p className="text-xs mt-1" style={{ color: 'var(--ink-2)' }}>
+              {poll.address} · Advance poll {pollLabel(poll.w, poll.s)}
+            </p>
+          )}
           <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
-            {poll.ltc ? 'Care home' : poll.none ? 'No result' : `${fmt(sum(votes))} election-day votes`}
+            {poll.ltc ? 'Care home' : poll.none ? 'No result' : `${fmt(sum(votes))} ${poll.name ? 'advance' : 'election-day'} votes`}
           </p>
         </div>
         <button type="button" onClick={onClose} className="text-sm" style={{ color: 'var(--ink-3)' }} aria-label="Close poll">✕</button>

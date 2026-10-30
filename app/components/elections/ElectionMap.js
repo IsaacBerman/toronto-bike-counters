@@ -19,7 +19,7 @@ const pollKey = (p) => `${p.w}-${p.s}`;
  *
  * `places` (advance voting places, each with lat/lon) draw as circles above
  * everything else, styled by `placeStyleFor(place)` (a circle style plus its
- * radius); clicking one selects its ward.
+ * radius); clicking one selects it, like a poll, through onSelectPoll.
  */
 export default function ElectionMap({
   data, styleFor, tooltipFor, selectedPoll, selectedWard, focusWard, onSelectPoll,
@@ -224,7 +224,7 @@ export default function ElectionMap({
       marker.bindTooltip(() => placeTooltipRef.current(place), { direction: 'top', opacity: 1 });
       marker.on('mouseover', () => marker.setStyle({ weight: 2.5 }));
       marker.on('mouseout', () => marker.setStyle({ weight: placeStyleRef.current(place).weight }));
-      marker.on('click', () => onSelectWardRef.current?.(place.w));
+      marker.on('click', () => onSelectRef.current?.(place));
       return marker;
     })).addTo(map);
     placesRef.current = group;
