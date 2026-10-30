@@ -79,16 +79,16 @@ export function applyRaceColors(data) {
 // Fill opacity by the leader's share of the poll: a deeper fill is a more
 // lopsided poll.
 export const MARGIN_BINS = [
-  { min: 0, label: '<40', opacity: 0.35 },
-  { min: 0.4, label: '40', opacity: 0.5 },
-  { min: 0.5, label: '50', opacity: 0.65 },
-  { min: 0.6, label: '60', opacity: 0.82 },
-  { min: 0.7, label: '70+', opacity: 1 },
+  { min: 0, label: '<40', opacity: 0.33 },
+  { min: 0.4, label: '40', opacity: 0.46 },
+  { min: 0.5, label: '50', opacity: 0.59 },
+  { min: 0.6, label: '60', opacity: 0.72 },
+  { min: 0.7, label: '70+', opacity: 0.85 },
 ];
 
 // The fill for the share, swing and turnout scales. The map multiplies the
 // fills with the basemap, so streets show through even near full strength.
-export const SCALE_OPACITY = 0.95;
+export const SCALE_OPACITY = 0.85;
 
 export function marginOpacity(share) {
   let opacity = MARGIN_BINS[0].opacity;
