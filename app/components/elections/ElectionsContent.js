@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import {
-  RACES, ELECTIONS, OFFICES, raceFor, applyRaceColors, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, MARGIN_BINS, SHARE_RAMP, TURNOUT_RAMP,
-  SWING_BINS, SCALE_OPACITY, turnoutBreaks, marginOpacity, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
+  RACES, ELECTIONS, OFFICES, raceFor, applyRaceColors, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, SHARE_RAMP, TURNOUT_RAMP,
+  SWING_BINS, SCALE_OPACITY, turnoutBreaks, leadMargin, marginBreaks, marginStep, marginLabels, leadRamp, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets } from './live';
 import { computeNeedle, Needle, NEEDLE } from './needle';
@@ -253,6 +253,15 @@ export default function ElectionsContent() {
     [data, isMayor, target]
   );
 
+  // Lead-view margin steps, fitted to whatever is on the map: polls, or wards.
+  const mBreaks = useMemo(() => {
+    if (!data || view !== 'leader') return null;
+    const units = byWard
+      ? Object.values(data.wards).map((ward) => wardVotes(ward, votes))
+      : data.polls.features.filter((f) => f.properties.v?.length).map((f) => f.properties.v);
+    return marginBreaks(units.filter((v) => sum(v)).map((v) => leadMargin(v).margin));
+  }, [data, view, byWard, votes]);
+
   // Share-view breaks come from whatever is on the map: polls, or wards.
   const breaks = useMemo(() => {
     if (!data || view !== 'share') return null;
@@ -288,10 +297,11 @@ export default function ElectionsContent() {
       const share = pos >= 0 ? (v[pos] ?? 0) / total : 0;
       return { fillColor: shareColor(share, breaks, shareRamp), fillOpacity: SCALE_OPACITY };
     }
-    const lead = pollLeader(v);
+    const { lead, margin } = leadMargin(v);
     if (lead < 0) return { fillColor: OTHER_COLOR, fillOpacity: 0.25 };
-    return { fillColor: colorOfSlot(meta.slotOf(w, lead), meta.palette), fillOpacity: marginOpacity(v[lead] / total) };
-  }, [view, targetPos, breaks, meta, shareRamp]);
+    const ramp = leadRamp(colorOfSlot(meta.slotOf(w, lead), meta.palette));
+    return { fillColor: ramp[marginStep(margin, mBreaks)], fillOpacity: SCALE_OPACITY };
+  }, [view, targetPos, breaks, meta, shareRamp, mBreaks]);
 
   const styleFor = useCallback(
     (p) => (p.ltc || p.none ? { fillColor: NO_RESULT_COLOR, fillOpacity: 0.35 } : fillFor(p.w, p.v)),
@@ -632,6 +642,7 @@ export default function ElectionsContent() {
                   data={data}
                   breaks={breaks}
                   tBreaks={tBreaks}
+                  mBreaks={mBreaks}
                   ramp={shareRamp}
                   showPlaces={Boolean(places)}
                 />
@@ -748,7 +759,7 @@ function PlacesNote() {
   );
 }
 
-function Legend({ view, byWard, isMayor, data, breaks, tBreaks, ramp, showPlaces }) {
+function Legend({ view, byWard, isMayor, data, breaks, tBreaks, mBreaks, ramp, showPlaces }) {
   if (data.live && !data.meta.allVotes) {
     return <p style={{ color: 'var(--ink-3)' }}>Wards fill in as results are counted.</p>;
   }
@@ -789,16 +800,16 @@ function Legend({ view, byWard, isMayor, data, breaks, tBreaks, ramp, showPlaces
         .map((i) => [i, i === 0 && twoIncumbents ? 'Top incumbent' : INCUMBENT_LABELS[i]])
       : RANK_LABELS.map((label, i) => [i, label]);
   const rows = [...labels.map(([i, label]) => [label, data.meta.palette[i]]), ['Anyone else', OTHER_COLOR]];
-  // Each row is its own colour at the four depths the map uses for how big
-  // the leader's share was.
+  // Each row is its own colour, pale to deep, at the steps the map uses for
+  // how far the leader was ahead.
   return (
     <>
       <table className="border-collapse" style={{ color: 'var(--ink-2)' }}>
         <thead>
           <tr>
-            <th className="font-normal text-left pr-2" style={{ color: 'var(--ink-3)' }}>Leader&rsquo;s share, %</th>
-            {MARGIN_BINS.map((b) => (
-              <th key={b.label} className="font-normal text-left px-px" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{b.label}</th>
+            <th className="font-normal text-left pr-2" style={{ color: 'var(--ink-3)' }}>Lead over 2nd, pts</th>
+            {marginLabels(mBreaks).map((label) => (
+              <th key={label} className="font-normal text-left px-px" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{label}</th>
             ))}
           </tr>
         </thead>
@@ -806,8 +817,8 @@ function Legend({ view, byWard, isMayor, data, breaks, tBreaks, ramp, showPlaces
           {rows.map(([label, color]) => (
             <tr key={label}>
               <td className="pr-2 py-px whitespace-nowrap">{label}</td>
-              {MARGIN_BINS.map((b) => (
-                <td key={b.label} className="px-px py-px"><Swatch color={color} opacity={b.opacity} width={22} /></td>
+              {marginLabels(mBreaks).map((label, i) => (
+                <td key={label} className="px-px py-px"><Swatch color={leadRamp(color)[i]} opacity={SCALE_OPACITY} width={20} /></td>
               ))}
             </tr>
           ))}

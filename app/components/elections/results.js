@@ -76,25 +76,56 @@ export function applyRaceColors(data) {
   data.palette = Object.values(colors);
 }
 
-// Fill opacity by the leader's share of the poll: a deeper fill is a more
-// lopsided poll.
-export const MARGIN_BINS = [
-  { min: 0, label: '<40', opacity: 0.2 },
-  { min: 0.4, label: '40', opacity: 0.36 },
-  { min: 0.5, label: '50', opacity: 0.52 },
-  { min: 0.6, label: '60', opacity: 0.68 },
-  { min: 0.7, label: '70+', opacity: 0.85 },
-];
+// The lead view shades each poll in its leader's colour by how far ahead
+// they were: their margin over the runner-up, in points of the poll's vote.
+// Pale is a toss-up, deep a landslide.
+export function leadMargin(votes) {
+  const lead = pollLeader(votes);
+  if (lead < 0) return { lead, margin: 0 };
+  const total = sum(votes);
+  const runnerUp = Math.max(0, ...votes.filter((_, i) => i !== lead));
+  return { lead, margin: total ? (votes[lead] - runnerUp) / total : 0 };
+}
+
+// Six steps. Under 5 points is always the first, a toss-up; the rest space
+// out to fit the race, in whole steps of 5, 10, 15 or 20 points, whichever
+// puts the deepest shade closest to the strongest fifth of polls. The
+// competitive races (2006-2014, 2026) run to 45+; Tory's landslides to 65+.
+export function marginBreaks(margins) {
+  const sorted = margins.filter((m) => m > 0).sort((a, b) => a - b);
+  const p80 = sorted.length ? sorted[Math.floor(0.8 * (sorted.length - 1))] : 0;
+  const steps = [0.05, 0.1, 0.15, 0.2];
+  const step = steps.reduce((best, st) => (Math.abs(0.05 + 4 * st - p80) < Math.abs(0.05 + 4 * best - p80) ? st : best));
+  return [0, 0.05, 0.05 + step, 0.05 + 2 * step, 0.05 + 3 * step, 0.05 + 4 * step];
+}
+
+export function marginStep(margin, breaks) {
+  let i = 0;
+  while (i + 1 < breaks.length && margin >= breaks[i + 1]) i++;
+  return i;
+}
+
+export const marginLabels = (breaks) => breaks.map((b, i) => {
+  const pts = Math.round(b * 100);
+  if (i === 0) return `<${Math.round(breaks[1] * 100)}`;
+  return i === breaks.length - 1 ? `${pts}+` : `${pts}`;
+});
+
+// Six shades of one colour, pale to deep, one per margin step: tints toward
+// white, the colour itself, then a touch darker.
+const leadRamps = new Map();
+export function leadRamp(hex) {
+  if (!leadRamps.has(hex)) {
+    const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const mix = (t, toward) => `#${rgb.map((c) => Math.round(c + (toward - c) * t).toString(16).padStart(2, '0')).join('')}`;
+    leadRamps.set(hex, [0.6, 0.45, 0.3, 0.15].map((t) => mix(t, 255)).concat(hex, mix(0.3, 0)));
+  }
+  return leadRamps.get(hex);
+}
 
 // The fill for the share, swing and turnout scales. The map multiplies the
 // fills with the basemap, so streets show through even near full strength.
 export const SCALE_OPACITY = 0.85;
-
-export function marginOpacity(share) {
-  let opacity = MARGIN_BINS[0].opacity;
-  for (const bin of MARGIN_BINS) if (share >= bin.min) opacity = bin.opacity;
-  return opacity;
-}
 
 // One hue, light to dark, for a single candidate's share: eight steps, so a
 // 10-point scale runs to 70%+.
