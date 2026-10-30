@@ -5,6 +5,8 @@
 //         data/voting-subdivisions-2026 - 4326.geojson (from the City's GIS
 //         server: gis.toronto.ca/arcgis/rest/services/cot_geospatial6/MapServer/10,
 //         "the most current" election's subdivisions, effective 2026-09-28)
+//         data/advance-voting-places-2026.json (the 50 advance voting places,
+//         two per ward, from the City's GIS; code = ward + subdivision 98/99)
 //         public/elections/night-2026.json (the election-night feed as it
 //         stood at the end of the count, for each ward's registered electors)
 //         data/2022-results/2022_Toronto_Poll_By_Poll_Councillor.xlsx
@@ -64,6 +66,9 @@ const ELECTIONS = [
     date: '2026-10-26',
     results: `2026-results/2026-results/Poll_By_Poll_${office === 'mayor' ? 'Mayor' : 'Councillor'}.xlsx`,
     boundaries: 'voting-subdivisions-2026 - 4326.geojson',
+    // Where each ward's two advance polls (98, 99) were, so the advance
+    // vote can be shown place by place rather than only by ward.
+    advancePlaces: 'advance-voting-places-2026.json',
     // Turnout needs each ward's registered electors, which the poll-by-poll
     // files don't give; the City's election-night feed did.
     electors: office,
@@ -322,6 +327,7 @@ function build(election) {
   const wards = {};
   const pollVotes = new Map(); // "ward-sub" -> votes aligned to that ward's cand order
   const hasLtcPoll = new Set(); // wards whose care homes report as subdivision 96
+  const advanceVotes = new Map(); // "ward-sub" -> votes, for the advance polls
 
   // Reads every ward sheet in a workbook (or just `onlyWard`'s) into the
   // tables above, replacing anything already there for that ward.
@@ -333,6 +339,7 @@ function build(election) {
       const ward = Number(wardMatch[1]);
       if (onlyWard && ward !== onlyWard) continue;
       for (const key of [...pollVotes.keys()]) if (key.startsWith(`${ward}-`)) pollVotes.delete(key);
+      for (const key of [...advanceVotes.keys()]) if (key.startsWith(`${ward}-`)) advanceVotes.delete(key);
       hasLtcPoll.delete(ward);
       const title = String(rows[0][0]).trim();
       const name = election.wardNames?.[ward - 1] ?? title.replace(/^City Ward \d+\s*/, '');
@@ -371,6 +378,7 @@ function build(election) {
         if (sub === 96) hasLtcPoll.add(ward);
         if (kind) votes.forEach((v, i) => { special[kind][i] += v; });
         else pollVotes.set(`${ward}-${sub}`, votes);
+        if (kind === 'advance') advanceVotes.set(`${ward}-${sub}`, votes);
       }
       for (const key of Object.keys(special)) if (special[key].every((v) => v === 0)) delete special[key];
 
@@ -465,6 +473,24 @@ function build(election) {
     for (const w of feedWards) if (wards[w.num]) wards[w.num].electors = w.totalVoters;
   }
 
+  // Each advance poll at its voting place. The City's GIS codes a place by
+  // ward and subdivision (01098), the same numbers the results use.
+  let advancePlaces;
+  if (election.advancePlaces) {
+    const { places } = JSON.parse(fs.readFileSync(path.join(DATA_DIR, election.advancePlaces), 'utf8'));
+    advancePlaces = places.map((p) => {
+      const w = Number(p.code.slice(0, 2));
+      const s = Number(p.code.slice(2));
+      const votes = advanceVotes.get(`${w}-${s}`);
+      if (!votes) throw new Error(`${election.id}: no advance result for ${p.code}`);
+      advanceVotes.delete(`${w}-${s}`);
+      let end = votes.length;
+      while (end > 0 && votes[end - 1] === 0) end--;
+      return { w, s, name: p.name, address: p.address, lat: p.lat, lon: p.lon, v: votes.slice(0, end) };
+    });
+    if (advanceVotes.size) throw new Error(`${election.id}: advance polls with no place: ${[...advanceVotes.keys()].join(', ')}`);
+  }
+
   const out = {
     id: election.id,
     title: election.title,
@@ -474,6 +500,7 @@ function build(election) {
     wards,
     polls: { type: 'FeatureCollection', features },
     wardOutlines: { type: 'FeatureCollection', features: wardOutlines },
+    ...(advancePlaces && { advancePlaces }),
   };
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const outFile = path.join(OUT_DIR, `${election.id}.json`);

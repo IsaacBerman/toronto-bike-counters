@@ -56,6 +56,17 @@ function wardVotes(ward, type) {
   return ward.special[type] ?? ward.totals.map(() => 0);
 }
 
+// A fill colour as it looks at `opacity` over white, so a voting place's
+// circle reads like the legend without the ward's fill showing through.
+function overWhite(hex, opacity) {
+  const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `#${rgb.map((c) => Math.round(255 + (c - 255) * opacity).toString(16).padStart(2, '0')).join('')}`;
+}
+// The biggest advance voting place's circle, in pixels; the rest scale by
+// area, with a floor so the smallest stay easy to hover.
+const PLACE_MAX_RADIUS = 20;
+const PLACE_MIN_RADIUS = 5;
+
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
 // Everything derived once per race: who gets which colour, citywide totals for
@@ -287,6 +298,22 @@ export default function ElectionsContent() {
     [fillFor]
   );
 
+  // 2026's advance vote, place by place: each ward's two advance voting
+  // places as circles over the ward fills, sized by votes cast there.
+  const places = votes === 'advance' && data?.advancePlaces ? data.advancePlaces : null;
+  const placeMax = useMemo(() => (places ? Math.max(...places.map((p) => sum(p.v))) : 1), [places]);
+  const placeStyleFor = useCallback((p) => {
+    const { fillColor, fillOpacity } = fillFor(p.w, p.v);
+    return {
+      radius: Math.max(PLACE_MIN_RADIUS, PLACE_MAX_RADIUS * Math.sqrt(sum(p.v) / placeMax)),
+      fillColor: overWhite(fillColor, fillOpacity),
+      fillOpacity: 1,
+      color: '#16150f',
+      weight: 1.25,
+      opacity: 0.9,
+    };
+  }, [fillFor, placeMax]);
+
   // Chow's margin over her closest challenger in a ward now (the needle's
   // challenger) against her 2023 margin over her closest challenger there,
   // both as shares of all votes cast. A plain comparison: the needle's own
@@ -353,6 +380,13 @@ export default function ElectionsContent() {
     return `<div style="font-size:12px">${head}${resultRows(p.w, p.v)}
       <div style="margin-top:4px;opacity:0.7">${fmt(sum(p.v))} election-day votes</div></div>`;
   }, [data, resultRows]);
+
+  const placeTooltipFor = useCallback((p) => `<div style="font-size:12px">
+      <div style="font-weight:700">${escapeHtml(p.name)}</div>
+      <div style="opacity:0.7">${escapeHtml(p.address)}</div>
+      <div style="opacity:0.7;margin-bottom:4px">Advance poll ${pollLabel(p.w, p.s)} · Ward ${p.w} ${escapeHtml(data.wards[p.w].name)}</div>
+      ${resultRows(p.w, p.v)}
+      <div style="margin-top:4px;opacity:0.7">${fmt(sum(p.v))} advance votes</div></div>`, [data, resultRows]);
 
   const wardTooltipFor = useCallback((w) => {
     const ward = data.wards[w];
@@ -565,6 +599,9 @@ export default function ElectionsContent() {
                 wardStyleFor={wardStyleFor}
                 wardTooltipFor={wardTooltipFor}
                 onSelectWard={handleSelectWard}
+                places={places}
+                placeStyleFor={placeStyleFor}
+                placeTooltipFor={placeTooltipFor}
               />
             ) : (
               <div className="w-full rounded flex items-center justify-center" style={{ height: 'min(72vh, 640px)', minHeight: 420, background: 'var(--paper)' }}>
@@ -593,6 +630,7 @@ export default function ElectionsContent() {
                   breaks={breaks}
                   tBreaks={tBreaks}
                   ramp={shareRamp}
+                  showPlaces={Boolean(places)}
                 />
               </div>
             )}
@@ -633,6 +671,10 @@ export default function ElectionsContent() {
                 , except the 2026 boundaries, from the City&rsquo;s{' '}
                 <a href="https://gis.toronto.ca/arcgis/rest/services/cot_geospatial6/MapServer/10" target="_blank" rel="noopener noreferrer" className="dd-link-accent">
                   map server
+                </a>
+                , and the advance voting places from its{' '}
+                <a href="https://gis.toronto.ca/arcgis/rest/services/cot_geospatial6/FeatureServer/40" target="_blank" rel="noopener noreferrer" className="dd-link-accent">
+                  advance voting locations
                 </a>
                 . Turnout uses the eligible voters the City reported on election night.
               </>
@@ -693,7 +735,17 @@ function RampKey({ colors, labels, width = 34 }) {
   );
 }
 
-function Legend({ view, byWard, isMayor, data, breaks, tBreaks, ramp }) {
+// Under the key when the advance voting places are on the map.
+function PlacesNote() {
+  return (
+    <p className="flex items-center gap-1.5 mt-1.5" style={{ color: 'var(--ink-2)' }}>
+      <span className="inline-block shrink-0 rounded-full" style={{ width: 11, height: 11, border: '1.25px solid #16150f', background: 'var(--panel)' }} />
+      Advance voting places, sized by votes
+    </p>
+  );
+}
+
+function Legend({ view, byWard, isMayor, data, breaks, tBreaks, ramp, showPlaces }) {
   if (data.live && !data.meta.allVotes) {
     return <p style={{ color: 'var(--ink-3)' }}>Wards fill in as results are counted.</p>;
   }
@@ -714,7 +766,12 @@ function Legend({ view, byWard, isMayor, data, breaks, tBreaks, ramp }) {
     );
   }
   if (view === 'share') {
-    return <RampKey colors={ramp} labels={rampLabels(breaks)} />;
+    return (
+      <>
+        <RampKey colors={ramp} labels={rampLabels(breaks)} />
+        {showPlaces && <PlacesNote />}
+      </>
+    );
   }
   // [slot, label] pairs. Where a ward had two incumbents (2018), they're the
   // top and second incumbents; elsewhere just "Incumbent".
@@ -758,6 +815,7 @@ function Legend({ view, byWard, isMayor, data, breaks, tBreaks, ramp }) {
           <Swatch color={NO_RESULT_COLOR} opacity={0.5} />Care home, no separate result
         </p>
       )}
+      {showPlaces && <PlacesNote />}
     </>
   );
 }

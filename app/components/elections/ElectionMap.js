@@ -16,10 +16,15 @@ const pollKey = (p) => `${p.w}-${p.s}`;
  *
  * With `byWard` set the polls make way for the 25 wards, filled by
  * `wardStyleFor(ward)` — for the votes the City only reports by ward.
+ *
+ * `places` (advance voting places, each with lat/lon) draw as circles above
+ * everything else, styled by `placeStyleFor(place)` (a circle style plus its
+ * radius); clicking one selects its ward.
  */
 export default function ElectionMap({
   data, styleFor, tooltipFor, selectedPoll, selectedWard, focusWard, onSelectPoll,
   byWard, wardStyleFor, wardTooltipFor, onSelectWard,
+  places, placeStyleFor, placeTooltipFor,
 }) {
   const elRef = useRef(null);
   const mapRef = useRef(null);
@@ -38,6 +43,9 @@ export default function ElectionMap({
   const onSelectWardRef = useRef(onSelectWard);
   const selectedRef = useRef(selectedPoll);
   const selectedWardRef = useRef(selectedWard);
+  const placesRef = useRef(null);
+  const placeStyleRef = useRef(placeStyleFor);
+  const placeTooltipRef = useRef(placeTooltipFor);
   const [ready, setReady] = useState(false);
 
   useEffect(() => { styleRef.current = styleFor; }, [styleFor]);
@@ -46,6 +54,8 @@ export default function ElectionMap({
   useEffect(() => { wardStyleRef.current = wardStyleFor; }, [wardStyleFor]);
   useEffect(() => { wardTooltipRef.current = wardTooltipFor; }, [wardTooltipFor]);
   useEffect(() => { onSelectWardRef.current = onSelectWard; }, [onSelectWard]);
+  useEffect(() => { placeStyleRef.current = placeStyleFor; }, [placeStyleFor]);
+  useEffect(() => { placeTooltipRef.current = placeTooltipFor; }, [placeTooltipFor]);
 
   // Init the map once.
   useEffect(() => {
@@ -76,6 +86,10 @@ export default function ElectionMap({
         maxZoom: 20,
         pane: 'labels',
       }).addTo(map);
+      // Voting places sit above the labels, so a circle is never hidden
+      // under a street name and can always be hovered.
+      map.createPane('places');
+      map.getPane('places').style.zIndex = 460;
       LRef.current = L;
       rendererRef.current = L.canvas({ padding: 0.2 });
       mapRef.current = map;
@@ -197,6 +211,37 @@ export default function ElectionMap({
     if (!wardFills || !wardStyleFor) return;
     wardFills.eachLayer((layer) => layer.setStyle({ ...wardStyleFor(layer.feature.properties.w), ...BASE_STROKE, weight: 0 }));
   }, [wardStyleFor, data, ready]);
+
+  // Voting places, rebuilt when the set changes (a race, or the vote type).
+  useEffect(() => {
+    const L = LRef.current;
+    const map = mapRef.current;
+    if (!L || !map || !places) return undefined;
+    const group = L.layerGroup(places.map((place) => {
+      const { radius, ...style } = placeStyleRef.current(place);
+      const marker = L.circleMarker([place.lat, place.lon], { pane: 'places', radius, ...style });
+      marker.place = place;
+      marker.bindTooltip(() => placeTooltipRef.current(place), { direction: 'top', opacity: 1 });
+      marker.on('mouseover', () => marker.setStyle({ weight: 2.5 }));
+      marker.on('mouseout', () => marker.setStyle({ weight: placeStyleRef.current(place).weight }));
+      marker.on('click', () => onSelectWardRef.current?.(place.w));
+      return marker;
+    })).addTo(map);
+    placesRef.current = group;
+    return () => {
+      group.remove();
+      placesRef.current = null;
+    };
+  }, [places, ready]);
+
+  useEffect(() => {
+    if (!placesRef.current || !placeStyleFor) return;
+    placesRef.current.eachLayer((marker) => {
+      const { radius, ...style } = placeStyleFor(marker.place);
+      marker.setStyle(style);
+      marker.setRadius(radius);
+    });
+  }, [placeStyleFor, places, ready]);
 
   // Restyle in place when the view changes.
   useEffect(() => {
