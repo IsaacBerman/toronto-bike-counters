@@ -807,7 +807,7 @@ function Legend({ view, byWard, isMayor, data, breaks, tBreaks, mBreaks, ramp, s
       <table className="border-collapse" style={{ color: 'var(--ink-2)' }}>
         <thead>
           <tr>
-            <th className="font-normal text-left pr-2" style={{ color: 'var(--ink-3)' }}>Lead over 2nd, pts</th>
+            <th className="font-normal text-left pr-2" style={{ color: 'var(--ink-3)' }}>Margin, pts</th>
             {marginLabels(mBreaks).map((label) => (
               <th key={label} className="font-normal text-left px-px" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{label}</th>
             ))}
