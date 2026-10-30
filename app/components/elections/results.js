@@ -79,10 +79,10 @@ export function applyRaceColors(data) {
 // Fill opacity by the leader's share of the poll: a deeper fill is a more
 // lopsided poll.
 export const MARGIN_BINS = [
-  { min: 0, label: '<40', opacity: 0.33 },
-  { min: 0.4, label: '40', opacity: 0.46 },
-  { min: 0.5, label: '50', opacity: 0.59 },
-  { min: 0.6, label: '60', opacity: 0.72 },
+  { min: 0, label: '<40', opacity: 0.2 },
+  { min: 0.4, label: '40', opacity: 0.36 },
+  { min: 0.5, label: '50', opacity: 0.52 },
+  { min: 0.6, label: '60', opacity: 0.68 },
   { min: 0.7, label: '70+', opacity: 0.85 },
 ];
 
