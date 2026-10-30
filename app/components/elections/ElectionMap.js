@@ -37,6 +37,7 @@ export default function ElectionMap({
   const wardTooltipRef = useRef(wardTooltipFor);
   const onSelectWardRef = useRef(onSelectWard);
   const selectedRef = useRef(selectedPoll);
+  const selectedWardRef = useRef(selectedWard);
   const [ready, setReady] = useState(false);
 
   useEffect(() => { styleRef.current = styleFor; }, [styleFor]);
@@ -119,7 +120,14 @@ export default function ElectionMap({
       direction: 'top',
       opacity: 1,
     });
-    polls.on('click', (e) => onSelectRef.current?.(e.layer.feature.properties));
+    // A tap opens the tooltip (on touch screens there's no hover to close
+    // it), so a tap that deselects closes it too.
+    polls.on('click', (e) => {
+      const p = e.layer.feature.properties;
+      const deselecting = selectedRef.current && pollKey(p) === pollKey(selectedRef.current);
+      onSelectRef.current?.(p);
+      if (deselecting) polls.closeTooltip();
+    });
     polls.on('mouseover', (e) => e.layer.setStyle(HOVER_STROKE));
     polls.on('mouseout', (e) => e.layer.setStyle(styleOf(e.layer.feature.properties)));
     pollsRef.current = polls;
@@ -136,7 +144,12 @@ export default function ElectionMap({
       direction: 'top',
       opacity: 1,
     });
-    wardFills.on('click', (e) => onSelectWardRef.current?.(e.layer.feature.properties.w));
+    wardFills.on('click', (e) => {
+      const w = e.layer.feature.properties.w;
+      const deselecting = selectedWardRef.current === w;
+      onSelectWardRef.current?.(w);
+      if (deselecting) wardFills.closeTooltip();
+    });
     wardFills.on('mouseover', (e) => e.layer.setStyle({ fillOpacity: Math.min(1, wardStyleOf(e.layer.feature.properties.w).fillOpacity + 0.12) }));
     wardFills.on('mouseout', (e) => e.layer.setStyle(wardStyleOf(e.layer.feature.properties.w)));
     wardFillsRef.current = wardFills;
@@ -200,6 +213,7 @@ export default function ElectionMap({
 
   // The selected ward's outline is drawn heavier.
   useEffect(() => {
+    selectedWardRef.current = selectedWard;
     for (const [ward, layer] of wardBoundsRef.current) {
       layer.setStyle(ward === selectedWard ? { weight: 3, opacity: 1 } : { weight: 1.25, opacity: 0.7 });
       if (ward === selectedWard) layer.bringToFront();
