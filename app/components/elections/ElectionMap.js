@@ -81,6 +81,12 @@ export default function ElectionMap({
       // Above the overlay pane (400) but below tooltips (650).
       map.getPane('labels').style.zIndex = 450;
       map.getPane('labels').style.pointerEvents = 'none';
+      // CARTO's labels are blue-grey with a thin white halo; over the deep
+      // fills the halo is all that reads. Grey and high contrast turn the
+      // letters near-black inside the halo, and letting a little of the fill
+      // through tints the halo so it doesn't glare.
+      map.getPane('labels').style.filter = 'grayscale(1) contrast(2.5)';
+      map.getPane('labels').style.opacity = '0.85';
       L.tileLayer(cartoTileUrl('rastertiles/voyager_only_labels'), {
         subdomains: CARTO_SUBDOMAINS,
         maxZoom: 20,
@@ -90,6 +96,11 @@ export default function ElectionMap({
       // under a street name and can always be hovered.
       map.createPane('places');
       map.getPane('places').style.zIndex = 460;
+      // The fills multiply with the basemap rather than covering it, like a
+      // highlighter: a fill can be strong and the streets still show through
+      // it, lighter where the map is light. Street names sit on their own
+      // pane above, untouched.
+      map.getPane('overlayPane').style.mixBlendMode = 'multiply';
       LRef.current = L;
       rendererRef.current = L.canvas({ padding: 0.2 });
       mapRef.current = map;
