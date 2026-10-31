@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { ChevronDown } from 'lucide-react';
 import {
   RACES, ELECTIONS, OFFICES, raceFor, applyRaceColors, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, SHARE_RAMP, TURNOUT_RAMP,
   SWING_BINS, SCALE_OPACITY, turnoutBreaks, leadMargin, marginBreaks, marginStep, marginLabels, leadRamp, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
@@ -43,8 +44,6 @@ function heading(race) {
   const year = race.election === '2023' && race.office === 'council' ? '2023\u20132025' : race.election;
   return `${year} Toronto ${office} ${race.election === '2023' ? 'By-election' : 'Election'} Results`;
 }
-// The menus' arrow sits tight against the right edge; this gives it room.
-const SELECT_STYLE = { paddingRight: '1.5rem' };
 const VOTE_NOUN = { day: 'election-day votes', advance: 'advance votes', mail: 'mail-in votes', all: 'votes' };
 
 // A ward's votes of one type, aligned to its ranked candidates.
@@ -507,15 +506,13 @@ export default function ElectionsContent() {
         <div className="mb-4 dd-panel-ruled p-4 flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="flex items-center gap-2">
             <label htmlFor="electionSelect" className="dd-kicker" style={{ color: 'var(--ink-2)' }}>Election</label>
-            <select
+            <Select
               id="electionSelect"
-              className="dd-select"
-              style={SELECT_STYLE}
               value={race.election}
               onChange={(e) => pickElection(e.target.value)}
             >
               {ELECTIONS.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
-            </select>
+            </Select>
           </div>
           <Segmented
             label="Race"
@@ -558,36 +555,30 @@ export default function ElectionsContent() {
             <div className="flex items-center gap-2">
               <label htmlFor="shareTarget" className="dd-kicker" style={{ color: 'var(--ink-2)' }}>For</label>
               {isMayor ? (
-                <select
+                <Select
                   id="shareTarget"
-                  className="dd-select"
-                  style={SELECT_STYLE}
                   value={target}
                   onChange={(e) => setShareTarget((t) => ({ ...t, [raceId]: Number(e.target.value) }))}
                 >
                   {meta.cityRanked.map(([c, votes]) => (
                     <option key={c} value={c}>{data.candidates[c]} ({pct(votes, meta.allVotes)})</option>
                   ))}
-                </select>
+                </Select>
               ) : (
-                <select
+                <Select
                   id="shareTarget"
-                  className="dd-select"
-                  style={SELECT_STYLE}
                   value={target}
                   onChange={(e) => setShareTarget((t) => ({ ...t, council: Number(e.target.value) }))}
                 >
                   {RANK_LABELS.map((label, i) => <option key={i} value={i}>{label}</option>)}
-                </select>
+                </Select>
               )}
             </div>
           )}
           <div className="flex items-center gap-2">
             <label htmlFor="wardSelect" className="dd-kicker" style={{ color: 'var(--ink-2)' }}>Ward</label>
-            <select
+            <Select
               id="wardSelect"
-              className="dd-select"
-              style={SELECT_STYLE}
               value={selectedWard ?? ''}
               onChange={(e) => (e.target.value ? pickWard(Number(e.target.value)) : (setSelectedWard(null), setSelectedPoll(null), setFocusWard({ ward: null })))}
             >
@@ -595,7 +586,7 @@ export default function ElectionsContent() {
               {data && Object.entries(data.wards).map(([w, ward]) => (
                 <option key={w} value={w}>{w}. {ward.name}</option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
 
@@ -705,6 +696,24 @@ export default function ElectionsContent() {
         </div>
       </div>
     </div>
+  );
+}
+
+// A menu with its own chevron, set in from the right edge. The browser's
+// arrow sits tight against the border whatever the padding, so it's hidden.
+function Select({ children, ...props }) {
+  return (
+    <span className="relative inline-flex">
+      <select {...props} className="dd-select appearance-none" style={{ paddingRight: '2.25rem' }}>
+        {children}
+      </select>
+      <ChevronDown
+        size={16}
+        className="pointer-events-none absolute top-1/2 -translate-y-1/2"
+        style={{ right: '0.75rem', color: 'var(--ink-2)' }}
+        aria-hidden="true"
+      />
+    </span>
   );
 }
 
