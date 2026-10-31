@@ -704,13 +704,13 @@ export default function ElectionsContent() {
 function Select({ children, ...props }) {
   return (
     <span className="relative inline-flex">
-      <select {...props} className="dd-select appearance-none" style={{ paddingRight: '2.25rem' }}>
+      <select {...props} className="dd-select appearance-none" style={{ paddingRight: '2rem' }}>
         {children}
       </select>
       <ChevronDown
         size={16}
         className="pointer-events-none absolute top-1/2 -translate-y-1/2"
-        style={{ right: '0.75rem', color: 'var(--ink-2)' }}
+        style={{ right: '0.5rem', color: 'var(--ink-2)' }}
         aria-hidden="true"
       />
     </span>
