@@ -43,6 +43,8 @@ function heading(race) {
   const year = race.election === '2023' && race.office === 'council' ? '2023\u20132025' : race.election;
   return `${year} Toronto ${office} ${race.election === '2023' ? 'By-election' : 'Election'} Results`;
 }
+// The menus' arrow sits tight against the right edge; this gives it room.
+const SELECT_STYLE = { paddingRight: '1.5rem' };
 const VOTE_NOUN = { day: 'election-day votes', advance: 'advance votes', mail: 'mail-in votes', all: 'votes' };
 
 // A ward's votes of one type, aligned to its ranked candidates.
@@ -506,6 +508,7 @@ export default function ElectionsContent() {
             <select
               id="electionSelect"
               className="dd-select"
+              style={SELECT_STYLE}
               value={race.election}
               onChange={(e) => pickElection(e.target.value)}
             >
@@ -556,6 +559,7 @@ export default function ElectionsContent() {
                 <select
                   id="shareTarget"
                   className="dd-select"
+                  style={SELECT_STYLE}
                   value={target}
                   onChange={(e) => setShareTarget((t) => ({ ...t, [raceId]: Number(e.target.value) }))}
                 >
@@ -567,6 +571,7 @@ export default function ElectionsContent() {
                 <select
                   id="shareTarget"
                   className="dd-select"
+                  style={SELECT_STYLE}
                   value={target}
                   onChange={(e) => setShareTarget((t) => ({ ...t, council: Number(e.target.value) }))}
                 >
@@ -580,6 +585,7 @@ export default function ElectionsContent() {
             <select
               id="wardSelect"
               className="dd-select"
+              style={SELECT_STYLE}
               value={selectedWard ?? ''}
               onChange={(e) => (e.target.value ? pickWard(Number(e.target.value)) : (setSelectedWard(null), setSelectedPoll(null), setFocusWard({ ward: null })))}
             >
