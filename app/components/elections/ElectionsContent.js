@@ -256,13 +256,15 @@ export default function ElectionsContent() {
   );
 
   // Lead-view margin steps, fitted to whatever is on the map: polls, or wards.
+  // Worked out in every view: the hidden poll layer is still restyled with
+  // the lead colours under swing and turnout.
   const mBreaks = useMemo(() => {
-    if (!data || view !== 'leader') return null;
+    if (!data) return null;
     const units = byWard
       ? Object.values(data.wards).map((ward) => wardVotes(ward, votes))
       : data.polls.features.filter((f) => f.properties.v?.length).map((f) => f.properties.v);
     return marginBreaks(units.filter((v) => sum(v)).map((v) => leadMargin(v).margin));
-  }, [data, view, byWard, votes]);
+  }, [data, byWard, votes]);
 
   // Share-view breaks come from whatever is on the map: polls, or wards.
   const breaks = useMemo(() => {
