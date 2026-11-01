@@ -54,6 +54,8 @@ export default function SiteHeader({ current }) {
             <button
               type="button"
               className="dd-btn dd-btn-ghost"
+              // The chevron sits as close to the edge as the elections menus'.
+              style={{ paddingRight: '0.5rem' }}
               aria-haspopup="menu"
               aria-expanded={open}
               onClick={() => setOpen((wasOpen) => !wasOpen)}

@@ -91,13 +91,19 @@ export function leadMargin(votes) {
 // out to fit the race, in whole steps of 5, 10, 15 or 20 points, whichever
 // puts the deepest shade closest to the strongest fifth of polls. The
 // competitive races (2006-2014, 2026) run to 45+; Tory's landslides to 65+.
-export function marginBreaks(margins) {
+export function marginBreaks(margins, fixedStep) {
   const sorted = margins.filter((m) => m > 0).sort((a, b) => a - b);
   const p80 = sorted.length ? sorted[Math.floor(0.8 * (sorted.length - 1))] : 0;
   const steps = [0.05, 0.1, 0.15, 0.2];
-  const step = steps.reduce((best, st) => (Math.abs(0.05 + 4 * st - p80) < Math.abs(0.05 + 4 * best - p80) ? st : best));
+  const step = fixedStep
+    ?? steps.reduce((best, st) => (Math.abs(0.05 + 4 * st - p80) < Math.abs(0.05 + 4 * best - p80) ? st : best));
   return [0, 0.05, 0.05 + step, 0.05 + 2 * step, 0.05 + 3 * step, 0.05 + 4 * step];
 }
+
+// Races whose poll map uses another's margin steps, so the two compare
+// directly: 2023's crowded field fits finer steps on its own (to 25+), but
+// it's read against 2026 (to 45+). By ward the two already fit the same.
+export const POLL_MARGIN_STEP = { 'mayor-2023': 0.1 };
 
 export function marginStep(margin, breaks) {
   let i = 0;

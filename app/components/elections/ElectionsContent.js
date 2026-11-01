@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { ChevronDown } from 'lucide-react';
 import {
   RACES, ELECTIONS, OFFICES, raceFor, applyRaceColors, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, SHARE_RAMP, TURNOUT_RAMP,
-  SWING_BINS, SCALE_OPACITY, turnoutBreaks, leadMargin, marginBreaks, marginStep, marginLabels, leadRamp, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
+  SWING_BINS, SCALE_OPACITY, turnoutBreaks, leadMargin, marginBreaks, POLL_MARGIN_STEP, marginStep, marginLabels, leadRamp, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets } from './live';
 import { computeNeedle, Needle, NEEDLE } from './needle';
@@ -262,7 +262,7 @@ export default function ElectionsContent() {
     const units = byWard
       ? Object.values(data.wards).map((ward) => wardVotes(ward, votes))
       : data.polls.features.filter((f) => f.properties.v?.length).map((f) => f.properties.v);
-    return marginBreaks(units.filter((v) => sum(v)).map((v) => leadMargin(v).margin));
+    return marginBreaks(units.filter((v) => sum(v)).map((v) => leadMargin(v).margin), byWard ? undefined : POLL_MARGIN_STEP[data.id]);
   }, [data, byWard, votes]);
 
   // Share-view breaks come from whatever is on the map: polls, or wards.
