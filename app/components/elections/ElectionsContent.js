@@ -182,6 +182,9 @@ export default function ElectionsContent() {
   const [selectedWard, setSelectedWard] = useState(Number.isInteger(initialWard) && initialWard >= 1 && initialWard <= initialWards ? initialWard : null);
   const [focusWard, setFocusWard] = useState(selectedWard ? { ward: selectedWard } : null);
   const [selectedPoll, setSelectedPoll] = useState(null);
+  // A poll to select once the next race's file is in: switching between mayor
+  // and council in one election keeps the same poll, with that race's votes.
+  const [pendingPoll, setPendingPoll] = useState(null);
 
 
   // The needle compares Chow's ward margins on election night with her 2023
@@ -468,13 +471,28 @@ export default function ElectionsContent() {
 
   const switchRace = (id) => {
     if (id === raceId) return;
+    const next = RACES.find((r) => r.id === id);
     // Ward numbers mean different places in the 44- and 25-ward cities.
-    const keepWard = RACES.find((r) => r.id === id).wards === race.wards ? selectedWard : null;
+    const keepWard = next.wards === race.wards ? selectedWard : null;
+    // Mayor and council in one election share their polls, so the map stays
+    // where it is and the poll stays picked.
+    const sameElection = next.election === race.election;
     setRaceId(id);
     setSelectedWard(keepWard);
+    setPendingPoll(sameElection && selectedPoll ? { w: selectedPoll.w, s: selectedPoll.s } : null);
     setSelectedPoll(null);
-    setFocusWard(keepWard ? { ward: keepWard } : null);
+    setFocusWard(sameElection ? null : keepWard ? { ward: keepWard } : null);
   };
+
+  // Picks the remembered poll out of the new race's file once it's loaded,
+  // or lets it go if this race has no such poll.
+  useEffect(() => {
+    if (!pendingPoll || !data?.polls) return;
+    const match = data.polls.features.find((f) => f.properties.w === pendingPoll.w && f.properties.s === pendingPoll.s);
+    setSelectedPoll(match ? match.properties : null);
+    if (!match && !data.wards[pendingPoll.w]) setSelectedWard(null);
+    setPendingPoll(null);
+  }, [pendingPoll, data]);
   // Every election has both races; this falls back to mayor if one doesn't.
   const pickElection = (election) => switchRace((raceFor(election, race.office) ?? raceFor(election, 'mayor')).id);
   const pickOffice = (office) => {
