@@ -698,7 +698,7 @@ function fillMissingDates(dataPoints) {
       // nulls and breaks the line there, which is the truthful rendering.
     }
     
-    currentDate.setDate(currentDate.getDate() + 1);
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
   }
 
   return filledData;
@@ -721,7 +721,7 @@ function identifyGaps(dataPoints, startDate, endDate) {
     } else if (exists && gapStart !== null) {
       // End of a gap
       const gapEnd = new Date(currentDate);
-      gapEnd.setDate(gapEnd.getDate() - 1); // Previous day was the last missing day
+      gapEnd.setUTCDate(gapEnd.getUTCDate() - 1); // Previous day was the last missing day
       
       if (gapStart <= gapEnd) { // Ensure valid gap
         gaps.push({
@@ -733,7 +733,7 @@ function identifyGaps(dataPoints, startDate, endDate) {
       gapStart = null;
     }
     
-    currentDate.setDate(currentDate.getDate() + 1);
+    currentDate.setUTCDate(currentDate.getUTCDate() + 1);
   }
   
   // Handle case where gap continues to the end
@@ -757,7 +757,7 @@ function calculateGapInterpolation(missingDate, gap, dataPoints) {
   const beforeDates = [];
   let beforeDate = new Date(gap.startDate);
   for (let i = 1; i <= 7; i++) {
-    beforeDate.setDate(beforeDate.getDate() - 1);
+    beforeDate.setUTCDate(beforeDate.getUTCDate() - 1);
     const dateStr = beforeDate.toISOString().split('T')[0];
     const existingPoint = dataPoints.find(point => point.date === dateStr);
     if (existingPoint) {
@@ -769,7 +769,7 @@ function calculateGapInterpolation(missingDate, gap, dataPoints) {
   const afterDates = [];
   let afterDate = new Date(gap.endDate);
   for (let i = 1; i <= 7; i++) {
-    afterDate.setDate(afterDate.getDate() + 1);
+    afterDate.setUTCDate(afterDate.getUTCDate() + 1);
     const dateStr = afterDate.toISOString().split('T')[0];
     const existingPoint = dataPoints.find(point => point.date === dateStr);
     if (existingPoint) {
