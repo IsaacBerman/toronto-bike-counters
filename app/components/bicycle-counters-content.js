@@ -613,7 +613,7 @@ export default function BicycleCountersContent() {
               <h3 className="dd-title text-lg mb-4" style={{ color: 'var(--ink)' }}>
                 Bike Share Station Map
               </h3>
-             <div className="text-sm mb-4 space-y-1" style={{ color: 'var(--ink-2)' }}>
+             <div className="text-sm mb-2 space-y-1" style={{ color: 'var(--ink-2)' }}>
                 <p>Circle size indicates average daily trips over last 2 weeks.</p>
                 <p>🔵: {">"}0 Trips, 🟢: {">"}50 Trips, 🟡: {">"}100 Trips, 🟠: {">"}200 Trips, 🔴: {">"}400 Trips</p>
                 <p>Click a station to view its history, or draw areas to chart the stations inside them together.</p>
