@@ -2,10 +2,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fetchStationActivity, fetchStationList } from '../lib/stationDataUtils';
+import { fetchStationActivity, fetchStationsActivity, fetchStationList } from '../lib/stationDataUtils';
 import CounterChart from './counterChart';
 
-export default function StationDetail({ stationId, onBack }) {
+// One station (`stationId`), or the summed trips of several (`stationIds`,
+// from the areas drawn on the station map).
+export default function StationDetail({ stationId, stationIds, onBack }) {
+  const isGroup = Array.isArray(stationIds);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stationName, setStationName] = useState('');
@@ -14,9 +17,22 @@ export default function StationDetail({ stationId, onBack }) {
 
   useEffect(() => {
     async function loadStationData() {
-      if (!stationId) return;
-      
+      if (isGroup ? stationIds.length === 0 : !stationId) return;
+
       setLoading(true);
+
+      if (isGroup) {
+        const endDate = new Date();
+        const startDate = new Date(endDate);
+        startDate.setFullYear(startDate.getFullYear() - 7);
+        const { rows, archiveEnd } = await fetchStationsActivity(stationIds, startDate, endDate);
+        setStationName(`${stationIds.length} ${stationIds.length === 1 ? 'station' : 'stations'}`);
+        setStationInfo(null);
+        setArchiveEnd(archiveEnd);
+        setData(toChartData(rows));
+        setLoading(false);
+        return;
+      }
       
       // Fetch station name from the stations list
       try {
@@ -41,18 +57,13 @@ export default function StationDetail({ stationId, onBack }) {
       const { rows: activity, archiveEnd } = await fetchStationActivity(stationId, startDate, endDate);
       setArchiveEnd(archiveEnd);
       
-      // Process data for chart
-      const processedData = activity.map(point => ({
-        date: point.datetime.split('T')[0],
-        volume: point.trips,
-        timestamp: new Date(point.datetime).getTime()
-      })).sort((a, b) => a.timestamp - b.timestamp);
-      
-      setData(processedData);
+      setData(toChartData(activity));
       setLoading(false);
     }
     loadStationData();
-  }, [stationId]);
+    // stationIds is a fresh array per selection, so its contents are the key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stationId, isGroup ? stationIds.join(',') : null]);
 
   if (loading) {
     return (
@@ -81,7 +92,7 @@ export default function StationDetail({ stationId, onBack }) {
             {stationName}
           </h2>
           <p className="text-sm text-black/70">
-            Station ID: {stationId}
+            {isGroup ? 'Combined trips from the stations in your areas' : `Station ID: ${stationId}`}
           </p>
           {getStationAddress() && (
             <p className="text-xs text-black/60 mt-0.5">
@@ -127,11 +138,22 @@ export default function StationDetail({ stationId, onBack }) {
             </p>
           </>
         ) : (
-          <p className="text-center text-black/60 py-8">No data available for this station</p>
+          <p className="text-center text-black/60 py-8">
+            No data available for {isGroup ? 'these stations' : 'this station'}
+          </p>
         )}
       </div>
     </div>
   );
+}
+
+// Activity rows -> CounterChart points, oldest first.
+function toChartData(rows) {
+  return rows.map(point => ({
+    date: point.datetime.split('T')[0],
+    volume: point.trips,
+    timestamp: new Date(point.datetime).getTime()
+  })).sort((a, b) => a.timestamp - b.timestamp);
 }
 
 // "2026-09-30" -> "September 30, 2026"

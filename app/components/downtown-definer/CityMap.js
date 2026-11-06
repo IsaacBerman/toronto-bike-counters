@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { cartoTileUrl, CARTO_ATTRIBUTION, CARTO_SUBDOMAINS } from '../../lib/basemapTiles';
+import { buildDrawLayer } from './drawLayer';
 
 // A single reusable Leaflet map for DowntownDefiner. It always shows the
 // city boundary, and layers one more thing on top depending on `mode`:
@@ -177,56 +178,11 @@ export default function CityMap({ boundary, bbox, fitBbox, mode, points, areas, 
     if (mode !== 'drawing') return;
     const multi = Array.isArray(areas);
     const shapes = multi ? areas : points ? [points] : [];
-    if (!shapes.some((shape) => shape && shape.length > 0)) return;
-    const activeIndex = multi ? activeAreaIndex : 0;
-
-    const group = L.layerGroup();
-
-    shapes.forEach((shape, areaIndex) => {
-      if (!shape || shape.length === 0) return;
-      const isActive = areaIndex === activeIndex;
-
-      const poly =
-        shape.length >= 2
-          ? L.polygon(shape, {
-              color: isActive ? '#2563eb' : '#64748b',
-              weight: 2,
-              fillOpacity: isActive ? 0.15 : 0.12,
-              dashArray: shape.length < 3 ? '6 4' : null,
-              interactive: false,
-            }).addTo(group)
-          : null;
-
-      // Inactive areas are display-only; the active one carries the handles.
-      if (!isActive) return;
-
-      // Draggable vertices: markers (not circleMarkers) so they can be moved.
-      const markers = [];
-      shape.forEach((point, index) => {
-        const isLast = index === shape.length - 1;
-        const size = isLast ? 18 : 16;
-        const fill = isLast ? '#fbbf24' : '#3b82f6';
-        const icon = L.divIcon({
-          className: 'dd-vertex',
-          html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${fill};border:2px solid #fff;box-shadow:0 0 0 1px rgba(29,78,216,0.9);cursor:grab;"></div>`,
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size / 2],
-        });
-        const marker = L.marker(point, { icon, draggable: true, autoPan: true, keyboard: false });
-        // Live-update the polygon outline while dragging (no React state churn).
-        marker.on('drag', () => {
-          if (poly) poly.setLatLngs(markers.map((mk) => mk.getLatLng()));
-        });
-        // Commit the moved vertex to state on release.
-        marker.on('dragend', () => {
-          const ll = marker.getLatLng();
-          if (multi) onAreaVertexMoveRef.current?.(areaIndex, index, [ll.lat, ll.lng]);
-          else onVertexMoveRef.current?.(index, [ll.lat, ll.lng]);
-        });
-        marker.addTo(group);
-        markers.push(marker);
-      });
+    const group = buildDrawLayer(L, shapes, multi ? activeAreaIndex : 0, (areaIndex, index, point) => {
+      if (multi) onAreaVertexMoveRef.current?.(areaIndex, index, point);
+      else onVertexMoveRef.current?.(index, point);
     });
+    if (!group) return;
 
     group.addTo(map);
     drawLayerRef.current = group;

@@ -39,6 +39,12 @@ export default function BicycleCountersContent() {
   const [currentEST, setCurrentEST] = useState(null);
   const [showStationDetail, setShowStationDetail] = useState(false);
   const [selectedStationId, setSelectedStationId] = useState(null);
+  // Areas drawn on the station map, and the stations inside them when their
+  // combined chart is open. Held here so the areas survive the chart.
+  // A ref, not state: the map owns the live copy, and re-rendering this whole
+  // page (and its trend chart) on every placed point made drawing lag.
+  const stationAreasRef = useRef([[]]);
+  const [selectedStationIds, setSelectedStationIds] = useState(null);
   const [showMap, setShowMap] = useState(true); // New state to control map visibility
 
   // Bike Share trip-type filters, and which of its two tabs is showing.
@@ -201,14 +207,23 @@ export default function BicycleCountersContent() {
 
   const handleStationSelect = (stationId) => {
     setSelectedStationId(stationId);
+    setSelectedStationIds(null);
     setShowStationDetail(true);
     // Hide map when showing station detail
+    setShowMap(false);
+  };
+
+  const handleChartStations = (stationIds) => {
+    setSelectedStationIds(stationIds);
+    setSelectedStationId(null);
+    setShowStationDetail(true);
     setShowMap(false);
   };
 
   const handleBackToMap = () => {
     setShowStationDetail(false);
     setSelectedStationId(null);
+    setSelectedStationIds(null);
     // Show map when returning from station detail
     setShowMap(true);
   };
@@ -601,9 +616,14 @@ export default function BicycleCountersContent() {
              <div className="text-sm mb-4 space-y-1" style={{ color: 'var(--ink-2)' }}>
                 <p>Circle size indicates average daily trips over last 2 weeks.</p>
                 <p>🔵: {">"}0 Trips, 🟢: {">"}50 Trips, 🟡: {">"}100 Trips, 🟠: {">"}200 Trips, 🔴: {">"}400 Trips</p>
-                <p>Click a station to view its history.</p>
+                <p>Click a station to view its history, or draw areas to chart the stations inside them together.</p>
               </div>
-              <StationMap onStationSelect={handleStationSelect} />
+              <StationMap
+                onStationSelect={handleStationSelect}
+                initialAreas={stationAreasRef.current}
+                onAreasChange={(next) => { stationAreasRef.current = next; }}
+                onChartStations={handleChartStations}
+              />
             </div>
           </div>
         )}
@@ -612,8 +632,9 @@ export default function BicycleCountersContent() {
         {isBikeShare && bikeshareTab === 'trends' && showStationDetail && (
           <div className="mt-6">
             <StationDetail 
-              stationId={selectedStationId} 
-              onBack={handleBackToMap} 
+              stationId={selectedStationId}
+              stationIds={selectedStationIds ?? undefined}
+              onBack={handleBackToMap}
             />
           </div>
         )}

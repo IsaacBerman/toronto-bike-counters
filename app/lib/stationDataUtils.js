@@ -75,6 +75,50 @@ export async function fetchStationActivity(stationId, startDate, endDate) {
   }
 }
 
+// Daily trips summed over several stations, as { rows, archiveEnd } with rows
+// shaped like fetchStationActivity's. Archive days come from each station's
+// file as above; the days after the archive come from one station=all
+// bikeraccoon request filtered to these stations, rather than one request per
+// station. A station with no archive file opened after the archive ends, so
+// the raccoon range covers it.
+export async function fetchStationsActivity(stationIds, startDate, endDate) {
+  const ids = new Set(stationIds.map(String));
+  const archives = await Promise.all([...ids].map(fetchStationArchive));
+  const first = formatDateKey(startDate);
+  const totals = new Map();
+  const add = (date, trips) => totals.set(date, (totals.get(date) || 0) + (trips || 0));
+
+  let archiveEnd = null;
+  for (const archive of archives) {
+    if (!archive) continue;
+    archive.trips.forEach((trips, i) => {
+      const date = addDays(archive.start, i);
+      if (date >= first) add(date, trips);
+    });
+    if (!archiveEnd || archive.end > archiveEnd) archiveEnd = archive.end;
+  }
+
+  // No archive at all (files missing): fall back to per-station requests
+  // rather than asking bikeraccoon for every station over the whole range.
+  if (!archiveEnd) {
+    const results = await Promise.all([...ids].map((id) => fetchStationActivity(id, startDate, endDate)));
+    for (const { rows } of results) rows.forEach((row) => add(row.datetime.split('T')[0], row.trips));
+  } else {
+    const raccoonStart = new Date(`${addDays(archiveEnd, 1)}T00:00:00`);
+    if (raccoonStart <= endDate) {
+      const recent = await fetchAllStationsActivity(raccoonStart, endDate);
+      for (const row of recent) {
+        if (ids.has(String(row.station_id))) add(row.datetime.split('T')[0], row.trips);
+      }
+    }
+  }
+
+  const rows = [...totals]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, trips]) => ({ datetime: `${date}T00:00:00`, trips, returns: null }));
+  return { rows, archiveEnd };
+}
+
 // { start, end, trips } for a station, or null if the archive has no trips
 // from it (e.g. a station opened since the last build).
 async function fetchStationArchive(stationId) {
