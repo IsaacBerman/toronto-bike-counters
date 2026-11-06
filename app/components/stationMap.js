@@ -270,7 +270,7 @@ export default function StationMap({ onStationSelect, initialAreas, onAreasChang
   // Loading state
   if (loading) {
     return (
-      <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+      <div className="h-[28rem] md:h-[38rem] bg-gray-100 rounded-lg flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
           <p className="text-gray-500">Loading stations...</p>
@@ -282,7 +282,7 @@ export default function StationMap({ onStationSelect, initialAreas, onAreasChang
   // Error state
   if (error) {
     return (
-      <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+      <div className="h-[28rem] md:h-[38rem] bg-gray-100 rounded-lg flex items-center justify-center">
         <div className="text-center text-red-600">
           <p className="font-semibold">Error loading map</p>
           <p className="text-sm">{error}</p>
@@ -294,7 +294,7 @@ export default function StationMap({ onStationSelect, initialAreas, onAreasChang
   // No stations state
   if (stations.length === 0) {
     return (
-      <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+      <div className="h-[28rem] md:h-[38rem] bg-gray-100 rounded-lg flex items-center justify-center">
         <p className="text-gray-500">No stations available</p>
       </div>
     );
@@ -326,7 +326,7 @@ export default function StationMap({ onStationSelect, initialAreas, onAreasChang
       )}
 
       <div className="relative">
-        <div ref={mapRef} className="h-96 w-full rounded-lg border border-gray-200" />
+        <div ref={mapRef} className="h-[28rem] md:h-[38rem] w-full rounded-lg border border-gray-200" />
         <div className="absolute bottom-4 left-4 bg-white p-2 rounded-lg shadow-lg text-xs">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>
