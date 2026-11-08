@@ -51,6 +51,95 @@ const getESTDateString = (date = new Date()) => {
   return formatter.format(date);
 };
 
+// Custom tooltip for bar chart
+// Outside the component so Recharts keeps one mounted tooltip instead of
+// remounting it, and re-measuring ChartTooltipFrame, on every render.
+const BarTooltip = ({ active, payload, label, coordinate }) => {
+  if (active && payload && payload.length) {
+    const todayValue = payload.find(p => p.dataKey === 'todayTrips')?.value || 0;
+    const avgValue = payload.find(p => p.dataKey === 'avgTrips')?.value || 0;
+    const lastYearValue = payload.find(p => p.dataKey === 'lastYearAvgTrips')?.value || 0;
+    
+    const vsAvgDiff = todayValue - avgValue;
+    const vsAvgPercent = avgValue > 0 ? ((vsAvgDiff / avgValue) * 100).toFixed(1) : 0;
+    const vsLastYearDiff = todayValue - lastYearValue;
+    const vsLastYearPercent = lastYearValue > 0 ? ((vsLastYearDiff / lastYearValue) * 100).toFixed(1) : 0;
+    
+    return (
+      // Above the plot area rather than beside the hovered hour: the box is
+      // wide enough to cover the bars it is describing wherever it lands
+      // inside the plot. The phone box is tighter so that it still clears the
+      // plot on a narrow screen, where wrapped rows would push it past the
+      // panel and get clipped.
+      <ChartTooltipFrame coordinate={coordinate} placement="above">
+        <div className="bg-white p-2 md:p-3 border border-gray-300 rounded-lg shadow-lg max-w-[280px]">
+          <p className="font-semibold text-gray-800 text-[11px] md:text-sm mb-1 md:mb-2">
+            Hour: {label}
+          </p>
+          <p className="text-[11px] md:text-sm text-blue-600 mb-0.5 md:mb-1">
+            <span className="font-semibold">Today:</span> {todayValue.toLocaleString()} trips
+          </p>
+          <p className="text-[11px] md:text-sm text-green-600 mb-0.5 md:mb-1">
+            <span className="font-semibold">2-Week Avg:</span> {avgValue.toLocaleString()} trips
+            <span className={`ml-1 md:ml-2 text-[10px] md:text-xs ${vsAvgDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ({vsAvgDiff >= 0 ? '↑' : '↓'} {Math.abs(vsAvgDiff).toLocaleString()}, {vsAvgPercent}%)
+            </span>
+          </p>
+          <p className="text-[11px] md:text-sm text-purple-600">
+            <span className="font-semibold">Last Year Avg:</span> {lastYearValue.toLocaleString()} trips
+            <span className={`ml-1 md:ml-2 text-[10px] md:text-xs ${vsLastYearDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ({vsLastYearDiff >= 0 ? '↑' : '↓'} {Math.abs(vsLastYearDiff).toLocaleString()}, {vsLastYearPercent}%)
+            </span>
+          </p>
+        </div>
+      </ChartTooltipFrame>
+    );
+  }
+  return null;
+};
+
+// Custom tooltip for cumulative line chart
+const CumulativeTooltip = ({ active, payload, label, coordinate }) => {
+  if (active && payload && payload.length) {
+    const currentValue = payload.find(p => p.dataKey === 'currentCumulative')?.value || 0;
+    const avgValue = payload.find(p => p.dataKey === 'avgCumulative')?.value || 0;
+    const lastYearValue = payload.find(p => p.dataKey === 'lastYearCumulative')?.value || 0;
+    
+    const vsAvgDiff = currentValue - avgValue;
+    const vsAvgPercent = avgValue > 0 ? ((vsAvgDiff / avgValue) * 100).toFixed(1) : 0;
+    const vsLastYearDiff = currentValue - lastYearValue;
+    const vsLastYearPercent = lastYearValue > 0 ? ((vsLastYearDiff / lastYearValue) * 100).toFixed(1) : 0;
+    
+    return (
+      // Follows the hovered hour, but ChartTooltipFrame keeps it from growing
+      // past the bottom axis the way Recharts would.
+      <ChartTooltipFrame coordinate={coordinate}>
+        <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg max-w-[280px]">
+          <p className="font-semibold text-gray-800 text-sm mb-2">
+            By {label}
+          </p>
+          <p className="text-sm text-blue-600 mb-1">
+            <span className="font-semibold">Today Total:</span> {currentValue.toLocaleString()} trips
+          </p>
+          <p className="text-sm text-green-600 mb-1">
+            <span className="font-semibold">2-Week Avg Total:</span> {avgValue.toLocaleString()} trips
+            <span className={`ml-2 text-xs ${vsAvgDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ({vsAvgDiff >= 0 ? '↑' : '↓'} {Math.abs(vsAvgDiff).toLocaleString()}, {vsAvgPercent}%)
+            </span>
+          </p>
+          <p className="text-sm text-purple-600">
+            <span className="font-semibold">Last Year Avg Total:</span> {lastYearValue.toLocaleString()} trips
+            <span className={`ml-2 text-xs ${vsLastYearDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              ({vsLastYearDiff >= 0 ? '↑' : '↓'} {Math.abs(vsLastYearDiff).toLocaleString()}, {vsLastYearPercent}%)
+            </span>
+          </p>
+        </div>
+      </ChartTooltipFrame>
+    );
+  }
+  return null;
+};
+
 export default function HourlyBarChart({ data }) {
   const [isChartReady, setIsChartReady] = useState(false);
   const [chartType, setChartType] = useState('bar');
@@ -58,7 +147,6 @@ export default function HourlyBarChart({ data }) {
   const [lastYearAverages, setLastYearAverages] = useState([]);
   const [currentDayData, setCurrentDayData] = useState([]);
   const [cumulativeData, setCumulativeData] = useState([]);
-  const [activeTooltip, setActiveTooltip] = useState(null);
   const [currentESTTime, setCurrentESTTime] = useState(null);
   const { chartRef, tooltipActive, restoreTooltip } = useTapAwayDismiss();
 
@@ -205,24 +293,6 @@ export default function HourlyBarChart({ data }) {
     }).filter(item => item.hourValue <= currentHour);
   }, [averages, currentDayData, lastYearAverages, currentESTTime]);
 
-  // Handle tooltip visibility for mobile
-  const handleChartMouseMove = (state) => {
-    restoreTooltip();
-    if (state && state.isTooltipActive) {
-      setActiveTooltip(true);
-    } else if (activeTooltip) {
-      setTimeout(() => {
-        if (!state || !state.isTooltipActive) {
-          setActiveTooltip(false);
-        }
-      }, 50);
-    }
-  };
-
-  const handleChartMouseLeave = () => {
-    setActiveTooltip(false);
-  };
-
   // Custom legend content component
   const renderLegend = (props) => {
     const { payload } = props;
@@ -241,93 +311,6 @@ export default function HourlyBarChart({ data }) {
         </div>
       </div>
     );
-  };
-
-  // Custom tooltip for bar chart
-  const BarTooltip = ({ active, payload, label, coordinate }) => {
-    if (active && payload && payload.length) {
-      const todayValue = payload.find(p => p.dataKey === 'todayTrips')?.value || 0;
-      const avgValue = payload.find(p => p.dataKey === 'avgTrips')?.value || 0;
-      const lastYearValue = payload.find(p => p.dataKey === 'lastYearAvgTrips')?.value || 0;
-      
-      const vsAvgDiff = todayValue - avgValue;
-      const vsAvgPercent = avgValue > 0 ? ((vsAvgDiff / avgValue) * 100).toFixed(1) : 0;
-      const vsLastYearDiff = todayValue - lastYearValue;
-      const vsLastYearPercent = lastYearValue > 0 ? ((vsLastYearDiff / lastYearValue) * 100).toFixed(1) : 0;
-      
-      return (
-        // Above the plot area rather than beside the hovered hour: the box is
-        // wide enough to cover the bars it is describing wherever it lands
-        // inside the plot. The phone box is tighter so that it still clears the
-        // plot on a narrow screen, where wrapped rows would push it past the
-        // panel and get clipped.
-        <ChartTooltipFrame coordinate={coordinate} placement="above">
-          <div className="bg-white p-2 md:p-3 border border-gray-300 rounded-lg shadow-lg max-w-[280px]">
-            <p className="font-semibold text-gray-800 text-[11px] md:text-sm mb-1 md:mb-2">
-              Hour: {label}
-            </p>
-            <p className="text-[11px] md:text-sm text-blue-600 mb-0.5 md:mb-1">
-              <span className="font-semibold">Today:</span> {todayValue.toLocaleString()} trips
-            </p>
-            <p className="text-[11px] md:text-sm text-green-600 mb-0.5 md:mb-1">
-              <span className="font-semibold">2-Week Avg:</span> {avgValue.toLocaleString()} trips
-              <span className={`ml-1 md:ml-2 text-[10px] md:text-xs ${vsAvgDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ({vsAvgDiff >= 0 ? '↑' : '↓'} {Math.abs(vsAvgDiff).toLocaleString()}, {vsAvgPercent}%)
-              </span>
-            </p>
-            <p className="text-[11px] md:text-sm text-purple-600">
-              <span className="font-semibold">Last Year Avg:</span> {lastYearValue.toLocaleString()} trips
-              <span className={`ml-1 md:ml-2 text-[10px] md:text-xs ${vsLastYearDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ({vsLastYearDiff >= 0 ? '↑' : '↓'} {Math.abs(vsLastYearDiff).toLocaleString()}, {vsLastYearPercent}%)
-              </span>
-            </p>
-          </div>
-        </ChartTooltipFrame>
-      );
-    }
-    return null;
-  };
-
-  // Custom tooltip for cumulative line chart
-  const CumulativeTooltip = ({ active, payload, label, coordinate }) => {
-    if (active && payload && payload.length) {
-      const currentValue = payload.find(p => p.dataKey === 'currentCumulative')?.value || 0;
-      const avgValue = payload.find(p => p.dataKey === 'avgCumulative')?.value || 0;
-      const lastYearValue = payload.find(p => p.dataKey === 'lastYearCumulative')?.value || 0;
-      
-      const vsAvgDiff = currentValue - avgValue;
-      const vsAvgPercent = avgValue > 0 ? ((vsAvgDiff / avgValue) * 100).toFixed(1) : 0;
-      const vsLastYearDiff = currentValue - lastYearValue;
-      const vsLastYearPercent = lastYearValue > 0 ? ((vsLastYearDiff / lastYearValue) * 100).toFixed(1) : 0;
-      
-      return (
-        // Follows the hovered hour, but ChartTooltipFrame keeps it from growing
-        // past the bottom axis the way Recharts would.
-        <ChartTooltipFrame coordinate={coordinate}>
-          <div className="bg-white p-3 border border-gray-300 rounded-lg shadow-lg max-w-[280px]">
-            <p className="font-semibold text-gray-800 text-sm mb-2">
-              By {label}
-            </p>
-            <p className="text-sm text-blue-600 mb-1">
-              <span className="font-semibold">Today Total:</span> {currentValue.toLocaleString()} trips
-            </p>
-            <p className="text-sm text-green-600 mb-1">
-              <span className="font-semibold">2-Week Avg Total:</span> {avgValue.toLocaleString()} trips
-              <span className={`ml-2 text-xs ${vsAvgDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ({vsAvgDiff >= 0 ? '↑' : '↓'} {Math.abs(vsAvgDiff).toLocaleString()}, {vsAvgPercent}%)
-              </span>
-            </p>
-            <p className="text-sm text-purple-600">
-              <span className="font-semibold">Last Year Avg Total:</span> {lastYearValue.toLocaleString()} trips
-              <span className={`ml-2 text-xs ${vsLastYearDiff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ({vsLastYearDiff >= 0 ? '↑' : '↓'} {Math.abs(vsLastYearDiff).toLocaleString()}, {vsLastYearPercent}%)
-              </span>
-            </p>
-          </div>
-        </ChartTooltipFrame>
-      );
-    }
-    return null;
   };
 
   // Check if we have valid data to display
@@ -362,9 +345,8 @@ export default function HourlyBarChart({ data }) {
               <BarChart 
                 data={barChartData} 
                 margin={{ top: 20, right: 30, left: 30, bottom: 60 }}
-                onMouseMove={handleChartMouseMove}
+                onMouseMove={restoreTooltip}
                 onTouchMove={restoreTooltip}
-                onMouseLeave={handleChartMouseLeave}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
@@ -383,6 +365,7 @@ export default function HourlyBarChart({ data }) {
                   content={<BarTooltip />} 
                   active={tooltipActive}
                   position={TOOLTIP_POSITION}
+                  isAnimationActive={false}
                   wrapperStyle={{ zIndex: 1000 }}
                   cursor={{ stroke: '#ccc', strokeWidth: 1 }}
                 />
@@ -425,9 +408,8 @@ export default function HourlyBarChart({ data }) {
               <LineChart 
                 data={cumulativeData} 
                 margin={{ top: 20, right: 30, left: 30, bottom: 60 }}
-                onMouseMove={handleChartMouseMove}
+                onMouseMove={restoreTooltip}
                 onTouchMove={restoreTooltip}
-                onMouseLeave={handleChartMouseLeave}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
@@ -446,6 +428,7 @@ export default function HourlyBarChart({ data }) {
                   content={<CumulativeTooltip />} 
                   active={tooltipActive}
                   position={TOOLTIP_POSITION}
+                  isAnimationActive={false}
                   wrapperStyle={{ zIndex: 1000 }}
                   cursor={{ stroke: '#ccc', strokeWidth: 1 }}
                 />

@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Scatter } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import useTapAwayDismiss from '../lib/useTapAwayDismiss';
 import ChartTooltipFrame from './chartTooltipFrame';
 
@@ -72,11 +72,111 @@ const calculateCumulativeForYear = (yearData) => {
   return result;
 };
 
+// Get colors for different years.
+//
+// Distinct hues, not a ramp — years here are toggled and compared in any
+// combination, so any two can end up adjacent. These eleven were solved
+// against the all-pairs gate (the hard one: every pair, not just neighbours)
+// and validated on a white surface — worst pair CVD ΔE 8.3, normal-vision
+// ΔE 16.0, all eleven ≥3:1 contrast. Re-validate before editing a value.
+//
+// Counters reach back to 1994, well past what any palette can keep distinct;
+// those older years keep the previous deterministic fallback, and identity
+// there rests on the labelled swatches and the tooltip rather than hue alone.
+const getYearColor = (year) => {
+  const colors = {
+    2016: '#fe516b',
+    2017: '#a92501',
+    2018: '#a07a0c',
+    2019: '#00633c',
+    2020: '#01a38f',
+    2021: '#006fa9',
+    2022: '#1d3cff',
+    2023: '#8688ff',
+    2024: '#6803bf',
+    2025: '#ff35de',
+    2026: '#b8067e'
+  };
+
+  if (colors[year]) return colors[year];
+
+  // Otherwise generate a consistent random color based on year
+  const hash = year.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const hue = hash % 360;
+  return `hsl(${hue}, 70%, 50%)`;
+};
+
+// Outside the component so Recharts keeps one mounted tooltip instead of
+// remounting it, and re-measuring ChartTooltipFrame, on every render. The
+// chart's own state comes in as props on the <Tooltip content> element.
+const CustomTooltip = ({ active, payload, label, coordinate, availableYears, visibleYears, showCumulative }) => {
+  if (active && payload && payload.length) {
+    // Filter to get unique years with their values
+    const yearData = [];
+    availableYears.forEach(year => {
+      if (visibleYears[year]) {
+        let entry;
+        if (showCumulative) {
+          entry = payload.find(p => p.dataKey === `cumulative_${year}`);
+        } else {
+          entry = payload.find(p => p.dataKey === `rolling_${year}`);
+        }
+        const dailyEntry = !showCumulative ? payload.find(p => p.dataKey === `daily_${year}`) : null;
+        
+        if (entry && entry.value !== null && entry.value > 0) {
+          yearData.push({
+            year,
+            value: entry.value,
+            dailyValue: dailyEntry?.value
+          });
+        }
+      }
+    });
+    
+    if (yearData.length === 0) return null;
+    
+    return (
+      // Recharts flips it to whichever side of the hovered point has room —
+      // on a phone as well as on a desktop. The phone box has to stay under
+      // half the plot width for there to be a side to flip to, which is why
+      // the labels below shed everything the chart header already tells you;
+      // globals.css lends it the axis gutter for the points where even that
+      // is a squeeze. Vertically it is ChartTooltipFrame that places it, so
+      // that a year-heavy box rests on the bottom axis instead of running off
+      // the bottom of the chart.
+      <ChartTooltipFrame coordinate={coordinate}>
+        <div className="bg-white p-2 md:p-3 border border-gray-300 rounded-lg shadow-lg font-sans max-w-[120px] md:max-w-[280px]" style={{zIndex: 9999}}>
+          <p className="font-semibold text-gray-800 text-xs md:text-sm mb-1 md:mb-2">
+            {label}
+          </p>
+          {yearData.map(({year, value, dailyValue}) => (
+            <div key={year} className="mb-1">
+              <p className="text-[11px] md:text-sm" style={{ color: getYearColor(year) }}>
+                <span className="font-semibold">{year}:</span>
+                <span className="ml-1 md:ml-2">
+                  {showCumulative ? (
+                    <><span className="hidden md:inline">Cumulative: </span><span className="font-semibold">{value.toLocaleString()}</span></>
+                  ) : (
+                    <><span className="hidden md:inline">14-day </span>avg: <span className="font-semibold">{value.toLocaleString()}</span></>
+                  )}
+                </span>
+                {!showCumulative && dailyValue && dailyValue > 0 && (
+                  <span className="ml-1 md:ml-2 text-gray-600">(daily: {dailyValue.toLocaleString()})</span>
+                )}
+              </p>
+            </div>
+          ))}
+        </div>
+      </ChartTooltipFrame>
+    );
+  }
+  return null;
+};
+
 export default function CounterChart({ data, title, measureLabel }) {
   const [visibleYears, setVisibleYears] = useState({});
   const [isChartReady, setIsChartReady] = useState(false);
   const [showCumulative, setShowCumulative] = useState(false);
-  const [activeTooltip, setActiveTooltip] = useState(null);
   const { chartRef, tooltipActive, restoreTooltip } = useTapAwayDismiss();
 
   useEffect(() => {
@@ -221,123 +321,6 @@ export default function CounterChart({ data, title, measureLabel }) {
     setVisibleYears(newVisibility);
   };
 
-  // Handle tooltip visibility for mobile
-  const handleChartMouseMove = (state) => {
-    restoreTooltip();
-    if (state && state.isTooltipActive) {
-      setActiveTooltip(true);
-    } else if (activeTooltip) {
-      // Small delay to allow for finger lift detection
-      setTimeout(() => {
-        if (!state || !state.isTooltipActive) {
-          setActiveTooltip(false);
-        }
-      }, 50);
-    }
-  };
-
-  const handleChartMouseLeave = () => {
-    setActiveTooltip(false);
-  };
-
-  // Custom tooltip formatter
-  const CustomTooltip = ({ active, payload, label, coordinate }) => {
-    if (active && payload && payload.length) {
-      // Filter to get unique years with their values
-      const yearData = [];
-      availableYears.forEach(year => {
-        if (visibleYears[year]) {
-          let entry;
-          if (showCumulative) {
-            entry = payload.find(p => p.dataKey === `cumulative_${year}`);
-          } else {
-            entry = payload.find(p => p.dataKey === `rolling_${year}`);
-          }
-          const dailyEntry = !showCumulative ? payload.find(p => p.dataKey === `daily_${year}`) : null;
-          
-          if (entry && entry.value !== null && entry.value > 0) {
-            yearData.push({
-              year,
-              value: entry.value,
-              dailyValue: dailyEntry?.value
-            });
-          }
-        }
-      });
-      
-      if (yearData.length === 0) return null;
-      
-      return (
-        // Recharts flips it to whichever side of the hovered point has room —
-        // on a phone as well as on a desktop. The phone box has to stay under
-        // half the plot width for there to be a side to flip to, which is why
-        // the labels below shed everything the chart header already tells you;
-        // globals.css lends it the axis gutter for the points where even that
-        // is a squeeze. Vertically it is ChartTooltipFrame that places it, so
-        // that a year-heavy box rests on the bottom axis instead of running off
-        // the bottom of the chart.
-        <ChartTooltipFrame coordinate={coordinate}>
-          <div className="bg-white p-2 md:p-3 border border-gray-300 rounded-lg shadow-lg font-sans max-w-[120px] md:max-w-[280px]" style={{zIndex: 9999}}>
-            <p className="font-semibold text-gray-800 text-xs md:text-sm mb-1 md:mb-2">
-              {label}
-            </p>
-            {yearData.map(({year, value, dailyValue}) => (
-              <div key={year} className="mb-1">
-                <p className="text-[11px] md:text-sm" style={{ color: getYearColor(year) }}>
-                  <span className="font-semibold">{year}:</span>
-                  <span className="ml-1 md:ml-2">
-                    {showCumulative ? (
-                      <><span className="hidden md:inline">Cumulative: </span><span className="font-semibold">{value.toLocaleString()}</span></>
-                    ) : (
-                      <><span className="hidden md:inline">14-day </span>avg: <span className="font-semibold">{value.toLocaleString()}</span></>
-                    )}
-                  </span>
-                  {!showCumulative && dailyValue && dailyValue > 0 && (
-                    <span className="ml-1 md:ml-2 text-gray-600">(daily: {dailyValue.toLocaleString()})</span>
-                  )}
-                </p>
-              </div>
-            ))}
-          </div>
-        </ChartTooltipFrame>
-      );
-    }
-    return null;
-  };
-
-  // Get colors for different years.
-  //
-  // Distinct hues, not a ramp — years here are toggled and compared in any
-  // combination, so any two can end up adjacent. These eleven were solved
-  // against the all-pairs gate (the hard one: every pair, not just neighbours)
-  // and validated on a white surface — worst pair CVD ΔE 8.3, normal-vision
-  // ΔE 16.0, all eleven ≥3:1 contrast. Re-validate before editing a value.
-  //
-  // Counters reach back to 1994, well past what any palette can keep distinct;
-  // those older years keep the previous deterministic fallback, and identity
-  // there rests on the labelled swatches and the tooltip rather than hue alone.
-  const getYearColor = (year) => {
-    const colors = {
-      2016: '#fe516b',
-      2017: '#a92501',
-      2018: '#a07a0c',
-      2019: '#00633c',
-      2020: '#01a38f',
-      2021: '#006fa9',
-      2022: '#1d3cff',
-      2023: '#8688ff',
-      2024: '#6803bf',
-      2025: '#ff35de',
-      2026: '#b8067e'
-    };
-
-    if (colors[year]) return colors[year];
-
-    // Otherwise generate a consistent random color based on year
-    const hash = year.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const hue = hash % 360;
-    return `hsl(${hue}, 70%, 50%)`;
-  };
 
   
   // Calculate if any years are visible
@@ -424,9 +407,8 @@ export default function CounterChart({ data, title, measureLabel }) {
             <LineChart 
               data={yearOverYearData} 
               margin={{ top: 20, right: 30, left: 48, bottom: 50 }}
-              onMouseMove={handleChartMouseMove}
+              onMouseMove={restoreTooltip}
               onTouchMove={restoreTooltip}
-              onMouseLeave={handleChartMouseLeave}
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
@@ -441,9 +423,16 @@ export default function CounterChart({ data, title, measureLabel }) {
                 label={getYAxisLabel()}
               />
               <Tooltip 
-                content={<CustomTooltip />} 
+                content={
+                  <CustomTooltip
+                    availableYears={availableYears}
+                    visibleYears={visibleYears}
+                    showCumulative={showCumulative}
+                  />
+                }
                 active={tooltipActive}
                 position={TOOLTIP_POSITION}
+                isAnimationActive={false}
                 cursor={{ stroke: '#ccc', strokeWidth: 1 }}
               />
               
@@ -468,14 +457,19 @@ export default function CounterChart({ data, title, measureLabel }) {
               ) : (
                 // Daily view with scatter points and rolling average lines
                 <>
-                  {/* Daily data as transparent scatter points */}
+                  {/* Daily data as transparent dots. Drawn as a strokeless Line
+                      rather than a Scatter: every Scatter redraws all of its
+                      points each time the hovered day changes, while a Line's
+                      dots stay put and only its hover dot (off here) follows
+                      the pointer. r matches Scatter's default circle. */}
                   {availableYears.map(year => (
                     visibleYears[year] && (
-                      <Scatter
+                      <Line
                         key={`daily_${year}`}
                         dataKey={`daily_${year}`}
-                        fill={getYearColor(year)}
-                        fillOpacity={0.15}
+                        stroke="none"
+                        dot={{ r: 4.5, fill: getYearColor(year), fillOpacity: 0.15, stroke: 'none' }}
+                        activeDot={false}
                         name={`${year} Daily`}
                         legendType="none"
                         isAnimationActive={false}
