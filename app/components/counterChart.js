@@ -20,6 +20,9 @@ const AXIS_DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
   day: 'numeric'
 });
 
+// "Jan 1" -> "Jan" for the month ticks.
+const monthName = (displayDate) => displayDate.split(' ')[0];
+
 // Kept out of the component so the memo that calls them can hold a stable
 // dependency list rather than rebuilding on every render.
 const indexByDateKey = (points) => new Map(points.map(point => [point.dateKey, point]));
@@ -280,6 +283,12 @@ export default function CounterChart({ data, title, measureLabel }) {
     });
   }, [data, availableYears, showCumulative]);
 
+  // One tick on the first of each month, labelled with the month alone.
+  const monthTicks = useMemo(
+    () => yearOverYearData.filter(row => row.dateKey.endsWith('-01')).map(row => row.displayDate),
+    [yearOverYearData]
+  );
+
   if (!data || data.length === 0) {
     return <div className="text-center p-8 text-gray-500">No data available for this counter</div>;
   }
@@ -414,10 +423,12 @@ export default function CounterChart({ data, title, measureLabel }) {
               <XAxis 
                 dataKey="displayDate"
                 label={{ value: 'Date', position: 'insideBottom', offset: -5 }}
-                angle={-45}
-                textAnchor="end"
-                height={80}
-                interval={Math.floor(yearOverYearData.length / 15)}
+                ticks={monthTicks}
+                tickFormatter={monthName}
+                // Drops any month that would collide, so a phone shows every
+                // other one.
+                interval="preserveStart"
+                height={50}
               />
               <YAxis 
                 label={getYAxisLabel()}
