@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import BikeLoader from './bikeLoader';
-import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime, bikeshareMonthlyBreakdown, USER_TYPES, BIKE_TYPES } from '../lib/dataUtils';
+import { loadCounterSeries, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime, bikeshareMonthlyBreakdown, USER_TYPES, BIKE_TYPES } from '../lib/dataUtils';
 import CounterChart from './counterChart';
 import HourlyBarChart from './hourlyBarChart';
 import StationMap from './stationMap';
@@ -30,6 +30,8 @@ const BikeShareWards = dynamic(() => import('./bike-share-wards/BikeShareWards')
     </p>
   ),
 });
+
+const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
 export default function BicycleCountersContent() {
   const [counters, setCounters] = useState([]);
@@ -70,14 +72,18 @@ export default function BicycleCountersContent() {
     
     async function fetchData() {
       try {
-        // Load both CSV data and bikeshare data in parallel
-        const [rawCSVData, rawBikeshareData] = await Promise.all([
-          loadCSVData(),
+        // Load the counter series and bikeshare data in parallel
+        const [processedCSVData, rawBikeshareData] = await Promise.all([
+          loadCounterSeries(),
           loadBikeshareData()
         ]);
-        
-        const processedCSVData = processCounterData(rawCSVData);
+
+        // Each step below blocks the main thread, which is also what draws the
+        // loading animation. Letting a frame paint between them keeps the bike
+        // moving instead of freezing for the whole stretch.
+        await nextFrame();
         const processedBikeshareData = processBikeshareCounter(rawBikeshareData);
+        await nextFrame();
 
         // Kept raw so the trip-type filters can re-derive the series without refetching.
         setRawBikeshare(rawBikeshareData);
@@ -390,7 +396,7 @@ export default function BicycleCountersContent() {
                             id="userTypeSelect"
                             value={userType}
                             onChange={(e) => setUserType(e.target.value)}
-                            className="dd-select"
+                            className="dd-select dd-select-chevron"
                           >
                             {USER_TYPES.map(t => (
                               <option key={t.value} value={t.value}>{t.label}</option>
@@ -405,7 +411,7 @@ export default function BicycleCountersContent() {
                             id="bikeTypeSelect"
                             value={bikeType}
                             onChange={(e) => setBikeType(e.target.value)}
-                            className="dd-select"
+                            className="dd-select dd-select-chevron"
                           >
                             {BIKE_TYPES.map(t => (
                               <option key={t.value} value={t.value}>{t.label}</option>

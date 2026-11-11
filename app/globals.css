@@ -111,6 +111,17 @@ body {
   border-radius: 3px;
   padding: 0.55rem 0.75rem;
 }
+/* A drawn chevron in place of the native arrow, which browsers pin to the
+   right edge and won't pad. */
+.dd-select-chevron {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2316150f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 10px 6px;
+}
 .dd-select:focus,
 .dd-input:focus {
   outline: none;

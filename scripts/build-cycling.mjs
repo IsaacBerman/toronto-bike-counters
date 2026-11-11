@@ -9,8 +9,8 @@
 //         data/cycling-counts-locations.csv; pass --offline to rebuild from
 //         those saved copies instead.
 // Output: public/cycling-counts.json — daily volumes grouped by counter, with
-//         the two directions summed per day (exactly what processCounterData
-//         does at runtime), the five unused columns dropped, and a lat/lon
+//         the two directions summed per day (so the page can chart each counter's
+//         arrays as they are, see loadCounterSeries), the five unused columns dropped, and a lat/lon
 //         attached so the counter map can place it.
 //
 // The page keys everything off location_name, so that string is preserved

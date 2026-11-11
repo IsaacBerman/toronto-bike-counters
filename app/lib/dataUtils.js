@@ -230,21 +230,6 @@ function loadCyclingCounts() {
   return cyclingCountsPromise;
 }
 
-export async function loadCSVData() {
-  // Expanded back into the per-location-per-day row shape processCounterData
-  // expects, so that function is unchanged.
-  const counters = await loadCyclingCounts();
-
-  const rows = [];
-  for (const counter of counters) {
-    const { location, dates, volumes } = counter;
-    for (let i = 0; i < dates.length; i++) {
-      rows.push({ location_name: location, dt: dates[i], daily_volume: volumes[i] });
-    }
-  }
-  return rows;
-}
-
 /**
  * Where each permanent counter sits, for the map under the chart. Counters the
  * City's locations export has no coordinates for are dropped rather than
@@ -257,57 +242,32 @@ export async function loadCounterSites() {
     .map(({ location, lat, lon }) => ({ location, lat, lon }));
 }
 
-export function processCounterData(rawData) {
-  // Filter out empty rows and convert types
-  const validData = rawData.filter(row => row.dt && row.daily_volume);
-  
-  // Group by location and date, sum eastbound/westbound
-  const locationData = {};
-  
-  validData.forEach(row => {
-    const location = row.location_name;
-    const date = row.dt;
-    const volume = parseInt(row.daily_volume) || 0;
-    
-    if (!locationData[location]) {
-      locationData[location] = {};
+// One chart series per counter, built straight from the per-counter arrays
+// in cycling-counts.json. Those are already one entry per day with both
+// directions summed, so there is nothing to regroup. Zero days are dropped, as
+// the old row-based path did, and a counter with no days left is left out.
+export async function loadCounterSeries() {
+  const counters = await loadCyclingCounts();
+  const series = [];
+  for (const { location, dates, volumes } of counters) {
+    const dataPoints = [];
+    for (let i = 0; i < dates.length; i++) {
+      if (!dates[i] || !volumes[i]) continue;
+      dataPoints.push({ date: dates[i], volume: volumes[i], timestamp: new Date(dates[i]).getTime() });
     }
-    
-    if (!locationData[location][date]) {
-      locationData[location][date] = 0;
-    }
-    
-    locationData[location][date] += volume;
-  });
-  
-  // Convert to array format for charts
-  const processedData = Object.entries(locationData).map(([location, dateVolumes]) => {
-    const dataPoints = Object.entries(dateVolumes)
-      .map(([date, volume]) => ({
-        date,
-        volume,
-        timestamp: new Date(date).getTime()
-      }))
-      .sort((a, b) => a.timestamp - b.timestamp);
-    
-    // Remove outliers first
+    if (dataPoints.length === 0) continue;
+    dataPoints.sort((a, b) => a.timestamp - b.timestamp);
+
     const dataWithoutOutliers = removeOutliers(dataPoints);
-    
-    // Calculate rolling averages
-    const dataWithRollingAvg = calculateRollingAverage(dataWithoutOutliers);
-    
-    // Determine if counter is operational (check if "retired" is in the location name)
-    const isOperational = !location.toLowerCase().includes('retired');
-    
-    return {
+    series.push({
       location,
-      data: dataWithRollingAvg,
-      isOperational,
+      data: calculateRollingAverage(dataWithoutOutliers),
+      // Retired counters say so in their name.
+      isOperational: !location.toLowerCase().includes('retired'),
       totalCount: dataWithoutOutliers.reduce((sum, point) => sum + point.volume, 0)
-    };
-  });
-  
-  return processedData;
+    });
+  }
+  return series;
 }
 
 export function filterByYear(data, year) {
@@ -320,15 +280,16 @@ export function filterByYear(data, year) {
 export function calculateRollingAverage(data, windowSize = 14) {
   if (data.length === 0) return [];
   
-  const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+  // YYYY-MM-DD strings sort the same as the dates they name.
+  const sortedData = [...data].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   const result = [];
-  
+  let windowSum = 0;
+
   for (let i = 0; i < sortedData.length; i++) {
-    const startIndex = Math.max(0, i - windowSize + 1);
-    const windowData = sortedData.slice(startIndex, i + 1);
-    
-    const average = windowData.reduce((sum, point) => sum + point.volume, 0) / windowData.length;
-    
+    windowSum += sortedData[i].volume;
+    if (i >= windowSize) windowSum -= sortedData[i - windowSize].volume;
+    const average = windowSum / Math.min(i + 1, windowSize);
+
     result.push({
       ...sortedData[i],
       rollingAverage: Math.round(average * 10) / 10, // Round to 1 decimal
@@ -615,12 +576,12 @@ function removeOutliersFromRun(dataPoints, canReplace = () => true) {
     const currentPoint = cleanedData[i];
     
     // Calculate 7-day average of previous days
-    const previous7Days = [...cleanedData].slice(Math.max(0, i - 7), i);
+    const previous7Days = cleanedData.slice(Math.max(0, i - 7), i);
     const previousAverage = previous7Days.length > 0 
       ? previous7Days.reduce((sum, point) => sum + point.volume, 0) / previous7Days.length
       : currentPoint.volume;
     
-    const after7Days = [...cleanedData].slice(i, Math.min(i+7, cleanedData.length));
+    const after7Days = cleanedData.slice(i, Math.min(i+7, cleanedData.length));
     const afterAverage = after7Days.length > 0 
       ? after7Days.reduce((sum, point) => sum + point.volume, 0) / after7Days.length
       : currentPoint.volume;
@@ -706,14 +667,14 @@ function fillMissingDates(dataPoints) {
 
 function identifyGaps(dataPoints, startDate, endDate) {
   const gaps = [];
-  const sortedPoints = [...dataPoints].sort((a, b) => a.timestamp - b.timestamp);
-  
+  const present = new Set(dataPoints.map(point => point.date));
+
   let currentDate = new Date(startDate);
   let gapStart = null;
-  
+
   while (currentDate <= endDate) {
     const dateStr = currentDate.toISOString().split('T')[0];
-    const exists = sortedPoints.some(point => point.date === dateStr);
+    const exists = present.has(dateStr);
     
     if (!exists && gapStart === null) {
       // Start of a new gap
