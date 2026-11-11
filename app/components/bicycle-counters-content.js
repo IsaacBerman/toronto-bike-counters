@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import BikeLoader from './bikeLoader';
 import { loadCSVData, processCounterData, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime, bikeshareMonthlyBreakdown, USER_TYPES, BIKE_TYPES } from '../lib/dataUtils';
 import CounterChart from './counterChart';
 import HourlyBarChart from './hourlyBarChart';
@@ -244,75 +245,7 @@ export default function BicycleCountersContent() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-2" style={{ background: 'var(--paper)' }}>
-        <style>{`
-          @keyframes bike-ride {
-            0%   { transform: translateX(-100px); }
-            100% { transform: translateX(calc(100vw + 100px)); }
-          }
-          .bike-rider-anim { animation: bike-ride 4s linear infinite; }
-        `}</style>
-        <div style={{ position: 'relative', width: '100%', height: '80px', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', bottom: '10px', left: 0, right: 0, height: '2px', backgroundColor: '#d1d5db' }} />
-          <div className="bike-rider-anim" style={{ position: 'absolute', bottom: '12px' }}>
-            <svg width="70" height="55" viewBox="0 0 70 55" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ overflow: 'visible' }}>
-              {/* Rear wheel */}
-              <circle cx="12" cy="42" r="12" stroke="#374151" strokeWidth="2.5" fill="none"/>
-              <g>
-                <animateTransform attributeName="transform" type="rotate" from="0 12 42" to="360 12 42" dur="1.4s" repeatCount="indefinite"/>
-                <line x1="12" y1="31" x2="12" y2="53" stroke="#4b5563" strokeWidth="2.5"/>
-                <line x1="1" y1="42" x2="23" y2="42" stroke="#9ca3af" strokeWidth="1.5"/>
-                <line x1="4.2" y1="34.2" x2="19.8" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
-                <line x1="19.8" y1="34.2" x2="4.2" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
-              </g>
-              <circle cx="12" cy="42" r="2" fill="#374151"/>
-              {/* Front wheel */}
-              <circle cx="58" cy="42" r="12" stroke="#374151" strokeWidth="2.5" fill="none"/>
-              <g>
-                <animateTransform attributeName="transform" type="rotate" from="0 58 42" to="360 58 42" dur="1.4s" repeatCount="indefinite"/>
-                <line x1="58" y1="31" x2="58" y2="53" stroke="#4b5563" strokeWidth="2.5"/>
-                <line x1="47" y1="42" x2="69" y2="42" stroke="#9ca3af" strokeWidth="1.5"/>
-                <line x1="50.2" y1="34.2" x2="65.8" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
-                <line x1="65.8" y1="34.2" x2="50.2" y2="49.8" stroke="#9ca3af" strokeWidth="1.5"/>
-              </g>
-              <circle cx="58" cy="42" r="2" fill="#374151"/>
-              {/* Frame: BB to seat tube top */}
-              <line x1="30" y1="42" x2="24" y2="22" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
-              {/* Frame: top tube */}
-              <line x1="24" y1="22" x2="50" y2="20" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
-              {/* Frame: down tube */}
-              <line x1="50" y1="20" x2="30" y2="42" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
-              {/* Frame: chain stay */}
-              <line x1="30" y1="42" x2="12" y2="42" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
-              {/* Frame: seat stay */}
-              <line x1="24" y1="22" x2="12" y2="42" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round"/>
-              {/* Fork */}
-              <line x1="50" y1="20" x2="58" y2="42" stroke="#374151" strokeWidth="2" strokeLinecap="round"/>
-              {/* Saddle */}
-              <line x1="18" y1="18" x2="28" y2="18" stroke="#374151" strokeWidth="3" strokeLinecap="round"/>
-              {/* Handlebar */}
-              <line x1="52" y1="14" x2="60" y2="16" stroke="#374151" strokeWidth="3" strokeLinecap="round"/>
-              <line x1="54" y1="20" x2="54" y2="13" stroke="#374151" strokeWidth="2" strokeLinecap="round"/>
-              {/* Rider head */}
-              <circle cx="50" cy="7" r="3" fill="#f59e0b" stroke="#b45309" strokeWidth="1.5"/>
-              {/* Rider body */}
-              <line x1="50" y1="13" x2="46" y2="24" stroke="#1d4ed8" strokeWidth="3" strokeLinecap="round"/>
-              {/* Rider arm */}
-              <line x1="48" y1="18" x2="56" y2="16" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round"/>
-              {/* Rider legs */}
-              <line x1="46" y1="24" x2="36" y2="36" stroke="#1d4ed8" strokeWidth="2.5" strokeLinecap="round">
-                <animateTransform attributeName="transform" type="rotate" values="14 46 24; -14 46 24; 14 46 24" dur="1.4s" repeatCount="indefinite"/>
-              </line>
-              <line x1="46" y1="24" x2="30" y2="34" stroke="#1d4ed8" strokeWidth="2" strokeLinecap="round" opacity="0.5">
-                <animateTransform attributeName="transform" type="rotate" values="-14 46 24; 14 46 24; -14 46 24" dur="1.4s" repeatCount="indefinite"/>
-              </line>
-            </svg>
-          </div>
-        </div>
-        <div className="text-xl font-sans text-black">Loading bicycle counter data...</div>
-      </div>
-    );
+    return <BikeLoader label="Loading bicycle counter data..." />;
   }
 
   const isBikeShare = selectedCounter === "Bike Share Toronto";
