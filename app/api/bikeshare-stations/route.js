@@ -6,8 +6,15 @@ import { NextResponse } from 'next/server';
 // The map used to make both bikeraccoon calls itself, one after the other:
 // the station list (~180 KB) and then every station's daily activity (~15,000
 // rows, ~2.4 MB, uncompressed). All it needs from them is one number per
-// station, so this does the join once, returns ~1,100 short rows, and lets the
-// edge cache serve that to everyone for 15 minutes.
+// station, so this does the join once and returns ~1,100 short rows.
+//
+// Built as a static response that Next regenerates at most once an hour, so
+// every region shares one copy and the function runs ~24 times a day rather
+// than per region per cache expiry. Two-week averages barely move in an hour.
+// force-static keeps it static even though the upstream fetches are no-store;
+// the activity response is over the 2 MB fetch-cache limit anyway.
+export const dynamic = 'force-static';
+export const revalidate = 3600;
 
 const KEY = 'YIOJaaLtLdazfrG7GVwcyAybB2WfpmSaxtCUx6gxLBw';
 const DAYS = 13; // full days before today; today counts as the part elapsed
@@ -40,9 +47,9 @@ export async function GET() {
       { cache: 'no-store' }
     ),
   ]);
-  if (!stationsRes.ok || !activityRes.ok) {
-    return NextResponse.json({ error: 'Station data unavailable' }, { status: 502 });
-  }
+  // Throwing, rather than returning an error response, makes a failed
+  // regeneration keep serving the last good copy.
+  if (!stationsRes.ok || !activityRes.ok) throw new Error('Station data unavailable');
   const [{ data: stations = [] }, { data: activity = [] }] = await Promise.all([stationsRes.json(), activityRes.json()]);
 
   const trips = new Map();
@@ -58,8 +65,5 @@ export async function GET() {
     dailyTrips: Math.round(((trips.get(s.station_id) || 0) / (DAYS + fraction)) * 10) / 10,
   }));
 
-  return NextResponse.json(
-    { stations: rows },
-    { headers: { 'Cache-Control': 'public, s-maxage=900, stale-while-revalidate=3600' } }
-  );
+  return NextResponse.json({ stations: rows });
 }
