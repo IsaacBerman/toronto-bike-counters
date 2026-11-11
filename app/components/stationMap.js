@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { fetchStationList, fetchAllStationsActivity } from '../lib/stationDataUtils';
 import { buildDrawLayer } from './downtown-definer/drawLayer';
 
 // Stations inside a drawn area are ringed in the site accent; the rest fade
@@ -40,44 +39,21 @@ export default function StationMap({ onStationSelect, initialAreas, onAreasChang
   useEffect(() => {
     let cancelled = false;
 
+    // Fetch the map library alongside the stations rather than after them;
+    // the init effect below then finds it already loaded.
+    import('leaflet').catch(() => {});
+
     async function loadStations() {
       try {
-        // 1. Get station list
-        const stationData = await fetchStationList();
-
-        if (!stationData || stationData.length === 0) {
-          if (!cancelled) {
-            setError('No stations found');
-            setLoading(false);
-          }
-          return;
-        }
-
-        // 2. Get activity for ALL stations in ONE request
-        const today = new Date();
-        const start = new Date(today);
-        start.setDate(start.getDate() - 13);
-        const allActivity = await fetchAllStationsActivity(start, today);
-
-        // 3. Group activity by station_id and calculate total trips
-        const stationActivityMap = {};
-        allActivity.forEach(item => {
-          stationActivityMap[item.station_id] = (stationActivityMap[item.station_id] || 0) + (item.trips || 0);
-        });
-
-        // Today is only partly over, so it counts as the fraction elapsed.
-        const estTime = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
-        const estStartOfDay = new Date(estTime.getFullYear(), estTime.getMonth(), estTime.getDate());
-        const fraction_of_day = (estTime.getTime() - estStartOfDay.getTime()) / (24 * 60 * 60 * 1000);
-
-        // 4. Combine station info with activity data
-        const stationsWithActivity = stationData.map(station => ({
-          ...station,
-          dailyTrips: stationActivityMap[station.station_id] / (13 + fraction_of_day) || 0,
-        }));
+        // One pre-joined, edge-cached list: stations with their trips a day
+        // (see app/api/bikeshare-stations).
+        const response = await fetch('/api/bikeshare-stations');
+        if (!response.ok) throw new Error(`Stations ${response.status}`);
+        const { stations: stationsWithActivity } = await response.json();
 
         if (!cancelled) {
-          setStations(stationsWithActivity);
+          if (stationsWithActivity.length === 0) setError('No stations found');
+          else setStations(stationsWithActivity);
           setLoading(false);
         }
       } catch (err) {
