@@ -1,4 +1,4 @@
-import { bbox as turfBbox } from '@turf/turf';
+import { bbox as turfBbox, booleanPointInPolygon } from '@turf/turf';
 
 export function slugify(name) {
   return name
@@ -61,7 +61,11 @@ function pickBestResult(results, cityLikeOnly = false) {
   if (cityLikeOnly) return null;
 
   const administrative = withPolygon.find((r) => r.type === 'administrative');
-  return administrative || withPolygon[0];
+  if (administrative) return administrative;
+  // Never fall back to an arbitrary feature: a polygon-less city query often
+  // returns buildings or stations named after it ("Niagara Falls Ontario" ->
+  // the VIA station platform), which would become a 40m "city boundary".
+  return withPolygon.find((r) => r.category === 'boundary' || r.category === 'place') || null;
 }
 
 // Live autocomplete: return city-like matches for a typed query (no geometry),
@@ -118,19 +122,22 @@ function normalizeMatch(s) {
     .toLowerCase();
 }
 
-// True when a result plausibly belongs to the qualifier the user supplied
-// (usually a country, sometimes a state/region): the qualifier must appear in
-// the result's display name or one of its address fields. Guards every query
+// True when a result plausibly belongs to the qualifiers the user supplied
+// (the state/region and country after the city name): each must appear in the
+// result's display name or one of its address fields. Guards every query
 // against Nominatim fuzzy-matching a same-named city somewhere else — e.g.
-// "Dunedin, New Zealand" must never resolve to Dunedin, Florida.
-function matchesQualifier(result, qualifier) {
-  if (!qualifier) return true;
-  const needle = normalizeMatch(qualifier);
-  if (normalizeMatch(result.display_name).includes(needle)) return true;
-  const address = result.address || {};
-  return Object.values(address).some(
-    (value) => typeof value === 'string' && normalizeMatch(value).includes(needle)
-  );
+// "Dunedin, New Zealand" must never resolve to Dunedin, Florida, nor
+// "Paris, Ontario, Canada" to Paris, Yukon.
+function matchesQualifier(result, qualifiers) {
+  const list = [qualifiers].flat().filter(Boolean);
+  const haystacks = [
+    result.display_name,
+    ...Object.values(result.address || {}).filter((value) => typeof value === 'string'),
+  ].map(normalizeMatch);
+  return list.every((qualifier) => {
+    const needle = normalizeMatch(qualifier);
+    return haystacks.some((h) => h.includes(needle));
+  });
 }
 
 // Some metropolises' admin boundary includes islands far offshore (Tokyo's
@@ -210,7 +217,8 @@ function trimRemoteParts(geometry, anchor) {
   return { type: 'MultiPolygon', coordinates: kept };
 }
 
-async function queryBoundary(q, qualifier, cityLikeOnly = false) {
+// `mustContain` ([lng, lat]) rejects any boundary that doesn't cover that point.
+async function queryBoundary(q, qualifier, cityLikeOnly = false, mustContain = null) {
   const params = new URLSearchParams({
     q,
     format: 'jsonv2',
@@ -227,7 +235,14 @@ async function queryBoundary(q, qualifier, cityLikeOnly = false) {
   if (!response.ok) throw new Error(`Nominatim request failed: ${response.status}`);
 
   const results = await response.json();
-  const best = pickBestResult(results.filter((r) => matchesQualifier(r, qualifier)), cityLikeOnly);
+  const best = pickBestResult(
+    results.filter(
+      (r) =>
+        matchesQualifier(r, qualifier) &&
+        (!mustContain || (r.geojson?.coordinates && booleanPointInPolygon(mustContain, r.geojson)))
+    ),
+    cityLikeOnly
+  );
   if (!best) return null;
 
   const anchor =
@@ -247,7 +262,7 @@ async function queryBoundary(q, qualifier, cityLikeOnly = false) {
 // When every direct query fails, look up the city node's address and try its
 // enclosing regions — accepted ONLY via the strict city-sized test in
 // pickBestResult, so a city node in Texas can never fall back to the state.
-async function enclosingRegionBoundary(name, qualifier) {
+async function enclosingRegionBoundary(name, qualifiers) {
   const params = new URLSearchParams({
     q: name,
     format: 'jsonv2',
@@ -262,7 +277,7 @@ async function enclosingRegionBoundary(name, qualifier) {
   if (!response.ok) return null;
 
   const results = await response.json();
-  const cityNode = results.find((r) => isCityResult(r) && matchesQualifier(r, qualifier));
+  const cityNode = results.find((r) => isCityResult(r) && matchesQualifier(r, qualifiers));
   const addr = cityNode?.address;
   if (!addr) return null;
 
@@ -274,9 +289,12 @@ async function enclosingRegionBoundary(name, qualifier) {
         .filter((v) => v && normalizeMatch(v) !== cityName)
     ),
   ];
+  // The region must actually enclose the city: "Guerrero, Mexico" otherwise
+  // matches a same-named municipality in Chihuahua.
+  const cityPoint = [Number(cityNode.lon), Number(cityNode.lat)];
   for (const region of regions) {
     const q = addr.country ? `${region}, ${addr.country}` : region;
-    const result = await queryBoundary(q, qualifier || addr.country, true);
+    const result = await queryBoundary(q, addr.country, true, cityPoint);
     if (result) return result;
   }
   return null;
@@ -296,6 +314,7 @@ async function enclosingRegionBoundary(name, qualifier) {
 export async function fetchCityBoundary(name) {
   const parts = name.split(',').map((s) => s.trim()).filter(Boolean);
   const qualifier = parts.length >= 2 ? parts[parts.length - 1] : null;
+  const qualifiers = parts.slice(1);
   const candidates = [name];
   if (parts.length >= 3) candidates.push(`${parts[0]}, ${qualifier}`);
   if (qualifier && !/\bcity$/i.test(parts[0])) candidates.push(`${parts[0]} City, ${qualifier}`);
@@ -305,12 +324,12 @@ export async function fetchCityBoundary(name) {
     for (const q of candidates) {
       if (tried.has(q)) continue;
       tried.add(q);
-      const result = await queryBoundary(q, qualifier);
+      const result = await queryBoundary(q, qualifiers);
       if (result) return result;
     }
     // Last resort: the boundary may live on a compact admin area ENCLOSING a
     // point-node city (Canberra -> Australian Capital Territory).
-    return await enclosingRegionBoundary(name, qualifier);
+    return await enclosingRegionBoundary(name, qualifiers);
   } catch (error) {
     console.error('Error fetching city boundary:', error);
     return null;
