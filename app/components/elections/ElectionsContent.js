@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { ChevronDown } from 'lucide-react';
 import {
   RACES, ELECTIONS, OFFICES, raceFor, applyRaceColors, SLOT_COLORS, INCUMBENT_COLORS, OTHER_COLOR, NO_RESULT_COLOR, SHARE_RAMP, TURNOUT_RAMP,
-  SWING_BINS, SCALE_OPACITY, turnoutBreaks, leadMargin, marginBreaks, POLL_MARGIN_STEP, marginStep, marginLabels, leadRamp, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
+  SWING_BINS, GAP_COUNCIL_COLOR, sameBallot, gapBins, gapColor, SCALE_OPACITY, turnoutBreaks, leadMargin, marginBreaks, POLL_MARGIN_STEP, marginStep, marginLabels, leadRamp, shareBreaks, shareColor, rampFrom, swingColor, sum, fmt, pct, pctRound, pollLeader, pollLabel,
 } from './results';
 import { useLiveResults, liveDatasets } from './live';
 import { computeNeedle, Needle, NEEDLE } from './needle';
@@ -67,6 +67,14 @@ function overWhite(hex, opacity) {
 // area, with a floor so the smallest stay easy to hover.
 const PLACE_MAX_RADIUS = 20;
 const PLACE_MIN_RADIUS = 5;
+
+// "Chow ran 12.3 points ahead of Perks", by last name.
+const lastName = (name) => name.split(' ').slice(-1)[0];
+function gapSentence(g) {
+  const pts = Math.abs(g.gap * 100).toFixed(1);
+  if (pts === '0.0') return `${lastName(g.mayor.name)} and ${lastName(g.councillor.name)} ran even`;
+  return `${lastName(g.mayor.name)} ran ${pts} points ${g.gap > 0 ? 'ahead of' : 'behind'} ${lastName(g.councillor.name)}`;
+}
 
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -147,9 +155,10 @@ export default function ElectionsContent() {
 
   const [raceId, setRaceId] = useState(initialRace);
   const race = RACES.find((r) => r.id === raceId);
+  const isMayor = race.office === 'mayor';
   const [cache, setCache] = useState({});
   const [error, setError] = useState(null);
-  const [viewPick, setView] = useState('leader'); // 'leader' | 'share' | 'swing' | 'turnout'
+  const [viewPick, setView] = useState('leader'); // 'leader' | 'share' | 'swing' | 'turnout' | 'gap'
   const [votesPick, setVotes] = useState(initialVotes);
   // A race marked live reads the City's election-night feed: ward totals
   // only, with no split by how people voted. None is live between elections.
@@ -168,8 +177,10 @@ export default function ElectionsContent() {
   // Swing only exists for 2026's mayor, which has a 2023 to swing from;
   // turnout only where the City gave each ward's electors (2026, from its
   // election-night feed; the boundary files' counts are off for 2022 and 2023).
+  // Mayor vs council needs both races on one ballot, poll by poll.
   const view = (viewPick === 'swing' && raceId !== 'mayor-2026')
-    || (viewPick === 'turnout' && !data?.meta.hasElectors) ? 'leader' : viewPick;
+    || (viewPick === 'turnout' && !data?.meta.hasElectors)
+    || (viewPick === 'gap' && (isLive || !sameBallot(race.election))) ? 'leader' : viewPick;
   // Both compare whole wards on all their votes.
   const wardOnlyView = view === 'swing' || view === 'turnout';
   // A vote type this race didn't have (mail-in before 2022) reads as election day.
@@ -215,28 +226,35 @@ export default function ElectionsContent() {
     [showNeedle, baseline, nightMayor]
   );
 
-  // A live race needs only the ward outlines; every other race its own file.
+  // A live race needs only the ward outlines; every other race its own file,
+  // and mayor vs council the other race in the same election too.
   const fileId = isLive ? 'wards' : raceId;
+  const partnerId = raceFor(race.election, isMayor ? 'council' : 'mayor')?.id;
+  const fileKey = [fileId, ...(view === 'gap' ? [partnerId] : [])].join(',');
+  // Files in flight, so one arriving (and changing the cache) doesn't start
+  // the other again.
+  const loading = useRef(new Set());
   useEffect(() => {
-    if (cache[fileId]) return undefined;
-    let cancelled = false;
-    fetch(`/elections/${fileId}.json`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((d) => {
-        if (cancelled) return;
-        if (d.id) {
-          applyIncumbents(d, INCUMBENT_COLORS);
-          applyRaceColors(d);
-          d.meta = prepare(d);
-        }
-        setCache((c) => ({ ...c, [fileId]: d }));
-      })
-      .catch((e) => { if (!cancelled) setError(e.message); });
-    return () => { cancelled = true; };
-  }, [fileId, cache]);
+    for (const f of fileKey.split(',')) {
+      if (cache[f] || loading.current.has(f)) continue;
+      loading.current.add(f);
+      fetch(`/elections/${f}.json`)
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then((d) => {
+          if (d.id) {
+            applyIncumbents(d, INCUMBENT_COLORS);
+            applyRaceColors(d);
+            d.meta = prepare(d);
+          }
+          setCache((c) => ({ ...c, [f]: d }));
+        })
+        .catch((e) => setError(e.message))
+        .finally(() => loading.current.delete(f));
+    }
+  }, [fileKey, cache]);
 
   useEffect(() => {
     const q = new URLSearchParams({ race: raceId });
@@ -247,7 +265,6 @@ export default function ElectionsContent() {
   }, [raceId, selectedWard, votes, wardLevel, isLive, wardOnlyView, router]);
 
   const meta = data?.meta;
-  const isMayor = raceId.startsWith('mayor');
   const target = isMayor ? (shareTarget[raceId] ?? meta?.cityRanked[0]?.[0] ?? 0) : shareTarget.council;
 
   // A poll's votes, its total, and the position (in its ward's ranking) of the
@@ -294,6 +311,54 @@ export default function ElectionsContent() {
     return color ? rampFrom(color) : SHARE_RAMP;
   }, [meta, view, isMayor, target, data]);
 
+  // Mayor vs council: both races in this election, whichever one is showing.
+  const mayorData = view === 'gap' ? (isMayor ? data : cache[partnerId]) : null;
+  const councilData = view === 'gap' ? (isMayor ? cache[partnerId] : data) : null;
+  const gapReady = Boolean(mayorData?.meta && councilData?.meta);
+  const mayorWinner = gapReady ? mayorData.meta.cityRanked[0][0] : -1;
+  const mayorColor = gapReady ? colorOfSlot(mayorData.meta.citySlot.get(mayorWinner), mayorData.meta.palette) : null;
+  const bins = useMemo(() => (mayorColor ? gapBins(mayorColor) : null), [mayorColor]);
+  // The other race's polls and advance voting places, by number.
+  const partnerUnits = useMemo(() => {
+    const other = isMayor ? councilData : mayorData;
+    if (!other) return null;
+    const units = new Map(other.polls.features.map((f) => [`${f.properties.w}-${f.properties.s}`, f.properties]));
+    for (const p of other.advancePlaces ?? []) units.set(`a${p.w}-${p.s}`, p);
+    return units;
+  }, [isMayor, mayorData, councilData]);
+
+  // The winning mayor's share of one set of mayoral votes against the ward's
+  // winning councillor's share of the matching council votes.
+  const gapOf = useCallback((w, mv, cv) => {
+    if (!gapReady || !mv || !cv) return null;
+    const mw = mayorData.wards[w];
+    const cw = councilData.wards[w];
+    const mTotal = sum(mv);
+    const cTotal = sum(cv);
+    if (!mTotal || !cTotal || !mw || !cw) return null;
+    const mVotes = mv[mw.cand.indexOf(mayorWinner)] ?? 0;
+    const cVotes = cv[0] ?? 0;
+    return {
+      gap: mVotes / mTotal - cVotes / cTotal,
+      mayor: { name: mayorData.candidates[mayorWinner], votes: mVotes, total: mTotal },
+      councillor: { name: councilData.candidates[cw.cand[0]], votes: cVotes, total: cTotal },
+    };
+  }, [gapReady, mayorData, councilData, mayorWinner]);
+
+  // A poll or advance voting place, from either race's file.
+  const unitGap = useCallback((p) => {
+    const other = partnerUnits?.get(`${p.name ? 'a' : ''}${p.w}-${p.s}`);
+    return isMayor ? gapOf(p.w, p.v, other?.v) : gapOf(p.w, other?.v, p.v);
+  }, [partnerUnits, isMayor, gapOf]);
+
+  const wardGap = useCallback((w) => (gapReady
+    ? gapOf(w, wardVotes(mayorData.wards[w], votes), wardVotes(councilData.wards[w], votes))
+    : null), [gapReady, gapOf, mayorData, councilData, votes]);
+
+  const gapFill = useCallback((g) => (g
+    ? { fillColor: gapColor(g.gap, bins), fillOpacity: SCALE_OPACITY }
+    : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 }), [bins]);
+
   // The fill for a set of votes (a poll's, or a ward's of one type) in ward `w`.
   const fillFor = useCallback((w, v) => {
     const total = sum(v);
@@ -310,8 +375,10 @@ export default function ElectionsContent() {
   }, [view, targetPos, breaks, meta, shareRamp, mBreaks]);
 
   const styleFor = useCallback(
-    (p) => (p.ltc || p.none ? { fillColor: NO_RESULT_COLOR, fillOpacity: 0.35 } : fillFor(p.w, p.v)),
-    [fillFor]
+    (p) => (p.ltc || p.none ? { fillColor: NO_RESULT_COLOR, fillOpacity: 0.35 }
+      : view === 'gap' ? gapFill(unitGap(p))
+      : fillFor(p.w, p.v)),
+    [fillFor, view, gapFill, unitGap]
   );
 
   // 2026's advance vote, place by place: each ward's two advance voting
@@ -321,7 +388,7 @@ export default function ElectionsContent() {
   // A selected place shares selectedPoll with the election-day polls, so its
   // results open in the same card; it's drawn with a heavier ring.
   const placeStyleFor = useCallback((p) => {
-    const { fillColor, fillOpacity } = fillFor(p.w, p.v);
+    const { fillColor, fillOpacity } = view === 'gap' ? gapFill(unitGap(p)) : fillFor(p.w, p.v);
     const selected = selectedPoll?.name && selectedPoll.w === p.w && selectedPoll.s === p.s;
     return {
       radius: Math.max(PLACE_MIN_RADIUS, PLACE_MAX_RADIUS * Math.sqrt(sum(p.v) / placeMax)),
@@ -331,7 +398,7 @@ export default function ElectionsContent() {
       weight: selected ? 3 : 1.25,
       opacity: selected ? 1 : 0.9,
     };
-  }, [fillFor, placeMax, selectedPoll]);
+  }, [fillFor, placeMax, selectedPoll, view, gapFill, unitGap]);
 
   // Chow's margin over her closest challenger in a ward now (the needle's
   // challenger) against her 2023 margin over her closest challenger there,
@@ -366,8 +433,9 @@ export default function ElectionsContent() {
       const s = wardSwing(w);
       return s ? { fillColor: swingColor(s.swing), fillOpacity: SCALE_OPACITY } : { fillColor: NO_RESULT_COLOR, fillOpacity: 0.1 };
     }
+    if (view === 'gap') return gapFill(wardGap(w));
     return fillFor(w, wardVotes(data.wards[w], votes));
-  }, [view, wardSwing, fillFor, data, votes, tBreaks]);
+  }, [view, wardSwing, fillFor, data, votes, tBreaks, gapFill, wardGap]);
 
   // Top three in a set of votes, plus the share view's candidate if they're
   // further down.
@@ -386,6 +454,22 @@ export default function ElectionsContent() {
     return total ? `<table style="border-collapse:collapse">${rows}</table>` : '';
   }, [data, meta, view, targetPos]);
 
+  // The mayor and the ward's winning councillor, their shares, and the gap.
+  const gapRows = useCallback((g) => {
+    if (!g) return '<div style="opacity:0.7">No votes to compare</div>';
+    const row = (color, name, role, c) => `<tr>
+        <td style="padding-right:6px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color}"></span></td>
+        <td style="padding-right:8px">${escapeHtml(name)} <span style="opacity:0.65">${role}</span></td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums">${fmt(c.votes)}</td>
+        <td style="text-align:right;padding-left:8px;opacity:0.65;font-variant-numeric:tabular-nums">${pct(c.votes, c.total)}</td>
+      </tr>`;
+    return `<table style="border-collapse:collapse">
+        ${row(mayorColor, g.mayor.name, 'mayor', g.mayor)}
+        ${row(GAP_COUNCIL_COLOR, g.councillor.name, 'council', g.councillor)}
+      </table>
+      <div style="margin-top:4px;font-weight:700">${escapeHtml(gapSentence(g))}</div>`;
+  }, [mayorColor]);
+
   const tooltipFor = useCallback((p) => {
     const ward = data.wards[p.w];
     const head = `<div style="font-weight:700">Poll ${pollLabel(p.w, p.s)}</div>
@@ -396,16 +480,20 @@ export default function ElectionsContent() {
     if (p.ltc) {
       return `<div style="font-size:12px;max-width:240px;white-space:normal">${head}Long-term care or retirement home. Its votes were pooled with the ward's other care homes, so there's no result for this building alone.</div>`;
     }
+    if (view === 'gap') {
+      return `<div style="font-size:12px">${head}${gapRows(unitGap(p))}
+        <div style="margin-top:4px;opacity:0.7">Election-day votes</div></div>`;
+    }
     return `<div style="font-size:12px">${head}${resultRows(p.w, p.v)}
       <div style="margin-top:4px;opacity:0.7">${fmt(sum(p.v))} election-day votes</div></div>`;
-  }, [data, resultRows]);
+  }, [data, resultRows, view, gapRows, unitGap]);
 
   const placeTooltipFor = useCallback((p) => `<div style="font-size:12px">
       <div style="font-weight:700">${escapeHtml(p.name)}</div>
       <div style="opacity:0.7">${escapeHtml(p.address)}</div>
       <div style="opacity:0.7;margin-bottom:4px">Advance poll ${pollLabel(p.w, p.s)} · Ward ${p.w} ${escapeHtml(data.wards[p.w].name)}</div>
-      ${resultRows(p.w, p.v)}
-      <div style="margin-top:4px;opacity:0.7">${fmt(sum(p.v))} advance votes</div></div>`, [data, resultRows]);
+      ${view === 'gap' ? gapRows(unitGap(p)) : resultRows(p.w, p.v)}
+      <div style="margin-top:4px;opacity:0.7">${view === 'gap' ? 'Advance votes' : `${fmt(sum(p.v))} advance votes`}</div></div>`, [data, resultRows, view, gapRows, unitGap]);
 
   const wardTooltipFor = useCallback((w) => {
     const ward = data.wards[w];
@@ -437,6 +525,13 @@ export default function ElectionsContent() {
         ${reporting}
       </div>`;
     }
+    if (view === 'gap') {
+      return `<div style="font-size:12px">
+        <div style="font-weight:700;margin-bottom:4px">${escapeHtml(ward.title)}</div>
+        ${gapRows(wardGap(w))}
+        <div style="margin-top:4px;opacity:0.7">${VOTE_NOUN[votes][0].toUpperCase()}${VOTE_NOUN[votes].slice(1)}</div>
+      </div>`;
+    }
     const v = wardVotes(data.wards[w], votes);
     return `<div style="font-size:12px">
       <div style="font-weight:700">${escapeHtml(data.wards[w].title)}</div>
@@ -444,7 +539,7 @@ export default function ElectionsContent() {
       <div style="margin-bottom:4px"></div>
       ${resultRows(w, v)}
       <div style="margin-top:4px;opacity:0.7">${fmt(sum(v))} ${VOTE_NOUN[votes]}</div>${reporting}</div>`;
-  }, [data, votes, resultRows, view, wardSwing]);
+  }, [data, votes, resultRows, view, wardSwing, gapRows, wardGap]);
 
   // Clicking the selected ward (or poll, below) again clears the selection.
   const handleSelectWard = useCallback((w) => {
@@ -546,6 +641,7 @@ export default function ElectionsContent() {
               { value: 'share', label: 'Share' },
               ...(raceId === 'mayor-2026' ? [{ value: 'swing', label: 'Swing' }] : []),
               ...(meta?.hasElectors ? [{ value: 'turnout', label: 'Turnout' }] : []),
+              ...(!isLive && sameBallot(race.election) ? [{ value: 'gap', label: 'Mayor vs council' }] : []),
             ]}
             onChange={setView}
           />
@@ -662,6 +758,8 @@ export default function ElectionsContent() {
                   mBreaks={mBreaks}
                   ramp={shareRamp}
                   showPlaces={Boolean(places)}
+                  bins={bins}
+                  mayorName={gapReady ? mayorData.candidates[mayorWinner] : null}
                 />
               </div>
             )}
@@ -671,11 +769,26 @@ export default function ElectionsContent() {
           {/* The results head the right column; election night's dial sits
               below them, folded away as an archive. */}
           <div className="flex flex-col gap-4 min-w-0">
+            {view === 'gap' && gapReady && (selectedPoll
+              ? <GapCard
+                  title={selectedPoll.name ?? `Poll ${pollLabel(selectedPoll.w, selectedPoll.s)}`}
+                  sub={selectedPoll.name ? 'Advance votes' : 'Election-day votes'}
+                  gap={selectedPoll.ltc || selectedPoll.none ? null : unitGap(selectedPoll)}
+                  mayorColor={mayorColor}
+                />
+              : data?.wards[selectedWard]
+                ? <GapCard
+                    title={data.wards[selectedWard].title}
+                    sub={`${VOTE_NOUN[votes][0].toUpperCase()}${VOTE_NOUN[votes].slice(1)}`}
+                    gap={wardGap(selectedWard)}
+                    mayorColor={mayorColor}
+                  />
+                : <GapList data={data} votes={votes} wardGap={wardGap} bins={bins} onPick={pickWard} />)}
             {data && selectedPoll && (
               <PollCard data={data} poll={selectedPoll} onClose={() => setSelectedPoll(null)} />
             )}
             {data?.wards[selectedWard] && <WardCard data={data} ward={selectedWard} votes={votes} />}
-            {data && !selectedWard && (isMayor
+            {data && !selectedWard && view !== 'gap' && (isMayor
               ? <CityCard data={data} votes={votes} />
               : <WardList data={data} votes={votes} onPick={pickWard} />)}
             {showNeedle && needle && (
@@ -688,6 +801,12 @@ export default function ElectionsContent() {
           {isLive ? (
             <p>
               Unofficial results from the City of Toronto&rsquo;s election-night feed.
+            </p>
+          ) : view === 'gap' ? (
+            <p>
+              Mayor vs council compares the winning mayor&rsquo;s share of the mayoral vote with the
+              winning councillor&rsquo;s share of the council vote in the same poll or ward. In a poll,
+              that&rsquo;s the councillor who won the ward, even if someone else won the poll.
             </p>
           ) : (
             <p></p>
@@ -794,7 +913,7 @@ function PlacesNote() {
   );
 }
 
-function Legend({ view, byWard, isMayor, data, breaks, tBreaks, mBreaks, ramp, showPlaces }) {
+function Legend({ view, byWard, isMayor, data, breaks, tBreaks, mBreaks, ramp, showPlaces, bins, mayorName }) {
   if (data.live && !data.meta.allVotes) {
     return <p style={{ color: 'var(--ink-3)' }}>Wards fill in as results are counted.</p>;
   }
@@ -811,6 +930,19 @@ function Legend({ view, byWard, isMayor, data, breaks, tBreaks, mBreaks, ramp, s
           <span style={{ color: 'var(--ink-3)' }}>vs 2023</span>
           <span>To Chow &rarr;</span>
         </div>
+      </>
+    );
+  }
+  if (view === 'gap') {
+    if (!bins) return <p style={{ color: 'var(--ink-3)' }}>Loading the other race…</p>;
+    return (
+      <>
+        <RampKey colors={bins.map((b) => b.color)} labels={bins.map((b) => b.label)} width={40} />
+        <div className="flex justify-between mt-0.5" style={{ width: 42 * 7 - 2, color: 'var(--ink-2)' }}>
+          <span>&larr; Councillor ahead</span>
+          <span>{lastName(mayorName)} ahead &rarr;</span>
+        </div>
+        {showPlaces && <PlacesNote />}
       </>
     );
   }
@@ -992,6 +1124,89 @@ function SpecialRow({ label, votes, total }) {
       <dd style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(votes)}</dd>
       <dd className="text-right" style={{ color: 'var(--ink-3)', fontVariantNumeric: 'tabular-nums' }}>{pct(votes, total)}</dd>
     </>
+  );
+}
+
+// The winning mayor and the ward's winning councillor side by side, for a
+// poll or a ward.
+function GapCard({ title, sub, gap, mayorColor }) {
+  const row = (who, role, color) => (
+    <li className="text-sm">
+      <div className="flex justify-between gap-3">
+        <span className="truncate" style={{ color: 'var(--ink)' }}>
+          {who.name} <span style={{ color: 'var(--ink-3)' }}>{role}</span>
+        </span>
+        <span className="shrink-0" style={{ color: 'var(--ink-2)', fontVariantNumeric: 'tabular-nums' }}>
+          {fmt(who.votes)} <span className="inline-block w-12 text-right" style={{ color: 'var(--ink-3)' }}>{pct(who.votes, who.total)}</span>
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 rounded-sm" style={{ background: 'var(--paper)' }}>
+        <div className="h-full rounded-sm" style={{ width: `${(who.votes / who.total) * 100}%`, background: color }} />
+      </div>
+    </li>
+  );
+  return (
+    <div className="dd-panel">
+      <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
+        <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{title}</h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>Mayor vs council · {sub}</p>
+      </div>
+      <div className="p-4">
+        {gap ? (
+          <>
+            <ul className="space-y-2.5">
+              {row(gap.mayor, 'mayor', mayorColor)}
+              {row(gap.councillor, 'council', GAP_COUNCIL_COLOR)}
+            </ul>
+            <p className="mt-3 text-sm font-semibold" style={{ color: 'var(--ink)' }}>{gapSentence(gap)}</p>
+          </>
+        ) : (
+          <p className="text-sm" style={{ color: 'var(--ink-2)' }}>No votes to compare.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Every ward, from where the mayor ran furthest ahead of the winning
+// councillor to where they ran furthest behind.
+function GapList({ data, votes, wardGap, bins, onPick }) {
+  const rows = Object.keys(data.wards)
+    .map((w) => ({ w: Number(w), g: wardGap(Number(w)) }))
+    .filter((r) => r.g)
+    .sort((a, b) => b.g.gap - a.g.gap);
+  if (!rows.length) return null;
+  const mayor = rows[0].g.mayor.name;
+  const ahead = rows.filter((r) => r.g.gap > 0).length;
+  return (
+    <div className="dd-panel">
+      <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>
+        <h2 className="dd-title text-lg" style={{ color: 'var(--ink)' }}>{mayor} vs each ward&rsquo;s councillor</h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--ink-3)' }}>
+          {lastName(mayor)} ran ahead in {ahead} of {rows.length} wards · {VOTE_NOUN[votes]}
+        </p>
+      </div>
+      <ul className="divide-y" style={{ borderColor: 'var(--line)' }}>
+        {rows.map(({ w, g }) => (
+          <li key={w}>
+            <button
+              type="button"
+              onClick={() => onPick(w)}
+              className="w-full text-left px-4 py-2 text-sm flex justify-between gap-3 hover:bg-[var(--paper)]"
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-semibold" style={{ color: 'var(--ink)' }}>{g.councillor.name}</span>
+                <span className="block truncate text-xs" style={{ color: 'var(--ink-3)' }}>{w}. {data.wards[w].name}</span>
+              </span>
+              <span className="shrink-0 self-center flex items-center gap-2" style={{ color: 'var(--ink-2)', fontVariantNumeric: 'tabular-nums' }}>
+                {g.gap >= 0 ? '+' : '\u2212'}{Math.abs(g.gap * 100).toFixed(1)}
+                <Swatch color={gapColor(g.gap, bins)} opacity={SCALE_OPACITY} />
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

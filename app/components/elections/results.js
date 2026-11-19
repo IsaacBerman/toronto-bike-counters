@@ -162,6 +162,37 @@ export const SWING_BINS = [
   { max: Infinity, color: '#854a90', label: '10+' },
 ];
 
+// How far the winning mayor ran ahead of (or behind) each ward's winning
+// councillor: the mayor's share of the mayoral vote minus the councillor's
+// share of the council vote, in the same poll or ward. Red where the
+// councillor ran ahead, the mayor's map colour where the mayor did, grey for
+// about even. The 2023-2025 by-elections weren't on one ballot, so they
+// have no comparison.
+export const GAP_COUNCIL_COLOR = '#c8453c';
+export const sameBallot = (election) => election !== '2023';
+
+export function gapBins(mayorHex) {
+  const tints = (hex) => {
+    const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    return [0, 0.35, 0.65].map((t) => `#${rgb.map((c) => Math.round(c + (255 - c) * t).toString(16).padStart(2, '0')).join('')}`);
+  };
+  const council = tints(GAP_COUNCIL_COLOR);
+  const mayor = tints(mayorHex).reverse();
+  return [
+    { max: -0.3, color: council[0], label: '30+' },
+    { max: -0.15, color: council[1], label: '15–30' },
+    { max: -0.05, color: council[2], label: '5–15' },
+    { max: 0.05, color: '#e2e0d6', label: '<5' },
+    { max: 0.15, color: mayor[0], label: '5–15' },
+    { max: 0.3, color: mayor[1], label: '15–30' },
+    { max: Infinity, color: mayor[2], label: '30+' },
+  ];
+}
+
+export function gapColor(gap, bins) {
+  return bins.find((b) => gap < b.max).color;
+}
+
 export function swingColor(swing) {
   return SWING_BINS.find((b) => swing < b.max)?.color ?? SWING_BINS[SWING_BINS.length - 1].color;
 }
