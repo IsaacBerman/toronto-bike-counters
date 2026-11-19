@@ -358,12 +358,9 @@ export default function DowntownDefinerApp({ initialCitySlug }) {
     <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
       <div className="container mx-auto px-4 max-w-4xl lg:max-w-6xl pt-4 pb-10">
         <div className="mb-6">
-          <h1 className="dd-title text-4xl sm:text-5xl mb-2" style={{ color: 'var(--ink)' }}>
+          <h1 className="dd-title text-4xl sm:text-5xl" style={{ color: 'var(--ink)' }}>
             Where is Downtown?
           </h1>
-          <p className="text-base max-w-2xl leading-relaxed" style={{ color: 'var(--ink-2)' }}>
-            Draw what you consider &ldquo;downtown&rdquo; and see how it compares to everyone else&apos;s.
-          </p>
         </div>
 
         {process.env.NODE_ENV !== 'production' && (

@@ -29,9 +29,6 @@ export default function OgImage() {
           <div style={{ fontSize: '104px', fontWeight: 800, color: '#16150f', lineHeight: 1, letterSpacing: '-0.03em' }}>
             Where is Downtown?
           </div>
-          <div style={{ fontSize: '34px', color: '#57554b', marginTop: '24px', maxWidth: '900px' }}>
-            Draw your definition of downtown and see how it compares to everyone else’s.
-          </div>
         </div>
 
         <div style={{ display: 'flex', fontSize: '24px', color: '#8a887c' }}>
