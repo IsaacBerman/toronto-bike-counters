@@ -38,7 +38,9 @@
     "GG",
     "PH",
     "ECD"
-   ]
+   ],
+   "acorn": null,
+   "tea": null
   },
   "Stephen Holyday": {
    "slug": "stephen-holyday",
@@ -76,7 +78,9 @@
     "GG",
     "Exec",
     "IEC"
-   ]
+   ],
+   "acorn": null,
+   "tea": null
   },
   "Amber Morley": {
    "slug": "amber-morley",
@@ -114,6 +118,27 @@
     "IEC",
     "Exec",
     "ECD"
+   ],
+   "acorn": [
+    "Yes",
+    "Partially",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Diana Chan McNally": {
@@ -152,6 +177,27 @@
     "PH",
     "Exec",
     "IEC"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Chiara Padovani": {
@@ -190,6 +236,27 @@
     "PH",
     "IEC",
     "ECD"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "James Pasternak": {
@@ -228,7 +295,9 @@
     "IEC",
     "ECD",
     "Exec"
-   ]
+   ],
+   "acorn": null,
+   "tea": null
   },
   "Anthony Perruzza": {
    "slug": "anthony-perruzza",
@@ -266,6 +335,27 @@
     "IEC",
     "PH",
     "ECD"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Mike Colle": {
@@ -304,7 +394,22 @@
     "IEC",
     "Exec",
     "GG"
-   ]
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Partially",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": null
   },
   "Alejandra Bravo": {
    "slug": "alejandra-bravo",
@@ -342,6 +447,27 @@
     "ECD",
     "Exec",
     "PH"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Partially",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Ausma Malik": {
@@ -380,6 +506,27 @@
     "Exec",
     "ECD",
     "PH"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Mike Layton": {
@@ -418,6 +565,27 @@
     "IEC",
     "PH",
     "ECD"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Josh Matlow": {
@@ -456,6 +624,14 @@
     "PH",
     "Exec",
     "ECD"
+   ],
+   "acorn": null,
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Curran Stikuts": {
@@ -494,6 +670,27 @@
     "Exec",
     "ECD",
     "PH"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Partially",
+    "Yes",
+    "Partially",
+    "Partially",
+    "Partially",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Sara Ehrhardt": {
@@ -532,6 +729,27 @@
     "ECD",
     "IEC",
     "PH"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Partially",
+    "Yes",
+    "Partially",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Rachel Chernos Lin": {
@@ -570,7 +788,22 @@
     "IEC",
     "ECD",
     "GG"
-   ]
+   ],
+   "acorn": [
+    "Yes",
+    "Partially",
+    "Partially",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Partially",
+    "Partially",
+    "No",
+    "Partially",
+    "Partially",
+    "Partially"
+   ],
+   "tea": null
   },
   "Jon Burnside": {
    "slug": "jon-burnside",
@@ -608,7 +841,9 @@
     "GG",
     "Exec",
     "ECD"
-   ]
+   ],
+   "acorn": null,
+   "tea": null
   },
   "Shelley Carroll": {
    "slug": "shelley-carroll",
@@ -646,6 +881,27 @@
     "Exec",
     "ECD",
     "IEC"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Partially",
+    "No",
+    "Partially",
+    "Partially",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Lily Cheng": {
@@ -684,7 +940,9 @@
     "ECD",
     "GG",
     "Exec"
-   ]
+   ],
+   "acorn": null,
+   "tea": null
   },
   "Nate Erskine-Smith": {
    "slug": "nate-erskine-smith",
@@ -722,6 +980,14 @@
     "PH",
     "Exec",
     "IEC"
+   ],
+   "acorn": null,
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Parthi Kandavel": {
@@ -760,7 +1026,22 @@
     "IEC",
     "PH",
     "ECD"
-   ]
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": null
   },
   "Michael Thompson": {
    "slug": "michael-thompson",
@@ -798,7 +1079,9 @@
     "ECD",
     "Exec",
     "IEC"
-   ]
+   ],
+   "acorn": null,
+   "tea": null
   },
   "Nick Mantas": {
    "slug": "nick-mantas",
@@ -836,7 +1119,9 @@
     "ECD",
     "IEC",
     "GG"
-   ]
+   ],
+   "acorn": null,
+   "tea": null
   },
   "Shaun Chen": {
    "slug": "shaun-chen",
@@ -874,7 +1159,22 @@
     "GG",
     "ECD",
     "PH"
-   ]
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Partially",
+    "Partially",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": null
   },
   "Paul Ainslie": {
    "slug": "paul-ainslie",
@@ -912,6 +1212,27 @@
     "GG",
     "Exec",
     "ECD"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Partially",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Neethan Shan": {
@@ -950,6 +1271,27 @@
     "ECD",
     "Exec",
     "IEC"
+   ],
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
    ]
   },
   "Olivia Chow": {
@@ -984,7 +1326,28 @@
     "Yes",
     "Yes"
    ],
-   "choices": null
+   "choices": null,
+   "acorn": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    null,
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "tea": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ]
   }
  },
  "boards": [
@@ -992,7 +1355,6 @@
    "slug": "executive-committee",
    "name": "Executive Committee",
    "category": "Executive",
-   "survey": null,
    "prefKey": "Exec",
    "members": [
     {
@@ -1039,13 +1401,13 @@
      "name": "Josh Matlow",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "community-and-social-services-committee",
    "name": "Community and Social Services Committee",
    "category": "Standing committees",
-   "survey": null,
    "prefKey": "ECD",
    "members": [
     {
@@ -1068,13 +1430,15 @@
      "name": "James Pasternak",
      "role": null
     }
+   ],
+   "surveys": [
+    "acorn"
    ]
   },
   {
    "slug": "economic-development-and-culture-committee",
    "name": "Economic Development and Culture Committee",
    "category": "Standing committees",
-   "survey": null,
    "prefKey": "ECD",
    "members": [
     {
@@ -1097,13 +1461,13 @@
      "name": "Parthi Kandavel",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "general-government-and-service-excellence-committee",
    "name": "General Government and Service Excellence Committee",
    "category": "Standing committees",
-   "survey": null,
    "prefKey": "GG",
    "members": [
     {
@@ -1126,13 +1490,13 @@
      "name": "Jon Burnside",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "infrastructure-and-environment-committee",
    "name": "Infrastructure and Environment Committee",
    "category": "Standing committees",
-   "survey": "cycleto",
    "prefKey": "IEC",
    "members": [
     {
@@ -1159,13 +1523,16 @@
      "name": "Rachel Chernos Lin",
      "role": null
     }
+   ],
+   "surveys": [
+    "cycleto",
+    "tea"
    ]
   },
   {
    "slug": "planning-and-housing-committee",
    "name": "Planning and Housing Committee",
    "category": "Standing committees",
-   "survey": null,
    "prefKey": "PH",
    "members": [
     {
@@ -1188,13 +1555,15 @@
      "name": "Vincent Crisanti",
      "role": null
     }
+   ],
+   "surveys": [
+    "acorn"
    ]
   },
   {
    "slug": "audit-committee",
    "name": "Audit Committee",
    "category": "Special committees",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1217,13 +1586,13 @@
      "name": "Shaun Chen",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "budget-committee",
    "name": "Budget Committee",
    "category": "Special committees",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1250,13 +1619,13 @@
      "name": "Curran Stikuts",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "civic-appointments-committee",
    "name": "Civic Appointments Committee",
    "category": "Special committees",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1279,13 +1648,13 @@
      "name": "Neethan Shan",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "corporations-nominating-panel",
    "name": "Corporations Nominating Panel",
    "category": "Special committees",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1300,13 +1669,13 @@
      "name": "Alejandra Bravo",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "toronto-community-housing-corporation",
    "name": "Toronto Community Housing Corporation",
    "category": "Corporations",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1321,13 +1690,15 @@
      "name": "Nate Erskine-Smith",
      "role": "Mayor's designate"
     }
+   ],
+   "surveys": [
+    "acorn"
    ]
   },
   {
    "slug": "toronto-hydro-corporation",
    "name": "Toronto Hydro Corporation",
    "category": "Corporations",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1342,13 +1713,13 @@
      "name": "Neethan Shan",
      "role": "Mayor's designate"
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "toronto-seniors-housing-corporation",
    "name": "Toronto Seniors Housing Corporation",
    "category": "Corporations",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1359,26 +1730,28 @@
      "name": "Nate Erskine-Smith",
      "role": "Mayor's designate"
     }
+   ],
+   "surveys": [
+    "acorn"
    ]
   },
   {
    "slug": "waterfront-toronto",
    "name": "Waterfront Toronto",
    "category": "Corporations",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
      "name": "Ausma Malik",
      "role": "Mayor's designate"
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "board-of-health",
    "name": "Board of Health",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1397,13 +1770,15 @@
      "name": "Michael Thompson",
      "role": null
     }
+   ],
+   "surveys": [
+    "acorn"
    ]
   },
   {
    "slug": "long-term-care-committee-of-management",
    "name": "Long-Term Care Committee of Management",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1418,13 +1793,13 @@
      "name": "Shaun Chen",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "createto-board-of-directors",
    "name": "CreateTO Board of Directors",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1435,13 +1810,13 @@
      "name": "Nate Erskine-Smith",
      "role": "Mayor's designate"
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "exhibition-place-board-of-governors",
    "name": "Exhibition Place Board of Governors",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1464,13 +1839,13 @@
      "name": "Vincent Crisanti",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "heritage-toronto-board-of-directors",
    "name": "Heritage Toronto Board of Directors",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1481,13 +1856,13 @@
      "name": "Shaun Chen",
      "role": "Mayor's designate"
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "to-live-board-of-directors",
    "name": "TO Live Board of Directors",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1502,13 +1877,13 @@
      "name": "Sara Ehrhardt",
      "role": "Mayor's designate"
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "toronto-atmospheric-fund-board-of-directors",
    "name": "Toronto Atmospheric Fund Board of Directors",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1523,13 +1898,15 @@
      "name": "Nate Erskine-Smith",
      "role": "Mayor's designate"
     }
+   ],
+   "surveys": [
+    "tea"
    ]
   },
   {
    "slug": "toronto-police-service-board",
    "name": "Toronto Police Service Board",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1544,26 +1921,26 @@
      "name": "Shelley Carroll",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "toronto-preservation-board",
    "name": "Toronto Preservation Board",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
      "name": "Vincent Crisanti",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "toronto-public-library-board",
    "name": "Toronto Public Library Board",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1574,13 +1951,13 @@
      "name": "Amber Morley",
      "role": "Mayor's designate"
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "toronto-transit-commission-board",
    "name": "Toronto Transit Commission Board",
    "category": "City boards",
-   "survey": "ttcriders",
    "prefKey": null,
    "members": [
     {
@@ -1599,13 +1976,15 @@
      "name": "Alejandra Bravo",
      "role": null
     }
+   ],
+   "surveys": [
+    "ttcriders"
    ]
   },
   {
    "slug": "toronto-zoo-board-of-management",
    "name": "Toronto Zoo Board of Management",
    "category": "City boards",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
@@ -1620,20 +1999,21 @@
      "name": "Nick Mantas",
      "role": null
     }
-   ]
+   ],
+   "surveys": []
   },
   {
    "slug": "toronto-accessibility-advisory-committee",
    "name": "Toronto Accessibility Advisory Committee",
    "category": "Advisory body",
-   "survey": null,
    "prefKey": null,
    "members": [
     {
      "name": "Chiara Padovani",
      "role": "Chair"
     }
-   ]
+   ],
+   "surveys": []
   }
  ]
 }

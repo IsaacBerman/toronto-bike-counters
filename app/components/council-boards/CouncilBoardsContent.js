@@ -6,8 +6,9 @@ import data from './data.json';
 
 // data.json is exported from the 2027.ST1.1 appointments adopted on
 // November 19, 2026 and the members' preference table (Attachment 1). Survey
-// answers come from the TTCriders 2026 survey and the Cycle Toronto 2026
-// questionnaire (the five citywide pledges; the ward-only sixth is left out).
+// answers come from the TTCriders 2026 survey, the Cycle Toronto 2026
+// questionnaire (the five citywide pledges; the ward-only sixth is left out),
+// ACORN's 2026 candidate survey and the Toronto Environmental Alliance pledge.
 
 const CATEGORIES = [
   'Executive', 'Standing committees', 'Special committees', 'Corporations', 'City boards',
@@ -16,6 +17,7 @@ const CATEGORIES = [
 
 const SURVEYS = {
   ttcriders: {
+    short: 'TTCriders',
     label: 'TTCriders 2026 survey',
     url: 'https://www.ttcriders.ca/2026surveyresults',
     questions: [
@@ -40,6 +42,7 @@ const SURVEYS = {
     ],
   },
   cycleto: {
+    short: 'Cycle TO',
     label: 'Cycle Toronto 2026 questionnaire',
     url: 'https://www.cycleto.ca/2026questionnaire',
     questions: [
@@ -50,7 +53,42 @@ const SURVEYS = {
       'Keep bike lanes safe and passable year-round',
     ],
   },
+  acorn: {
+    short: 'ACORN',
+    label: 'ACORN 2026 candidate survey',
+    url: 'https://acorncanada.org/wp-content/uploads/2026/10/2026-Municipal-Election-Candidate-Survey-Results.pdf',
+    questions: [
+      'In-unit inspections in RentSafeTO evaluations',
+      'A universal work order form landlords must accept',
+      'Expand RentSafeTO and raise fees for more inspectors',
+      '26\u00b0C maximum indoor temperature bylaw, year-round',
+      'Expand the Air Conditioner Assistance Program',
+      'Public reporting of heat-related ER visits',
+      'Raise the Vacant Homes Tax to 5% and fund MURA',
+      'City-run grocery stores',
+      'A municipally owned broadband network',
+      'Advocate for full rent and vacancy control',
+      'Advocate to double OW/ODSP and index to inflation',
+      'Advocate for Landlord and Tenant Board reform',
+    ],
+  },
+  tea: {
+    short: 'TEA',
+    label: 'Toronto Environmental Alliance pledge',
+    url: 'https://election.torontoenvironment.org/2026_municipal_candidate_pledge_results',
+    questions: [
+      '26\u00b0C maximum temperature bylaw for renters',
+      'Plant trees in the hottest neighbourhoods',
+      'Move the Single-Use Strategy forward',
+      'Pause AI data centre approvals pending a framework',
+      'New policies to cut building emissions',
+    ],
+  },
 };
+
+// The pledge is all five priorities at once; the mayor answered them in TEA's
+// separate mayoral survey. Partially is ACORN's half-commitment.
+const ORDER = ['ttcriders', 'cycleto', 'acorn', 'tea'];
 
 // The bodies members ranked, under the names they had when they ranked them.
 const PREF_LABELS = {
@@ -125,10 +163,11 @@ function Squares({ answers, survey, size = 10 }) {
   const list = answers ?? qs.map(() => null);
   const asked = list.filter((a) => a !== 'N/A');
   const yes = asked.filter((a) => a === 'Yes').length;
-  const responded = asked.some((a) => a === 'Yes' || a === 'No' || a === 'Abstain');
+  const responded = asked.some((a) => a === 'Yes' || a === 'No' || a === 'Abstain' || a === 'Partially');
+  const perRow = qs.length > 12 ? 9 : qs.length;
   return (
     <div className="flex items-center gap-2">
-      <div className="flex flex-wrap gap-[3px]" style={{ maxWidth: survey === 'ttcriders' ? 9 * (size + 3) : 'none' }}>
+      <div className="flex flex-wrap gap-[3px]" style={{ maxWidth: perRow * (size + 3) }}>
         {list.map((a, i) => (
           <span
             key={i}
@@ -136,8 +175,9 @@ function Squares({ answers, survey, size = 10 }) {
             style={{
               width: size,
               height: size,
-              background: a === 'Yes' ? 'var(--accent)' : a === 'No' ? 'var(--ink)' : 'transparent',
-              border: a === 'Yes' || a === 'No' ? 'none' : `1.5px ${a === 'N/A' ? 'dotted' : 'solid'} #cfcdc2`,
+              background: a === 'Yes' ? 'var(--accent)' : a === 'No' ? 'var(--ink)'
+                : a === 'Partially' ? 'rgba(232,89,12,0.35)' : 'transparent',
+              border: ['Yes', 'No', 'Partially'].includes(a) ? 'none' : `1.5px ${a === 'N/A' ? 'dotted' : 'solid'} #cfcdc2`,
             }}
           />
         ))}
@@ -159,6 +199,7 @@ function SurveyKey({ survey }) {
     <div className="text-xs flex flex-wrap gap-x-4 gap-y-1 items-center" style={{ color: 'var(--ink-2)' }}>
       <a href={s.url} className="dd-link-accent font-semibold" target="_blank" rel="noreferrer">{s.label}</a>
       <span>{box({ background: 'var(--accent)' })}Yes</span>
+      {survey === 'acorn' && <span>{box({ background: 'rgba(232,89,12,0.35)' })}Partially</span>}
       <span>{box({ background: 'var(--ink)' })}No</span>
       <span>{box({ border: '1.5px solid #cfcdc2' })}No response</span>
     </div>
@@ -183,16 +224,25 @@ function BoardCard({ board, onPick, highlight }) {
                 <span className="block font-semibold leading-tight">{name}</span>
                 <span className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <RoleTag role={role} />
-                  {board.survey && <Squares answers={MEMBERS[name][board.survey]} survey={board.survey} size={8} />}
                 </span>
+                {board.surveys.map((sv) => (
+                  <span key={sv} className="flex items-center gap-1.5 mt-1">
+                    {board.surveys.length > 1 && (
+                      <span className="text-[10px] font-bold uppercase w-14 shrink-0" style={{ color: 'var(--ink-3)' }}>
+                        {SURVEYS[sv].short}
+                      </span>
+                    )}
+                    <Squares answers={MEMBERS[name][sv]} survey={sv} size={8} />
+                  </span>
+                ))}
               </span>
             </button>
           </li>
         ))}
       </ul>
-      {board.survey && (
-        <div className="mt-4 pt-3" style={{ borderTop: '1px solid var(--line)' }}>
-          <SurveyKey survey={board.survey} />
+      {board.surveys.length > 0 && (
+        <div className="mt-4 pt-3 space-y-1" style={{ borderTop: '1px solid var(--line)' }}>
+          {board.surveys.map((sv) => <SurveyKey key={sv} survey={sv} />)}
         </div>
       )}
     </section>
@@ -251,7 +301,7 @@ function MemberDetail({ name, onBoard }) {
         </>
       )}
 
-      {['ttcriders', 'cycleto'].map((survey) => (
+      {ORDER.map((survey) => (
         <div key={survey}>
           <h3 className="dd-kicker mt-6 mb-2" style={{ color: 'var(--ink-3)' }}>{SURVEYS[survey].label}</h3>
           <Squares answers={m[survey]} survey={survey} size={14} />
@@ -424,7 +474,9 @@ export default function CouncilBoardsContent() {
           Sources: <a className="dd-link-accent" href={data.source} target="_blank" rel="noreferrer">2027.ST1.1</a>,
           {' '}<a className="dd-link-accent" href={data.prefsSource} target="_blank" rel="noreferrer">members&rsquo; preferences</a>,
           {' '}<a className="dd-link-accent" href={SURVEYS.ttcriders.url} target="_blank" rel="noreferrer">TTCriders</a>,
-          {' '}<a className="dd-link-accent" href={SURVEYS.cycleto.url} target="_blank" rel="noreferrer">Cycle Toronto</a>.
+          {' '}<a className="dd-link-accent" href={SURVEYS.cycleto.url} target="_blank" rel="noreferrer">Cycle Toronto</a>,
+          {' '}<a className="dd-link-accent" href={SURVEYS.acorn.url} target="_blank" rel="noreferrer">ACORN</a>,
+          {' '}<a className="dd-link-accent" href={SURVEYS.tea.url} target="_blank" rel="noreferrer">Toronto Environmental Alliance</a>.
         </p>
       </div>
     </main>
