@@ -40,7 +40,8 @@
     "ECD"
    ],
    "acorn": null,
-   "tea": null
+   "tea": null,
+   "fasttrackto": null
   },
   "Stephen Holyday": {
    "slug": "stephen-holyday",
@@ -80,7 +81,8 @@
     "IEC"
    ],
    "acorn": null,
-   "tea": null
+   "tea": null,
+   "fasttrackto": null
   },
   "Amber Morley": {
    "slug": "amber-morley",
@@ -139,7 +141,8 @@
     "Yes",
     "Yes",
     "Yes"
-   ]
+   ],
+   "fasttrackto": null
   },
   "Diana Chan McNally": {
    "slug": "diana-chan-mcnally",
@@ -198,7 +201,8 @@
     "Yes",
     "Yes",
     "Yes"
-   ]
+   ],
+   "fasttrackto": null
   },
   "Chiara Padovani": {
    "slug": "chiara-padovani",
@@ -257,7 +261,8 @@
     "Yes",
     "Yes",
     "Yes"
-   ]
+   ],
+   "fasttrackto": null
   },
   "James Pasternak": {
    "slug": "james-pasternak",
@@ -297,7 +302,8 @@
     "Exec"
    ],
    "acorn": null,
-   "tea": null
+   "tea": null,
+   "fasttrackto": null
   },
   "Anthony Perruzza": {
    "slug": "anthony-perruzza",
@@ -356,7 +362,8 @@
     "Yes",
     "Yes",
     "Yes"
-   ]
+   ],
+   "fasttrackto": null
   },
   "Mike Colle": {
    "slug": "mike-colle",
@@ -409,7 +416,8 @@
     "Yes",
     "Yes"
    ],
-   "tea": null
+   "tea": null,
+   "fasttrackto": null
   },
   "Alejandra Bravo": {
    "slug": "alejandra-bravo",
@@ -467,6 +475,9 @@
     "Yes",
     "Yes",
     "Yes",
+    "Yes"
+   ],
+   "fasttrackto": [
     "Yes"
    ]
   },
@@ -527,6 +538,9 @@
     "Yes",
     "Yes",
     "Yes"
+   ],
+   "fasttrackto": [
+    "Yes"
    ]
   },
   "Mike Layton": {
@@ -586,6 +600,9 @@
     "Yes",
     "Yes",
     "Yes"
+   ],
+   "fasttrackto": [
+    "Yes"
    ]
   },
   "Josh Matlow": {
@@ -631,6 +648,9 @@
     "Yes",
     "Yes",
     "Yes",
+    "Yes"
+   ],
+   "fasttrackto": [
     "Yes"
    ]
   },
@@ -691,6 +711,9 @@
     "Yes",
     "Yes",
     "Yes"
+   ],
+   "fasttrackto": [
+    "Yes"
    ]
   },
   "Sara Ehrhardt": {
@@ -750,6 +773,9 @@
     "Yes",
     "Yes",
     "Yes"
+   ],
+   "fasttrackto": [
+    "Yes"
    ]
   },
   "Rachel Chernos Lin": {
@@ -803,7 +829,8 @@
     "Partially",
     "Partially"
    ],
-   "tea": null
+   "tea": null,
+   "fasttrackto": null
   },
   "Jon Burnside": {
    "slug": "jon-burnside",
@@ -843,7 +870,8 @@
     "ECD"
    ],
    "acorn": null,
-   "tea": null
+   "tea": null,
+   "fasttrackto": null
   },
   "Shelley Carroll": {
    "slug": "shelley-carroll",
@@ -902,7 +930,8 @@
     "Yes",
     "Yes",
     "Yes"
-   ]
+   ],
+   "fasttrackto": null
   },
   "Lily Cheng": {
    "slug": "lily-cheng",
@@ -942,7 +971,8 @@
     "Exec"
    ],
    "acorn": null,
-   "tea": null
+   "tea": null,
+   "fasttrackto": null
   },
   "Nate Erskine-Smith": {
    "slug": "nate-erskine-smith",
@@ -987,6 +1017,9 @@
     "Yes",
     "Yes",
     "Yes",
+    "Yes"
+   ],
+   "fasttrackto": [
     "Yes"
    ]
   },
@@ -1041,7 +1074,8 @@
     "Yes",
     "Yes"
    ],
-   "tea": null
+   "tea": null,
+   "fasttrackto": null
   },
   "Michael Thompson": {
    "slug": "michael-thompson",
@@ -1081,7 +1115,8 @@
     "IEC"
    ],
    "acorn": null,
-   "tea": null
+   "tea": null,
+   "fasttrackto": null
   },
   "Nick Mantas": {
    "slug": "nick-mantas",
@@ -1121,7 +1156,8 @@
     "GG"
    ],
    "acorn": null,
-   "tea": null
+   "tea": null,
+   "fasttrackto": null
   },
   "Shaun Chen": {
    "slug": "shaun-chen",
@@ -1174,7 +1210,10 @@
     "Yes",
     "Yes"
    ],
-   "tea": null
+   "tea": null,
+   "fasttrackto": [
+    "Yes"
+   ]
   },
   "Paul Ainslie": {
    "slug": "paul-ainslie",
@@ -1232,6 +1271,9 @@
     "Yes",
     "Yes",
     "Yes",
+    "Yes"
+   ],
+   "fasttrackto": [
     "Yes"
    ]
   },
@@ -1292,7 +1334,8 @@
     "Yes",
     "Yes",
     "Yes"
-   ]
+   ],
+   "fasttrackto": null
   },
   "Olivia Chow": {
    "slug": "olivia-chow",
@@ -1347,6 +1390,9 @@
     "Yes",
     "Yes",
     "Yes"
+   ],
+   "fasttrackto": [
+    "N/A"
    ]
   }
  },
@@ -1526,7 +1572,8 @@
    ],
    "surveys": [
     "cycleto",
-    "tea"
+    "tea",
+    "fasttrackto"
    ]
   },
   {
@@ -1978,7 +2025,8 @@
     }
    ],
    "surveys": [
-    "ttcriders"
+    "ttcriders",
+    "fasttrackto"
    ]
   },
   {

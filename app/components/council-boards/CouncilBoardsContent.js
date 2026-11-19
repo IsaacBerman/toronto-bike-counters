@@ -84,11 +84,17 @@ const SURVEYS = {
       'New policies to cut building emissions',
     ],
   },
+  fasttrackto: {
+    short: 'FastTrackTO',
+    label: 'FastTrackTO faster streetcars pledge',
+    url: 'https://x.com/FastTrackTO/status/2116130577644478855',
+    questions: ['Signed the faster streetcars pledge in full'],
+  },
 };
 
 // The pledge is all five priorities at once; the mayor answered them in TEA's
 // separate mayoral survey. Partially is ACORN's half-commitment.
-const ORDER = ['ttcriders', 'cycleto', 'acorn', 'tea'];
+const ORDER = ['ttcriders', 'cycleto', 'acorn', 'tea', 'fasttrackto'];
 
 // The bodies members ranked, under the names they had when they ranked them.
 const PREF_LABELS = {
@@ -186,7 +192,7 @@ function Squares({ answers, survey, size = 10 }) {
         className="text-xs font-bold tabular-nums whitespace-nowrap"
         style={{ color: !responded ? 'var(--ink-3)' : yes === asked.length ? 'var(--accent)' : 'var(--ink)' }}
       >
-        {responded ? `${yes}/${asked.length}` : 'No reply'}
+        {asked.length === 0 ? 'Not asked' : responded ? `${yes}/${asked.length}` : 'No reply'}
       </span>
     </div>
   );
@@ -476,7 +482,8 @@ export default function CouncilBoardsContent() {
           {' '}<a className="dd-link-accent" href={SURVEYS.ttcriders.url} target="_blank" rel="noreferrer">TTCriders</a>,
           {' '}<a className="dd-link-accent" href={SURVEYS.cycleto.url} target="_blank" rel="noreferrer">Cycle Toronto</a>,
           {' '}<a className="dd-link-accent" href={SURVEYS.acorn.url} target="_blank" rel="noreferrer">ACORN</a>,
-          {' '}<a className="dd-link-accent" href={SURVEYS.tea.url} target="_blank" rel="noreferrer">Toronto Environmental Alliance</a>.
+          {' '}<a className="dd-link-accent" href={SURVEYS.tea.url} target="_blank" rel="noreferrer">Toronto Environmental Alliance</a>,
+          {' '}<a className="dd-link-accent" href={SURVEYS.fasttrackto.url} target="_blank" rel="noreferrer">FastTrackTO</a>.
         </p>
       </div>
     </main>
