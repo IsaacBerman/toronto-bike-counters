@@ -206,9 +206,6 @@ function MemberDetail({ name, onBoard }) {
         <div className="min-w-0">
           <div className="dd-kicker">{m.ward ? `Ward ${m.ward} · ${m.wardName}` : 'Mayor'}</div>
           <h2 className="dd-title text-3xl mt-1">{name}</h2>
-          <p className="mt-2 text-sm" style={{ color: 'var(--ink-2)' }}>
-            {seats.length} {seats.length === 1 ? 'seat' : 'seats'} on the bodies listed here
-          </p>
         </div>
       </div>
 
