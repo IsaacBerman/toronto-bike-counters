@@ -63,9 +63,12 @@ const PREF_LABELS = {
 
 const MEMBERS = data.members;
 const BY_SLUG = Object.fromEntries(Object.entries(MEMBERS).map(([name, m]) => [m.slug, name]));
-const PREF_BOARD = Object.fromEntries(
-  data.boards.filter((b) => b.prefKey).map((b) => [b.prefKey, b]),
-);
+// Economic and Community Development was split into Economic Development and
+// Culture and Community and Social Services, so a seat on either counts.
+const PREF_BOARDS = data.boards.filter((b) => b.prefKey).reduce((acc, b) => {
+  (acc[b.prefKey] ??= []).push(b);
+  return acc;
+}, {});
 
 const surname = (name) => {
   const compound = ['Chan McNally', 'Chernos Lin', 'Erskine-Smith'].find((c) => name.endsWith(c));
@@ -226,7 +229,7 @@ function MemberDetail({ name, onBoard }) {
           <h3 className="dd-kicker mt-6 mb-2" style={{ color: 'var(--ink-3)' }}>Committees they asked for</h3>
           <ol className="space-y-1.5">
             {m.choices.map((key, i) => {
-              const got = PREF_BOARD[key]?.members.some((s) => s.name === name);
+              const got = (PREF_BOARDS[key] ?? []).some((b) => b.members.some((s) => s.name === name));
               return (
                 <li key={key} className="flex items-center gap-3 text-sm">
                   <span className="w-16 font-bold tabular-nums" style={{ color: 'var(--ink-3)' }}>
