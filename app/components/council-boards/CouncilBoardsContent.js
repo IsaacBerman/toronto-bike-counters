@@ -172,7 +172,7 @@ function Squares({ answers, survey, size = 10 }) {
   const responded = asked.some((a) => a === 'Yes' || a === 'No' || a === 'Abstain' || a === 'Partially');
   const perRow = qs.length > 12 ? 9 : qs.length;
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
       <div
         className="grid gap-[3px] shrink-0"
         style={{ gridTemplateColumns: `repeat(${Math.min(perRow, list.length)}, ${size}px)` }}
@@ -230,13 +230,13 @@ function BoardCard({ board, onPick, highlight }) {
               style={{ background: highlight === name ? 'rgba(232,89,12,0.10)' : 'transparent' }}
             >
               <Photo name={name} size={44} round />
-              <span className="min-w-0">
+              <span className="min-w-0 flex-1">
                 <span className="block font-semibold leading-tight">{name}</span>
                 <span className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <RoleTag role={role} />
                 </span>
                 {board.surveys.map((sv) => (
-                  <span key={sv} className="flex items-center gap-1.5 mt-1">
+                  <span key={sv} className="flex items-center gap-1.5 mt-1 min-w-0">
                     {board.surveys.length > 1 && (
                       <span className="text-[10px] font-bold uppercase w-20 shrink-0 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
                         {SURVEYS[sv].short}
