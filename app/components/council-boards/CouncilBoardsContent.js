@@ -173,7 +173,10 @@ function Squares({ answers, survey, size = 10 }) {
   const perRow = qs.length > 12 ? 9 : qs.length;
   return (
     <div className="flex items-center gap-2">
-      <div className="flex flex-wrap gap-[3px]" style={{ maxWidth: perRow * (size + 3) }}>
+      <div
+        className="grid gap-[3px] shrink-0"
+        style={{ gridTemplateColumns: `repeat(${Math.min(perRow, list.length)}, ${size}px)` }}
+      >
         {list.map((a, i) => (
           <span
             key={i}
@@ -181,6 +184,7 @@ function Squares({ answers, survey, size = 10 }) {
             style={{
               width: size,
               height: size,
+              boxSizing: 'border-box',
               background: a === 'Yes' ? 'var(--accent)' : a === 'No' ? 'var(--ink)'
                 : a === 'Partially' ? 'rgba(232,89,12,0.35)' : 'transparent',
               border: ['Yes', 'No', 'Partially'].includes(a) ? 'none' : `1.5px ${a === 'N/A' ? 'dotted' : 'solid'} #cfcdc2`,
@@ -234,7 +238,7 @@ function BoardCard({ board, onPick, highlight }) {
                 {board.surveys.map((sv) => (
                   <span key={sv} className="flex items-center gap-1.5 mt-1">
                     {board.surveys.length > 1 && (
-                      <span className="text-[10px] font-bold uppercase w-14 shrink-0" style={{ color: 'var(--ink-3)' }}>
+                      <span className="text-[10px] font-bold uppercase w-20 shrink-0 whitespace-nowrap" style={{ color: 'var(--ink-3)' }}>
                         {SURVEYS[sv].short}
                       </span>
                     )}
