@@ -1,0 +1,1639 @@
+{
+ "source": "https://secure.toronto.ca/council/agenda-item.do?item=2027.ST1.1",
+ "prefsSource": "https://www.toronto.ca/legdocs/mmis/2027/st/bgrd/backgroundfile-290994.pdf",
+ "members": {
+  "Vincent Crisanti": {
+   "slug": "vincent-crisanti",
+   "ward": 1,
+   "wardName": "Etobicoke North",
+   "title": "Councillor",
+   "ttcriders": [
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "GG",
+    "PH",
+    "ECD"
+   ]
+  },
+  "Stephen Holyday": {
+   "slug": "stephen-holyday",
+   "ward": 2,
+   "wardName": "Etobicoke Centre",
+   "title": "Councillor",
+   "ttcriders": [
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "GG",
+    "Exec",
+    "IEC"
+   ]
+  },
+  "Amber Morley": {
+   "slug": "amber-morley",
+   "ward": 3,
+   "wardName": "Etobicoke-Lakeshore",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "No",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "IEC",
+    "Exec",
+    "ECD"
+   ]
+  },
+  "Diana Chan McNally": {
+   "slug": "diana-chan-mcnally",
+   "ward": 4,
+   "wardName": "Parkdale-High Park",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "PH",
+    "Exec",
+    "IEC"
+   ]
+  },
+  "Chiara Padovani": {
+   "slug": "chiara-padovani",
+   "ward": 5,
+   "wardName": "York South-Weston",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "PH",
+    "IEC",
+    "ECD"
+   ]
+  },
+  "James Pasternak": {
+   "slug": "james-pasternak",
+   "ward": 6,
+   "wardName": "York Centre",
+   "title": "Councillor",
+   "ttcriders": [
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "IEC",
+    "ECD",
+    "Exec"
+   ]
+  },
+  "Anthony Perruzza": {
+   "slug": "anthony-perruzza",
+   "ward": 7,
+   "wardName": "Humber River-Black Creek",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "No",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "IEC",
+    "PH",
+    "ECD"
+   ]
+  },
+  "Mike Colle": {
+   "slug": "mike-colle",
+   "ward": 8,
+   "wardName": "Eglinton-Lawrence",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "IEC",
+    "Exec",
+    "GG"
+   ]
+  },
+  "Alejandra Bravo": {
+   "slug": "alejandra-bravo",
+   "ward": 9,
+   "wardName": "Davenport",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "ECD",
+    "Exec",
+    "PH"
+   ]
+  },
+  "Ausma Malik": {
+   "slug": "ausma-malik",
+   "ward": 10,
+   "wardName": "Spadina-Fort York",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "Exec",
+    "ECD",
+    "PH"
+   ]
+  },
+  "Mike Layton": {
+   "slug": "mike-layton",
+   "ward": 11,
+   "wardName": "University-Rosedale",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "IEC",
+    "PH",
+    "ECD"
+   ]
+  },
+  "Josh Matlow": {
+   "slug": "josh-matlow",
+   "ward": 12,
+   "wardName": "Toronto-St. Paul's",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "PH",
+    "Exec",
+    "ECD"
+   ]
+  },
+  "Curran Stikuts": {
+   "slug": "curran-stikuts",
+   "ward": 13,
+   "wardName": "Toronto Centre",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "Exec",
+    "ECD",
+    "PH"
+   ]
+  },
+  "Sara Ehrhardt": {
+   "slug": "sara-ehrhardt",
+   "ward": 14,
+   "wardName": "Toronto-Danforth",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "ECD",
+    "IEC",
+    "PH"
+   ]
+  },
+  "Rachel Chernos Lin": {
+   "slug": "rachel-chernos-lin",
+   "ward": 15,
+   "wardName": "Don Valley West",
+   "title": "Councillor",
+   "ttcriders": [
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "IEC",
+    "ECD",
+    "GG"
+   ]
+  },
+  "Jon Burnside": {
+   "slug": "jon-burnside",
+   "ward": 16,
+   "wardName": "Don Valley East",
+   "title": "Councillor",
+   "ttcriders": [
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "GG",
+    "Exec",
+    "ECD"
+   ]
+  },
+  "Shelley Carroll": {
+   "slug": "shelley-carroll",
+   "ward": 17,
+   "wardName": "Don Valley North",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "No",
+    "Yes",
+    "Yes",
+    "Yes",
+    "No",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "No",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "Exec",
+    "ECD",
+    "IEC"
+   ]
+  },
+  "Lily Cheng": {
+   "slug": "lily-cheng",
+   "ward": 18,
+   "wardName": "Willowdale",
+   "title": "Councillor",
+   "ttcriders": [
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "ECD",
+    "GG",
+    "Exec"
+   ]
+  },
+  "Nate Erskine-Smith": {
+   "slug": "nate-erskine-smith",
+   "ward": 19,
+   "wardName": "Beaches-East York",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": [
+    "PH",
+    "Exec",
+    "IEC"
+   ]
+  },
+  "Parthi Kandavel": {
+   "slug": "parthi-kandavel",
+   "ward": 20,
+   "wardName": "Scarborough Southwest",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "No",
+    "No",
+    "Yes",
+    "No",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "No",
+    "Yes"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "IEC",
+    "PH",
+    "ECD"
+   ]
+  },
+  "Michael Thompson": {
+   "slug": "michael-thompson",
+   "ward": 21,
+   "wardName": "Scarborough Centre",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "ECD",
+    "Exec",
+    "IEC"
+   ]
+  },
+  "Nick Mantas": {
+   "slug": "nick-mantas",
+   "ward": 22,
+   "wardName": "Scarborough-Agincourt",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "No",
+    "No",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "ECD",
+    "IEC",
+    "GG"
+   ]
+  },
+  "Shaun Chen": {
+   "slug": "shaun-chen",
+   "ward": 23,
+   "wardName": "Scarborough North",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "No",
+    "No",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "GG",
+    "ECD",
+    "PH"
+   ]
+  },
+  "Paul Ainslie": {
+   "slug": "paul-ainslie",
+   "ward": 24,
+   "wardName": "Scarborough-Guildwood",
+   "title": "Councillor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "GG",
+    "Exec",
+    "ECD"
+   ]
+  },
+  "Neethan Shan": {
+   "slug": "neethan-shan",
+   "ward": 25,
+   "wardName": "Scarborough-Rouge Park",
+   "title": "Councillor",
+   "ttcriders": [
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response",
+    "No Response"
+   ],
+   "cycleto": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "choices": [
+    "ECD",
+    "Exec",
+    "IEC"
+   ]
+  },
+  "Olivia Chow": {
+   "slug": "olivia-chow",
+   "ward": 0,
+   "wardName": "City-wide",
+   "title": "Mayor",
+   "ttcriders": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "N/A",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "cycleto": [
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes",
+    "Yes"
+   ],
+   "choices": null
+  }
+ },
+ "boards": [
+  {
+   "slug": "executive-committee",
+   "name": "Executive Committee",
+   "category": "Executive",
+   "survey": null,
+   "prefKey": "Exec",
+   "members": [
+    {
+     "name": "Olivia Chow",
+     "role": "Chair"
+    },
+    {
+     "name": "Ausma Malik",
+     "role": "Vice-Chair"
+    },
+    {
+     "name": "Amber Morley",
+     "role": null
+    },
+    {
+     "name": "Mike Colle",
+     "role": null
+    },
+    {
+     "name": "Paul Ainslie",
+     "role": null
+    },
+    {
+     "name": "Alejandra Bravo",
+     "role": null
+    },
+    {
+     "name": "Michael Thompson",
+     "role": null
+    },
+    {
+     "name": "Mike Layton",
+     "role": null
+    },
+    {
+     "name": "Nate Erskine-Smith",
+     "role": null
+    },
+    {
+     "name": "Shelley Carroll",
+     "role": null
+    },
+    {
+     "name": "Josh Matlow",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "community-and-social-services-committee",
+   "name": "Community and Social Services Committee",
+   "category": "Standing committees",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Alejandra Bravo",
+     "role": "Chair"
+    },
+    {
+     "name": "Sara Ehrhardt",
+     "role": "Vice-Chair"
+    },
+    {
+     "name": "Curran Stikuts",
+     "role": null
+    },
+    {
+     "name": "Lily Cheng",
+     "role": null
+    },
+    {
+     "name": "James Pasternak",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "economic-development-and-culture-committee",
+   "name": "Economic Development and Culture Committee",
+   "category": "Standing committees",
+   "survey": null,
+   "prefKey": "ECD",
+   "members": [
+    {
+     "name": "Michael Thompson",
+     "role": "Chair"
+    },
+    {
+     "name": "Neethan Shan",
+     "role": "Vice-Chair"
+    },
+    {
+     "name": "Amber Morley",
+     "role": null
+    },
+    {
+     "name": "Nick Mantas",
+     "role": null
+    },
+    {
+     "name": "Parthi Kandavel",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "general-government-and-service-excellence-committee",
+   "name": "General Government and Service Excellence Committee",
+   "category": "Standing committees",
+   "survey": null,
+   "prefKey": "GG",
+   "members": [
+    {
+     "name": "Paul Ainslie",
+     "role": "Chair"
+    },
+    {
+     "name": "Rachel Chernos Lin",
+     "role": "Vice-Chair"
+    },
+    {
+     "name": "Shaun Chen",
+     "role": null
+    },
+    {
+     "name": "Stephen Holyday",
+     "role": null
+    },
+    {
+     "name": "Jon Burnside",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "infrastructure-and-environment-committee",
+   "name": "Infrastructure and Environment Committee",
+   "category": "Standing committees",
+   "survey": "cycleto",
+   "prefKey": "IEC",
+   "members": [
+    {
+     "name": "Mike Layton",
+     "role": "Chair"
+    },
+    {
+     "name": "Mike Colle",
+     "role": "Vice-Chair"
+    },
+    {
+     "name": "Amber Morley",
+     "role": null
+    },
+    {
+     "name": "Anthony Perruzza",
+     "role": null
+    },
+    {
+     "name": "Chiara Padovani",
+     "role": null
+    },
+    {
+     "name": "Rachel Chernos Lin",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "planning-and-housing-committee",
+   "name": "Planning and Housing Committee",
+   "category": "Standing committees",
+   "survey": null,
+   "prefKey": "PH",
+   "members": [
+    {
+     "name": "Nate Erskine-Smith",
+     "role": "Chair"
+    },
+    {
+     "name": "Diana Chan McNally",
+     "role": "Vice-Chair"
+    },
+    {
+     "name": "Josh Matlow",
+     "role": null
+    },
+    {
+     "name": "Ausma Malik",
+     "role": null
+    },
+    {
+     "name": "Vincent Crisanti",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "audit-committee",
+   "name": "Audit Committee",
+   "category": "Special committees",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Stephen Holyday",
+     "role": "Chair"
+    },
+    {
+     "name": "Chiara Padovani",
+     "role": "Vice-Chair"
+    },
+    {
+     "name": "Vincent Crisanti",
+     "role": null
+    },
+    {
+     "name": "Sara Ehrhardt",
+     "role": null
+    },
+    {
+     "name": "Shaun Chen",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "budget-committee",
+   "name": "Budget Committee",
+   "category": "Special committees",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Shelley Carroll",
+     "role": "Chair"
+    },
+    {
+     "name": "Mike Layton",
+     "role": "Vice-Chair"
+    },
+    {
+     "name": "Lily Cheng",
+     "role": null
+    },
+    {
+     "name": "Neethan Shan",
+     "role": null
+    },
+    {
+     "name": "Chiara Padovani",
+     "role": null
+    },
+    {
+     "name": "Curran Stikuts",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "civic-appointments-committee",
+   "name": "Civic Appointments Committee",
+   "category": "Special committees",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Ausma Malik",
+     "role": "Chair"
+    },
+    {
+     "name": "Sara Ehrhardt",
+     "role": "Vice-Chair"
+    },
+    {
+     "name": "Curran Stikuts",
+     "role": null
+    },
+    {
+     "name": "Jon Burnside",
+     "role": null
+    },
+    {
+     "name": "Neethan Shan",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "corporations-nominating-panel",
+   "name": "Corporations Nominating Panel",
+   "category": "Special committees",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Mike Layton",
+     "role": "Chair"
+    },
+    {
+     "name": "Mike Colle",
+     "role": "Vice-Chair"
+    },
+    {
+     "name": "Alejandra Bravo",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "toronto-community-housing-corporation",
+   "name": "Toronto Community Housing Corporation",
+   "category": "Corporations",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Anthony Perruzza",
+     "role": null
+    },
+    {
+     "name": "Mike Layton",
+     "role": null
+    },
+    {
+     "name": "Nate Erskine-Smith",
+     "role": "Mayor's designate"
+    }
+   ]
+  },
+  {
+   "slug": "toronto-hydro-corporation",
+   "name": "Toronto Hydro Corporation",
+   "category": "Corporations",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Rachel Chernos Lin",
+     "role": null
+    },
+    {
+     "name": "Mike Layton",
+     "role": null
+    },
+    {
+     "name": "Neethan Shan",
+     "role": "Mayor's designate"
+    }
+   ]
+  },
+  {
+   "slug": "toronto-seniors-housing-corporation",
+   "name": "Toronto Seniors Housing Corporation",
+   "category": "Corporations",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Anthony Perruzza",
+     "role": null
+    },
+    {
+     "name": "Nate Erskine-Smith",
+     "role": "Mayor's designate"
+    }
+   ]
+  },
+  {
+   "slug": "waterfront-toronto",
+   "name": "Waterfront Toronto",
+   "category": "Corporations",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Ausma Malik",
+     "role": "Mayor's designate"
+    }
+   ]
+  },
+  {
+   "slug": "board-of-health",
+   "name": "Board of Health",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Neethan Shan",
+     "role": null
+    },
+    {
+     "name": "Curran Stikuts",
+     "role": null
+    },
+    {
+     "name": "Anthony Perruzza",
+     "role": null
+    },
+    {
+     "name": "Michael Thompson",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "long-term-care-committee-of-management",
+   "name": "Long-Term Care Committee of Management",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Alejandra Bravo",
+     "role": "Chair"
+    },
+    {
+     "name": "Amber Morley",
+     "role": null
+    },
+    {
+     "name": "Shaun Chen",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "createto-board-of-directors",
+   "name": "CreateTO Board of Directors",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Ausma Malik",
+     "role": null
+    },
+    {
+     "name": "Nate Erskine-Smith",
+     "role": "Mayor's designate"
+    }
+   ]
+  },
+  {
+   "slug": "exhibition-place-board-of-governors",
+   "name": "Exhibition Place Board of Governors",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Ausma Malik",
+     "role": "Chair"
+    },
+    {
+     "name": "Josh Matlow",
+     "role": null
+    },
+    {
+     "name": "Paul Ainslie",
+     "role": null
+    },
+    {
+     "name": "Anthony Perruzza",
+     "role": null
+    },
+    {
+     "name": "Vincent Crisanti",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "heritage-toronto-board-of-directors",
+   "name": "Heritage Toronto Board of Directors",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Stephen Holyday",
+     "role": null
+    },
+    {
+     "name": "Shaun Chen",
+     "role": "Mayor's designate"
+    }
+   ]
+  },
+  {
+   "slug": "to-live-board-of-directors",
+   "name": "TO Live Board of Directors",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Curran Stikuts",
+     "role": null
+    },
+    {
+     "name": "Lily Cheng",
+     "role": null
+    },
+    {
+     "name": "Sara Ehrhardt",
+     "role": "Mayor's designate"
+    }
+   ]
+  },
+  {
+   "slug": "toronto-atmospheric-fund-board-of-directors",
+   "name": "Toronto Atmospheric Fund Board of Directors",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Mike Layton",
+     "role": null
+    },
+    {
+     "name": "Diana Chan McNally",
+     "role": null
+    },
+    {
+     "name": "Nate Erskine-Smith",
+     "role": "Mayor's designate"
+    }
+   ]
+  },
+  {
+   "slug": "toronto-police-service-board",
+   "name": "Toronto Police Service Board",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Amber Morley",
+     "role": null
+    },
+    {
+     "name": "Curran Stikuts",
+     "role": null
+    },
+    {
+     "name": "Shelley Carroll",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "toronto-preservation-board",
+   "name": "Toronto Preservation Board",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Vincent Crisanti",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "toronto-public-library-board",
+   "name": "Toronto Public Library Board",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Paul Ainslie",
+     "role": null
+    },
+    {
+     "name": "Amber Morley",
+     "role": "Mayor's designate"
+    }
+   ]
+  },
+  {
+   "slug": "toronto-transit-commission-board",
+   "name": "Toronto Transit Commission Board",
+   "category": "City boards",
+   "survey": "ttcriders",
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Paul Ainslie",
+     "role": "Chair"
+    },
+    {
+     "name": "Neethan Shan",
+     "role": null
+    },
+    {
+     "name": "Mike Layton",
+     "role": null
+    },
+    {
+     "name": "Alejandra Bravo",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "toronto-zoo-board-of-management",
+   "name": "Toronto Zoo Board of Management",
+   "category": "City boards",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Neethan Shan",
+     "role": "Chair"
+    },
+    {
+     "name": "Paul Ainslie",
+     "role": null
+    },
+    {
+     "name": "Nick Mantas",
+     "role": null
+    }
+   ]
+  },
+  {
+   "slug": "toronto-accessibility-advisory-committee",
+   "name": "Toronto Accessibility Advisory Committee",
+   "category": "Advisory body",
+   "survey": null,
+   "prefKey": null,
+   "members": [
+    {
+     "name": "Chiara Padovani",
+     "role": "Chair"
+    }
+   ]
+  }
+ ]
+}
