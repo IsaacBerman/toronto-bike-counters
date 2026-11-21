@@ -92,7 +92,7 @@ export default function SlowZonesPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-      <SiteHeader current="slow-zones" />
+      <SiteHeader current="slow-zones" width="max-w-5xl" />
       <SlowZonesContent />
     </>
   );

@@ -10,7 +10,7 @@ export const metadata = {
 export default function BikeCountersPage() {
   return (
     <>
-      <SiteHeader current="bike-counters" />
+      <SiteHeader current="bike-counters" width="max-w-7xl" />
       <Suspense fallback={
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-xl font-sans ">Loading bicycle counter data...</div>

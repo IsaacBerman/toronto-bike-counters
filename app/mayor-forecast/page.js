@@ -20,7 +20,7 @@ export const metadata = {
 export default function MayorForecastPage() {
   return (
     <>
-      <SiteHeader />
+      <SiteHeader width="max-w-5xl" />
       <MayorForecastContent />
     </>
   );

@@ -18,7 +18,8 @@ const PAGES = [
   { key: 'video-counter', href: '/video-counter', label: 'Video Counter' },
 ];
 
-export default function SiteHeader({ current }) {
+// width matches the page's own container so the logo lines up with the page title.
+export default function SiteHeader({ current, width = 'max-w-6xl' }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const currentPage = PAGES.find((page) => page.key === current);
@@ -41,7 +42,7 @@ export default function SiteHeader({ current }) {
 
   return (
     <header style={{ background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
-      <div className="container mx-auto px-4 max-w-6xl py-2 flex items-center justify-between gap-x-4 gap-y-1 flex-wrap">
+      <div className={`container mx-auto px-4 ${width} py-2 flex items-center justify-between gap-x-4 gap-y-1 flex-wrap`}>
         <Link href="/" className="flex items-center gap-2">
           <span className="inline-block h-4 w-4 rounded-sm" style={{ background: 'var(--accent)' }} />
           <span className="dd-title text-base" style={{ color: 'var(--ink)' }}>

@@ -26,7 +26,7 @@ export default function WhereWouldYouLivePage() {
   return (
     <>
       <TilePreconnect />
-      <SiteHeader current="where-would-you-live" />
+      <SiteHeader current="where-would-you-live" width="max-w-4xl lg:max-w-6xl" />
       <WhereWouldYouLiveApp />
     </>
   );

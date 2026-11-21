@@ -23,7 +23,7 @@ export default function DowntownDefinerPage() {
   return (
     <>
       <TilePreconnect />
-      <SiteHeader current="downtown-definer" />
+      <SiteHeader current="downtown-definer" width="max-w-4xl lg:max-w-6xl" />
       <DowntownDefinerApp />
     </>
   );

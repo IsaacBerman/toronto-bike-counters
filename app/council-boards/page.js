@@ -16,7 +16,7 @@ export const metadata = {
 export default function CouncilBoardsPage() {
   return (
     <>
-      <SiteHeader />
+      <SiteHeader width="max-w-5xl" />
       <CouncilBoardsContent />
     </>
   );

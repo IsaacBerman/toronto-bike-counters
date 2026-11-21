@@ -8,7 +8,7 @@ export const metadata = {
 export default function ContactPage() {
   return (
     <>
-      <SiteHeader />
+      <SiteHeader width="max-w-3xl" />
       <div className="min-h-screen" style={{ background: 'var(--paper)' }}>
         <div className="container mx-auto px-4 max-w-3xl pt-4 pb-12 sm:pb-16">
           <p className="dd-kicker mb-3">Contact</p>

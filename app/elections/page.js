@@ -25,7 +25,7 @@ export const metadata = {
 export default function ElectionsPage() {
   return (
     <>
-      <SiteHeader current="elections" />
+      <SiteHeader current="elections" width="max-w-7xl" />
       {/* The results are drawn in the browser; until then (and for crawlers
           and link previews that don't run scripts) this says what the page is. */}
       <Suspense fallback={

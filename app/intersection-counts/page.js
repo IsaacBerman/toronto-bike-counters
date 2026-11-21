@@ -11,7 +11,7 @@ export const metadata = {
 export default function IntersectionCountsPage() {
   return (
     <>
-      <SiteHeader current="intersection-counts" />
+      <SiteHeader current="intersection-counts" width="max-w-7xl" />
       <Suspense fallback={
         <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--paper)' }}>
           <div className="text-xl font-sans">Loading intersection counts…</div>
