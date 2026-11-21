@@ -117,6 +117,9 @@ const ALIASES = {
   downsview: 'sheppard-west',
   vaughan: 'vaughan-metropolitan-centre',
   vmc: 'vaughan-metropolitan-centre',
+  // Dundas station was renamed TMU in 2025.
+  tmu: 'dundas',
+  'toronto-metropolitan-university': 'dundas',
 };
 
 function canonicalKey(name) {
