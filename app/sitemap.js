@@ -10,6 +10,7 @@ const ROUTES = [
   { path: '/intersection-counts', priority: 0.8, changeFrequency: 'monthly' },
   { path: '/elections', priority: 0.9, changeFrequency: 'daily' },
   { path: '/transform-toronto', priority: 0.8, changeFrequency: 'monthly' },
+  { path: '/council-boards', priority: 0.7, changeFrequency: 'monthly' },
   { path: '/downtown-definer', priority: 0.8, changeFrequency: 'weekly' },
   { path: '/where-would-you-live', priority: 0.8, changeFrequency: 'weekly' },
   { path: '/video-counter', priority: 0.8, changeFrequency: 'monthly' },

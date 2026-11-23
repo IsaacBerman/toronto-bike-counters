@@ -74,6 +74,11 @@ export default function Home() {
             blurb="Daily tracking of TTC subway reduced speed zones."
           />
           <ProjectCard
+            href="/council-boards"
+            title="Toronto Council Appointments"
+            blurb="Who sits on each City Council committee and board for 2026\u20132030, with members' election survey answers."
+          />
+          <ProjectCard
             href="/downtown-definer"
             title="Where is Downtown?"
             blurb="Map tool for drawing your definition of downtown, aggregated into a heatmap of all submissions."

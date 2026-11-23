@@ -1405,47 +1405,58 @@
    "members": [
     {
      "name": "Olivia Chow",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": true
     },
     {
      "name": "Ausma Malik",
-     "role": "Vice-Chair"
+     "role": "Vice-Chair",
+     "incumbent": true
     },
     {
      "name": "Amber Morley",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Mike Colle",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Paul Ainslie",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Alejandra Bravo",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Michael Thompson",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Mike Layton",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Nate Erskine-Smith",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Shelley Carroll",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Josh Matlow",
-     "role": null
+     "role": null,
+     "incumbent": true
     }
    ],
    "surveys": []
@@ -1458,23 +1469,28 @@
    "members": [
     {
      "name": "Alejandra Bravo",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": true
     },
     {
      "name": "Sara Ehrhardt",
-     "role": "Vice-Chair"
+     "role": "Vice-Chair",
+     "incumbent": false
     },
     {
      "name": "Curran Stikuts",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Lily Cheng",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "James Pasternak",
-     "role": null
+     "role": null,
+     "incumbent": false
     }
    ],
    "surveys": [
@@ -1489,23 +1505,28 @@
    "members": [
     {
      "name": "Michael Thompson",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": false
     },
     {
      "name": "Neethan Shan",
-     "role": "Vice-Chair"
+     "role": "Vice-Chair",
+     "incumbent": false
     },
     {
      "name": "Amber Morley",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Nick Mantas",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Parthi Kandavel",
-     "role": null
+     "role": null,
+     "incumbent": true
     }
    ],
    "surveys": []
@@ -1518,23 +1539,28 @@
    "members": [
     {
      "name": "Paul Ainslie",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": true
     },
     {
      "name": "Rachel Chernos Lin",
-     "role": "Vice-Chair"
+     "role": "Vice-Chair",
+     "incumbent": false
     },
     {
      "name": "Shaun Chen",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Stephen Holyday",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Jon Burnside",
-     "role": null
+     "role": null,
+     "incumbent": true
     }
    ],
    "surveys": []
@@ -1547,27 +1573,33 @@
    "members": [
     {
      "name": "Mike Layton",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": false
     },
     {
      "name": "Mike Colle",
-     "role": "Vice-Chair"
+     "role": "Vice-Chair",
+     "incumbent": true
     },
     {
      "name": "Amber Morley",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Anthony Perruzza",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Chiara Padovani",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Rachel Chernos Lin",
-     "role": null
+     "role": null,
+     "incumbent": true
     }
    ],
    "surveys": [
@@ -1584,23 +1616,28 @@
    "members": [
     {
      "name": "Nate Erskine-Smith",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": false
     },
     {
      "name": "Diana Chan McNally",
-     "role": "Vice-Chair"
+     "role": "Vice-Chair",
+     "incumbent": false
     },
     {
      "name": "Josh Matlow",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Ausma Malik",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Vincent Crisanti",
-     "role": null
+     "role": null,
+     "incumbent": true
     }
    ],
    "surveys": [
@@ -1615,23 +1652,28 @@
    "members": [
     {
      "name": "Stephen Holyday",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": true
     },
     {
      "name": "Chiara Padovani",
-     "role": "Vice-Chair"
+     "role": "Vice-Chair",
+     "incumbent": false
     },
     {
      "name": "Vincent Crisanti",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Sara Ehrhardt",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Shaun Chen",
-     "role": null
+     "role": null,
+     "incumbent": false
     }
    ],
    "surveys": []
@@ -1644,27 +1686,33 @@
    "members": [
     {
      "name": "Shelley Carroll",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": true
     },
     {
      "name": "Mike Layton",
-     "role": "Vice-Chair"
+     "role": "Vice-Chair",
+     "incumbent": false
     },
     {
      "name": "Lily Cheng",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Neethan Shan",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Chiara Padovani",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Curran Stikuts",
-     "role": null
+     "role": null,
+     "incumbent": false
     }
    ],
    "surveys": []
@@ -1677,23 +1725,28 @@
    "members": [
     {
      "name": "Ausma Malik",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": true
     },
     {
      "name": "Sara Ehrhardt",
-     "role": "Vice-Chair"
+     "role": "Vice-Chair",
+     "incumbent": false
     },
     {
      "name": "Curran Stikuts",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Jon Burnside",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Neethan Shan",
-     "role": null
+     "role": null,
+     "incumbent": false
     }
    ],
    "surveys": []
@@ -1706,15 +1759,18 @@
    "members": [
     {
      "name": "Mike Layton",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": false
     },
     {
      "name": "Mike Colle",
-     "role": "Vice-Chair"
+     "role": "Vice-Chair",
+     "incumbent": true
     },
     {
      "name": "Alejandra Bravo",
-     "role": null
+     "role": null,
+     "incumbent": false
     }
    ],
    "surveys": []
@@ -1727,15 +1783,18 @@
    "members": [
     {
      "name": "Anthony Perruzza",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Mike Layton",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Nate Erskine-Smith",
-     "role": "Mayor's designate"
+     "role": "Mayor's designate",
+     "incumbent": false
     }
    ],
    "surveys": [
@@ -1750,15 +1809,18 @@
    "members": [
     {
      "name": "Rachel Chernos Lin",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Mike Layton",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Neethan Shan",
-     "role": "Mayor's designate"
+     "role": "Mayor's designate",
+     "incumbent": false
     }
    ],
    "surveys": []
@@ -1771,11 +1833,13 @@
    "members": [
     {
      "name": "Anthony Perruzza",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Nate Erskine-Smith",
-     "role": "Mayor's designate"
+     "role": "Mayor's designate",
+     "incumbent": false
     }
    ],
    "surveys": [
@@ -1803,19 +1867,23 @@
    "members": [
     {
      "name": "Neethan Shan",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Curran Stikuts",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Anthony Perruzza",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Michael Thompson",
-     "role": null
+     "role": null,
+     "incumbent": true
     }
    ],
    "surveys": [
@@ -1830,15 +1898,18 @@
    "members": [
     {
      "name": "Alejandra Bravo",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": true
     },
     {
      "name": "Amber Morley",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Shaun Chen",
-     "role": null
+     "role": null,
+     "incumbent": false
     }
    ],
    "surveys": []
@@ -1851,11 +1922,13 @@
    "members": [
     {
      "name": "Ausma Malik",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Nate Erskine-Smith",
-     "role": "Mayor's designate"
+     "role": "Mayor's designate",
+     "incumbent": false
     }
    ],
    "surveys": []
@@ -1868,23 +1941,28 @@
    "members": [
     {
      "name": "Ausma Malik",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": true
     },
     {
      "name": "Josh Matlow",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Paul Ainslie",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Anthony Perruzza",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Vincent Crisanti",
-     "role": null
+     "role": null,
+     "incumbent": true
     }
    ],
    "surveys": []
@@ -1897,11 +1975,13 @@
    "members": [
     {
      "name": "Stephen Holyday",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Shaun Chen",
-     "role": "Mayor's designate"
+     "role": "Mayor's designate",
+     "incumbent": false
     }
    ],
    "surveys": []
@@ -1914,15 +1994,18 @@
    "members": [
     {
      "name": "Curran Stikuts",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Lily Cheng",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Sara Ehrhardt",
-     "role": "Mayor's designate"
+     "role": "Mayor's designate",
+     "incumbent": false
     }
    ],
    "surveys": []
@@ -1935,15 +2018,18 @@
    "members": [
     {
      "name": "Mike Layton",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Diana Chan McNally",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Nate Erskine-Smith",
-     "role": "Mayor's designate"
+     "role": "Mayor's designate",
+     "incumbent": false
     }
    ],
    "surveys": [
@@ -1958,15 +2044,18 @@
    "members": [
     {
      "name": "Amber Morley",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Curran Stikuts",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Shelley Carroll",
-     "role": null
+     "role": null,
+     "incumbent": true
     }
    ],
    "surveys": []
@@ -1979,7 +2068,8 @@
    "members": [
     {
      "name": "Vincent Crisanti",
-     "role": null
+     "role": null,
+     "incumbent": false
     }
    ],
    "surveys": []
@@ -2009,19 +2099,23 @@
    "members": [
     {
      "name": "Paul Ainslie",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": true
     },
     {
      "name": "Neethan Shan",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Mike Layton",
-     "role": null
+     "role": null,
+     "incumbent": false
     },
     {
      "name": "Alejandra Bravo",
-     "role": null
+     "role": null,
+     "incumbent": true
     }
    ],
    "surveys": [
@@ -2037,15 +2131,18 @@
    "members": [
     {
      "name": "Neethan Shan",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": false
     },
     {
      "name": "Paul Ainslie",
-     "role": null
+     "role": null,
+     "incumbent": true
     },
     {
      "name": "Nick Mantas",
-     "role": null
+     "role": null,
+     "incumbent": true
     }
    ],
    "surveys": []
@@ -2058,10 +2155,12 @@
    "members": [
     {
      "name": "Chiara Padovani",
-     "role": "Chair"
+     "role": "Chair",
+     "incumbent": false
     }
    ],
    "surveys": []
   }
- ]
+ ],
+ "priorSource": "https://www.toronto.ca/legdocs/mmis/2024/st/comm/communicationfile-185557.pdf"
 }

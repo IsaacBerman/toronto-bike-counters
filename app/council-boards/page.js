@@ -3,11 +3,8 @@ import CouncilBoardsContent from '../components/council-boards/CouncilBoardsCont
 
 const DESCRIPTION =
   'Who sits on each Toronto City Council committee, board and corporation for the '
-  + '2026–2030 term, and how members answered the TTCriders and Cycle Toronto surveys.';
+  + '2026–2030 term, and how members answered advocacy groups\u2019 election surveys.';
 
-// Standalone: not in site-header's nav or sitemap.js. Reached by link only.
-// To publish it: add a sitemap entry and add it to PAGES in
-// app/components/site-header.js.
 export const metadata = {
   title: 'Council Boards and Committees, 2026–2030',
   description: DESCRIPTION,
@@ -16,7 +13,7 @@ export const metadata = {
 export default function CouncilBoardsPage() {
   return (
     <>
-      <SiteHeader width="max-w-5xl" />
+      <SiteHeader current="council-boards" width="max-w-5xl" />
       <CouncilBoardsContent />
     </>
   );

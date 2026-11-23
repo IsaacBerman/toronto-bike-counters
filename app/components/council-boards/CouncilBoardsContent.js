@@ -164,6 +164,20 @@ function RoleTag({ role }) {
   );
 }
 
+// Sat on the same body (or its predecessor) for 2025-2026, per the mid-term slate.
+function IncumbentTag({ incumbent }) {
+  if (!incumbent) return null;
+  return (
+    <span
+      className="inline-block text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-sm"
+      style={{ background: 'var(--line)', color: 'var(--ink-2)' }}
+      title="Also on this body in 2025\u20132026"
+    >
+      Incumbent
+    </span>
+  );
+}
+
 function Squares({ answers, survey, size = 10 }) {
   const qs = SURVEYS[survey].questions;
   const list = answers ?? qs.map(() => null);
@@ -221,7 +235,7 @@ function BoardCard({ board, onPick, highlight }) {
     <section id={board.slug} className="dd-panel-ruled p-4 scroll-mt-20">
       <h3 className="font-extrabold text-lg leading-tight mb-3">{board.name}</h3>
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-        {board.members.map(({ name, role }) => (
+        {board.members.map(({ name, role, incumbent }) => (
           <li key={name}>
             <button
               type="button"
@@ -234,6 +248,7 @@ function BoardCard({ board, onPick, highlight }) {
                 <span className="block font-semibold leading-tight">{name}</span>
                 <span className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <RoleTag role={role} />
+                  <IncumbentTag incumbent={incumbent} />
                 </span>
                 {board.surveys.map((sv) => (
                   <span key={sv} className="flex items-center gap-1.5 mt-1 min-w-0">
@@ -279,7 +294,10 @@ function MemberDetail({ name, onBoard }) {
             <button type="button" onClick={() => onBoard(board.slug)} className="text-left font-semibold hover:underline cursor-pointer">
               {board.name}
             </button>
-            <RoleTag role={seat.role} />
+            <span className="flex gap-1.5 shrink-0">
+              <RoleTag role={seat.role} />
+              <IncumbentTag incumbent={seat.incumbent} />
+            </span>
           </li>
         ))}
       </ul>
@@ -488,6 +506,8 @@ export default function CouncilBoardsContent() {
           {' '}<a className="dd-link-accent" href={SURVEYS.acorn.url} target="_blank" rel="noreferrer">ACORN</a>,
           {' '}<a className="dd-link-accent" href={SURVEYS.tea.url} target="_blank" rel="noreferrer">Toronto Environmental Alliance</a>,
           {' '}<a className="dd-link-accent" href={SURVEYS.fasttrackto.url} target="_blank" rel="noreferrer">FastTrackTO</a>.
+          {' '}Incumbent marks members who sat on the same body, or the committee it replaced, under the
+          {' '}<a className="dd-link-accent" href={data.priorSource} target="_blank" rel="noreferrer">2025\u20132026 mid-term slate</a>.
         </p>
       </div>
     </main>
