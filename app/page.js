@@ -76,7 +76,7 @@ export default function Home() {
           <ProjectCard
             href="/council-boards"
             title="Toronto Council Appointments"
-            blurb="Who sits on each City Council committee and board for 2026\u20132030, with members' election survey answers."
+            blurb="Who sits on each City Council committee and board for 2026."
           />
           <ProjectCard
             href="/downtown-definer"

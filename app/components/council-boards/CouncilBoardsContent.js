@@ -171,7 +171,7 @@ function IncumbentTag({ incumbent }) {
     <span
       className="inline-block text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-sm"
       style={{ background: 'var(--line)', color: 'var(--ink-2)' }}
-      title="Also on this body in 2025\u20132026"
+      title="Also on this body in 2025–2026"
     >
       Incumbent
     </span>
@@ -507,7 +507,7 @@ export default function CouncilBoardsContent() {
           {' '}<a className="dd-link-accent" href={SURVEYS.tea.url} target="_blank" rel="noreferrer">Toronto Environmental Alliance</a>,
           {' '}<a className="dd-link-accent" href={SURVEYS.fasttrackto.url} target="_blank" rel="noreferrer">FastTrackTO</a>.
           {' '}Incumbent marks members who sat on the same body, or the committee it replaced, under the
-          {' '}<a className="dd-link-accent" href={data.priorSource} target="_blank" rel="noreferrer">2025\u20132026 mid-term slate</a>.
+          {' '}<a className="dd-link-accent" href={data.priorSource} target="_blank" rel="noreferrer">2025–2026 mid-term slate</a>.
         </p>
       </div>
     </main>
