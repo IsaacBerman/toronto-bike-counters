@@ -138,7 +138,7 @@ function Photo({ name, size = 64, round = false }) {
       width={size}
       height={round ? size : Math.round(size * 1.25)}
       loading="lazy"
-      className={round ? 'block rounded-full object-cover object-top' : 'block object-cover'}
+      className={round ? 'block shrink-0 rounded-full object-cover object-top' : 'block shrink-0 object-cover'}
       style={{
         width: size,
         height: round ? size : Math.round(size * 1.25),
@@ -234,7 +234,8 @@ function BoardCard({ board, onPick, highlight }) {
   return (
     <section id={board.slug} className="dd-panel-ruled p-4 scroll-mt-20">
       <h3 className="font-extrabold text-lg leading-tight mb-3">{board.name}</h3>
-      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+      {/* Survey squares need the full card width; two columns crowd them into the next member. */}
+      <ul className={`grid grid-cols-1 gap-x-4 gap-y-3 ${board.surveys.length ? '' : 'sm:grid-cols-2'}`}>
         {board.members.map(({ name, role, incumbent }) => (
           <li key={name}>
             <button
