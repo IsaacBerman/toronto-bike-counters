@@ -74,6 +74,11 @@ export default function Home() {
             blurb="Daily tracking of TTC subway reduced speed zones."
           />
           <ProjectCard
+            href="/vision-zero"
+            title="Toronto Vision Zero Dashboard"
+            blurb="Traffic deaths and serious injuries since 2006, by road user, ward, age and time of day."
+          />
+          <ProjectCard
             href="/council-boards"
             title="Toronto Council Appointments"
             blurb="Who sits on each City Council committee and board for 2026."

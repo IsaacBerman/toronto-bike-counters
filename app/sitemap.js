@@ -6,6 +6,7 @@ const SITE = 'https://www.observingthecity.ca';
 const ROUTES = [
   { path: '', priority: 1, changeFrequency: 'weekly' },
   { path: '/slow-zones', priority: 0.9, changeFrequency: 'daily' },
+  { path: '/vision-zero', priority: 0.9, changeFrequency: 'weekly' },
   { path: '/bike-counters', priority: 0.9, changeFrequency: 'daily' },
   { path: '/intersection-counts', priority: 0.8, changeFrequency: 'monthly' },
   { path: '/elections', priority: 0.9, changeFrequency: 'daily' },

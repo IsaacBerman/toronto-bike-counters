@@ -13,7 +13,8 @@
     "build:tmc": "node scripts/build-tmc.mjs",
     "ingest:slow-zones": "node scripts/ingest-slow-zones.mjs",
     "lint": "eslint",
-    "build:elections": "node scripts/build-elections.mjs"
+    "build:elections": "node scripts/build-elections.mjs",
+    "build:vision-zero": "node scripts/build-vision-zero.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",

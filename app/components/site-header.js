@@ -11,6 +11,7 @@ const PAGES = [
   { key: 'bike-counters', href: '/bike-counters', label: 'Bicycle Counters' },
   { key: 'intersection-counts', href: '/intersection-counts', label: 'Intersection Counts' },
   { key: 'slow-zones', href: '/slow-zones', label: 'TTC Slow Zones' },
+  { key: 'vision-zero', href: '/vision-zero', label: 'Vision Zero' },
   { key: 'elections', href: '/elections', label: 'Election Results' },
   { key: 'transform-toronto', href: '/transform-toronto', label: 'Transform Toronto' },
   { key: 'council-boards', href: '/council-boards', label: 'Council Appointments' },
