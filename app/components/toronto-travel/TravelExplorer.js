@@ -242,7 +242,9 @@ export default function TravelExplorer({ initialData = null }) {
   // The subject's standing against the 2030 goal (under-5 km commute trips).
   const goalShare = commute ? sustainableShareOf(totalsFor(commute, year, ward, 'under5')) : 0;
 
-  if (err)
+  // With the numbers from the server, a failed outline download only costs
+  // the map; the page itself stays.
+  if (err && !json)
     return (
       <div className="container mx-auto px-4 max-w-6xl py-16">
         <p style={{ color: INK2 }}>Could not load the data ({err}).</p>

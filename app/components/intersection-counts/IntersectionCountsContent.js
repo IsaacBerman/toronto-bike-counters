@@ -6,10 +6,15 @@ import IntersectionModeChart from './IntersectionModeChart';
 import { uncoverLink } from '../link-cover';
 import { MODES, peakTotals, fullTotals, sum, fmt, fmtDate, isModeOn, describeModes } from './modes';
 
-function MapPlaceholder() {
+// If the full data fails to load, only the map says so: the rest of the page
+// (the server-rendered default intersection) stays, so a failed download
+// never turns the page into an error page.
+function MapPlaceholder({ error = null }) {
   return (
     <div className="w-full rounded flex items-center justify-center" style={{ height: 560, background: 'var(--paper)' }}>
-      <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Loading map…</p>
+      <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
+        {error ? 'Could not load the map data. Try reloading the page.' : 'Loading map…'}
+      </p>
     </div>
   );
 }
@@ -116,18 +121,6 @@ export default function IntersectionCountsContent({ preview }) {
     chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [selected]);
 
-  if (error) {
-    return (
-      <div className="min-h-screen pt-10" style={{ background: 'var(--paper)' }}>
-        <div className="container mx-auto px-4 max-w-7xl">
-          <div className="dd-panel p-6">
-            <p style={{ color: 'var(--ink-2)' }}>Could not load the count data ({error}).</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const { totalCounts, intersectionCount, latestYear, peakWindow } = data
     ? {
       totalCounts: data.intersections.reduce((s, i) => s + i.counts.length, 0),
@@ -174,7 +167,7 @@ export default function IntersectionCountsContent({ preview }) {
               onToggleMode={handleToggleMode}
               onShowAllModes={handleShowAllModes}
             />
-          ) : <MapPlaceholder />}
+          ) : <MapPlaceholder error={error} />}
         </div>
 
         <div ref={chartRef} className="mt-6 scroll-mt-4">

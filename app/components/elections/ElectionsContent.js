@@ -628,7 +628,9 @@ export default function ElectionsContent({ preview = {} }) {
     if (r) switchRace(r.id);
   };
 
-  if (error) {
+  // Only when there's nothing to show. With results already on the page (the
+  // server's preview), a failed download only costs the map: see below.
+  if (error && !data) {
     return (
       <div className="min-h-screen pt-10" style={{ background: 'var(--paper)' }}>
         <div className="container mx-auto px-4 max-w-7xl">
@@ -767,6 +769,7 @@ export default function ElectionsContent({ preview = {} }) {
                 <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
                   {isLive && live.error && !live.feed
                     ? 'Couldn\u2019t reach the City\u2019s results feed. Trying again in a minute.'
+                    : error ? 'Could not load the map data. Try reloading the page.'
                     : data ? 'Loading map…' : `Loading ${race.label} results…`}
                 </p>
               </div>
