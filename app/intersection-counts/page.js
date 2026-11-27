@@ -1,5 +1,6 @@
 import SiteHeader from '../components/site-header';
 import IntersectionCountsContent from '../components/intersection-counts/IntersectionCountsContent';
+import LinkCover from '../components/link-cover';
 import tmc from '../../public/tmc-counts.json';
 
 // What the page shows before the full file arrives in the browser: the default
@@ -17,13 +18,20 @@ export const metadata = {
   title: 'Toronto Intersection Counts',
   description:
     'Map of all intersections in Toronto that have ever had a modal count taken, and charts showing splits over time.',
+  // Shared links (?at=) are the same page.
+  alternates: { canonical: '/intersection-counts' },
 };
 
 export default function IntersectionCountsPage() {
   return (
     <>
       <SiteHeader current="intersection-counts" width="max-w-7xl" />
-      <IntersectionCountsContent preview={preview} />
+      {/* A link to any intersection but the default hides the page until
+          that intersection is showing (see link-cover.js). */}
+      <LinkCover when={`q.get('at') && q.get('at') !== ${JSON.stringify(preview.intersections[0]?.id ?? '')}`} />
+      <div className="link-cover">
+        <IntersectionCountsContent preview={preview} />
+      </div>
     </>
   );
 }

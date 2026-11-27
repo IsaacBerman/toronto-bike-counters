@@ -1,5 +1,6 @@
 import SiteHeader from '../components/site-header';
 import ElectionsContent from '../components/elections/ElectionsContent';
+import LinkCover from '../components/link-cover';
 import mayor2026 from '../../public/elections/mayor-2026.json';
 import wards from '../../public/elections/wards.json';
 import needleBaseline from '../../public/elections/needle-baseline.json';
@@ -48,7 +49,12 @@ export default function ElectionsPage() {
   return (
     <>
       <SiteHeader current="elections" width="max-w-7xl" />
-      <ElectionsContent preview={preview} />
+      {/* A link to anything but the default race hides the page until it
+          has switched (see link-cover.js). */}
+      <LinkCover when="(q.get('race') && q.get('race') !== 'mayor-2026') || q.get('ward') || q.get('votes') || q.get('by')" />
+      <div className="link-cover">
+        <ElectionsContent preview={preview} />
+      </div>
     </>
   );
 }

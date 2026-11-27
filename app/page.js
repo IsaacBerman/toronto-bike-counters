@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChartColumn, Map, PenTool, Users, Video } from 'lucide-react';
+import { ArrowRight, ChartColumn, Map, PenTool, Users, Video } from 'lucide-react';
 
 export const metadata = {
   title: 'Observing the City',
@@ -20,7 +20,7 @@ function KindTag({ kind }) {
   return (
     // Icon only; the label is kept for screen readers and as a hover tooltip.
     <span
-      className="inline-flex items-center justify-center rounded-sm mb-3"
+      className="inline-flex items-center justify-center rounded-sm"
       style={{
         width: 26,
         height: 26,
@@ -35,22 +35,21 @@ function KindTag({ kind }) {
   );
 }
 
+// The whole card is the link. On hover it lifts, its top rule and title take
+// the accent, and an arrow slides in, so it reads as something to click.
 function ProjectCard({ href, title, kind }) {
   return (
-    <Link
-      href={href}
-      className="group block dd-panel-ruled p-6 transition-transform hover:-translate-y-0.5"
-    >
-      <KindTag kind={kind} />
-      <h2 className="dd-title text-2xl mb-4" style={{ color: 'var(--ink)' }}>
-        {title}
-      </h2>
-      <span
-        className="inline-flex items-center gap-1 text-sm font-bold group-hover:gap-2 transition-all"
-        style={{ color: 'var(--accent)' }}
-      >
-        Open →
-      </span>
+    <Link href={href} className="dd-card block dd-panel-ruled p-6">
+      <div className="flex items-center justify-between mb-3">
+        <KindTag kind={kind} />
+        <ArrowRight
+          size={20}
+          strokeWidth={2.5}
+          aria-hidden="true"
+          className="dd-card-arrow"
+        />
+      </div>
+      <h2 className="dd-card-title dd-title text-2xl">{title}</h2>
     </Link>
   );
 }

@@ -1,6 +1,7 @@
 import SiteHeader from '../../components/site-header';
 import DowntownDefinerApp from '../../components/downtown-definer/DowntownDefinerApp';
 import TilePreconnect from '../../components/downtown-definer/TilePreconnect';
+import { cityRobots } from '../../lib/topCities';
 
 function prettifyCity(slug) {
   return slug
@@ -13,11 +14,14 @@ function prettifyCity(slug) {
 export async function generateMetadata({ params }) {
   const { city } = await params;
   const name = prettifyCity(city);
+  // Only the most-used cities are indexable (see lib/topCities.js).
+  const robots = await cityRobots('downtown', city);
   const title = `Where is Downtown ${name}?`;
   const description = `Map tool for drawing your definition of downtown ${name}, aggregated into a heatmap of all submissions.`;
   return {
     title,
     description,
+    robots,
     openGraph: {
       title: `${title} — Observing the City`,
       description,

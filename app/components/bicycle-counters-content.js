@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import BikeLoader from './bikeLoader';
+import { uncoverLink } from './link-cover';
 import { loadCounterSeries, fetchLiveBikeshare, mergeBikeshare, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime, bikeshareMonthlyBreakdown, USER_TYPES, BIKE_TYPES } from '../lib/dataUtils';
 import CounterChart from './counterChart';
 import HourlyBarChart from './hourlyBarChart';
@@ -84,7 +84,6 @@ export default function BicycleCountersContent({ archive = null, live = [], coun
   const [bikeshareTab, setBikeshareTab] = useState('trends'); // 'trends' | 'breakdown' | 'wards'
   const [wardSel, setWardSel] = useState('city'); // ward number, or 'city'
 
-  const router = useRouter();
 
   useEffect(() => {
     // Get current EST time on mount
@@ -132,11 +131,20 @@ export default function BicycleCountersContent({ archive = null, live = [], coun
       } catch (error) {
         console.error('Error loading data:', error);
       }
+      if (!cancelled) setLinkReady(true);
     }
 
     fetchData();
     return () => { cancelled = true; };
   }, [initial, archive]);
+
+  // A shared link's view is covered until the counters are in and the linked
+  // one is picked (see LinkCover in app/bike-counters/page.js). This runs
+  // after that render, so the cover comes off on the right view.
+  const [linkReady, setLinkReady] = useState(false);
+  useEffect(() => {
+    if (linkReady) uncoverLink();
+  }, [linkReady]);
 
   // The back and forward buttons still move the page.
   useEffect(() => {
@@ -172,9 +180,12 @@ export default function BicycleCountersContent({ archive = null, live = [], coun
       params.set('counter', selectedCounter);
       if (bikeshareTab !== 'trends') params.set('tab', bikeshareTab);
       if (bikeshareTab === 'wards' && wardSel !== 'city') params.set('ward', String(wardSel));
-      router.replace(`?${params.toString()}`, { scroll: false });
+      // The browser's own history call, not router.replace: Next.js keeps its
+      // router in sync with it, and router.replace would re-fetch the whole
+      // page from the server on every change.
+      window.history.replaceState(null, '', `?${params.toString()}`);
     }
-  }, [selectedCounter, loading, router, bikeshareTab, wardSel]);
+  }, [selectedCounter, loading, bikeshareTab, wardSel]);
 
   // Re-derive the Bike Share series whenever the trip-type filters change.
   const filteredBikeshare = useMemo(() => {

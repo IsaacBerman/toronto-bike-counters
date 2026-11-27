@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { ChevronDown } from 'lucide-react';
 import {
@@ -11,6 +10,7 @@ import {
 import { useLiveResults, liveDatasets } from './live';
 import { computeNeedle, Needle, NEEDLE } from './needle';
 import { applyIncumbents } from './incumbents';
+import { uncoverLink } from '../link-cover';
 
 const ElectionMap = dynamic(() => import('./ElectionMap'), {
   ssr: false,
@@ -160,7 +160,6 @@ const DEFAULT_RACE = 'mayor-2026';
 // has the results in it. Entries marked `partial` are still fetched in full,
 // since the map needs the shapes.
 export default function ElectionsContent({ preview = {} }) {
-  const router = useRouter();
 
   const [raceId, setRaceId] = useState(DEFAULT_RACE);
   const race = RACES.find((r) => r.id === raceId);
@@ -204,6 +203,7 @@ export default function ElectionsContent({ preview = {} }) {
   const [shareTarget, setShareTarget] = useState({ council: 0 });
   const [selectedWard, setSelectedWard] = useState(null);
   const [focusWard, setFocusWard] = useState(null);
+  const [linkRead, setLinkRead] = useState(false);
 
   // A shared link's race, ward and votes. Read after the first render rather
   // than with useSearchParams, which would stop the page rendering on the
@@ -222,7 +222,13 @@ export default function ElectionsContent({ preview = {} }) {
     }
     if (VOTE_TYPES.some((t) => t.value === q.get('votes'))) setVotes(q.get('votes'));
     if (q.get('by') === 'ward') setWardLevel(true);
+    setLinkRead(true);
   }, []);
+  // Runs after the linked race has rendered, so the cover (see LinkCover in
+  // app/elections/page.js) comes off on the right view, never the default.
+  useEffect(() => {
+    if (linkRead) uncoverLink();
+  }, [linkRead]);
   const [selectedPoll, setSelectedPoll] = useState(null);
   // A poll to select once the next race's file is in: switching between mayor
   // and council in one election keeps the same poll, with that race's votes.
@@ -285,8 +291,11 @@ export default function ElectionsContent({ preview = {} }) {
     if (votes !== 'day' && !isLive && !wardOnlyView) q.set('votes', votes);
     if (wardLevel && !isLive && votes === 'day') q.set('by', 'ward');
     if (selectedWard) q.set('ward', String(selectedWard));
-    router.replace(`?${q.toString()}`, { scroll: false });
-  }, [raceId, selectedWard, votes, wardLevel, isLive, wardOnlyView, router]);
+    // The browser's own history call, not router.replace: Next.js keeps its
+    // router in sync with it, and router.replace would re-fetch the whole
+    // page from the server on every change.
+    window.history.replaceState(null, '', `?${q.toString()}`);
+  }, [raceId, selectedWard, votes, wardLevel, isLive, wardOnlyView]);
 
   const meta = data?.meta;
   const target = isMayor ? (shareTarget[raceId] ?? meta?.cityRanked[0]?.[0] ?? 0) : shareTarget.council;

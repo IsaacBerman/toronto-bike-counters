@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import IntersectionModeChart from './IntersectionModeChart';
+import { uncoverLink } from '../link-cover';
 import { MODES, peakTotals, fullTotals, sum, fmt, fmtDate, isModeOn, describeModes } from './modes';
 
 function MapPlaceholder() {
@@ -43,7 +43,6 @@ export default function IntersectionCountsContent({ preview }) {
   const [pickedModes, setPickedModes] = useState([]);
   const [selectedId, setSelectedId] = useState(preview.intersections[0]?.id ?? null);
 
-  const router = useRouter();
   const chartRef = useRef(null);
   // Only a click on the map should pull the page down to the chart; restoring a
   // shared link or a back-button hop should not.
@@ -69,11 +68,20 @@ export default function IntersectionCountsContent({ preview }) {
     return () => { cancelled = true; };
   }, []);
 
+  // A shared ?at= link is covered until the full data is in and its
+  // intersection is picked (see LinkCover in app/intersection-counts/page.js).
+  useEffect(() => {
+    if (data) uncoverLink();
+  }, [data]);
+
   // Not before the full data is in, or the default would overwrite a shared
   // link before it has been read.
   useEffect(() => {
-    if (data && selectedId) router.replace(`?at=${encodeURIComponent(selectedId)}`, { scroll: false });
-  }, [data, selectedId, router]);
+    // The browser's own history call, not router.replace: Next.js keeps its
+    // router in sync with it, and router.replace would re-fetch the whole
+    // page from the server on every change.
+    if (data && selectedId) window.history.replaceState(null, '', `?at=${encodeURIComponent(selectedId)}`);
+  }, [data, selectedId]);
 
   const shown = useMemo(() => {
     if (!data) return [];

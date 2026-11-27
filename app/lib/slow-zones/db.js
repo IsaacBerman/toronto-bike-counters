@@ -190,3 +190,10 @@ export async function getHistory() {
   );
   return { days, zones };
 }
+
+/** The most recent snapshot day as YYYY-MM-DD, or null with none yet. */
+export async function getLatestDay() {
+  await ensureTables();
+  const { rows } = await getPool().query('SELECT MAX(day)::text AS day FROM slow_zone_days');
+  return rows[0]?.day ?? null;
+}
