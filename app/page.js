@@ -18,14 +18,19 @@ const KINDS = {
 function KindTag({ kind }) {
   const { label, Icon } = KINDS[kind];
   return (
-    <span className="dd-kicker inline-flex items-center gap-1.5 mb-3">
-      <span
-        className="inline-flex items-center justify-center rounded-sm"
-        style={{ width: 22, height: 22, background: 'color-mix(in srgb, var(--accent) 12%, var(--panel))' }}
-      >
-        <Icon size={13} strokeWidth={2.5} aria-hidden="true" />
-      </span>
-      {label}
+    // Icon only; the label is kept for screen readers and as a hover tooltip.
+    <span
+      className="inline-flex items-center justify-center rounded-sm mb-3"
+      style={{
+        width: 26,
+        height: 26,
+        color: 'var(--accent)',
+        background: 'color-mix(in srgb, var(--accent) 12%, var(--panel))',
+      }}
+      title={label}
+    >
+      <Icon size={15} strokeWidth={2.5} aria-hidden="true" />
+      <span className="sr-only">{label}</span>
     </span>
   );
 }
