@@ -305,12 +305,8 @@ export function calculateRollingAverage(data, windowSize = 14) {
 // The City's trip-level ridership archives, pre-reduced to one row per day
 // (see build_bikeshare_daily.py in the dash.raccoon.bike repo). Authoritative
 // from 2016 through `cutoff`; the live API covers only what comes after.
-async function loadArchivedBikeshareData() {
-  const response = await fetch('/bikeshare-daily.json');
-  if (!response.ok) {
-    throw new Error('Failed to fetch archived bikeshare data');
-  }
-  const d = await response.json();
+// This turns the file's column arrays into one point per day.
+function archiveFromJson(d) {
   return {
     cutoff: d.cutoff,
     points: d.dates.map((date, i) => ({
@@ -369,14 +365,12 @@ function nextDayStamp(isoDate) {
   return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
-export async function loadBikeshareData() {
-  let archive = { cutoff: null, points: [] };
-  try {
-    archive = await loadArchivedBikeshareData();
-  } catch (error) {
-    console.error('Error loading archived bikeshare data:', error);
-  }
-
+/**
+ * Live bikeraccoon days after the archive's cutoff, through yesterday in
+ * Toronto. Uses an absolute URL, so the server can call it too (see
+ * app/bike-counters/page.js).
+ */
+export async function fetchLiveBikeshare(cutoff) {
   // Stop at the last day that actually finished. Today is still in progress, so
   // its count is a fraction of a real day: at 00:26 it stood at 265 against a
   // ~43,000 average. Plotted raw it reads as a collapse in ridership, and the
@@ -389,31 +383,47 @@ export async function loadBikeshareData() {
   const endDate = `${lastComplete.getUTCFullYear()}${String(lastComplete.getUTCMonth() + 1).padStart(2, '0')}${String(lastComplete.getUTCDate()).padStart(2, '0')}`;
 
   // Ask the API only for days the archive doesn't already cover.
-  const startDate = archive.cutoff ? nextDayStamp(archive.cutoff) : '20200101';
+  const startDate = cutoff ? nextDayStamp(cutoff) : '20200101';
+  if (startDate > endDate) return [];
 
-  let live = [];
-  if (startDate <= endDate) {
-    try {
-      const apiUrl = `https://api.raccoon.bike/activity?system=bike_share_toronto&start=${startDate}00&end=${endDate}00&frequency=d&key=YIOJaaLtLdazfrG7GVwcyAybB2WfpmSaxtCUx6gxLBw`;
-      const response = await fetch(apiUrl);
+  try {
+    const apiUrl = `https://api.raccoon.bike/activity?system=bike_share_toronto&start=${startDate}00&end=${endDate}00&frequency=d&key=YIOJaaLtLdazfrG7GVwcyAybB2WfpmSaxtCUx6gxLBw`;
+    const response = await fetch(apiUrl);
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch bikeshare data');
-      }
-
-      const data = await response.json();
-      live = data.data || [];
-    } catch (error) {
-      console.error('Error loading bikeshare data:', error);
+    if (!response.ok) {
+      throw new Error('Failed to fetch bikeshare data');
     }
-  }
 
+    const data = await response.json();
+    return data.data || [];
+  } catch (error) {
+    console.error('Error loading bikeshare data:', error);
+    return [];
+  }
+}
+
+/** The archive file and the live days combined into one point per day. */
+export function mergeBikeshare(archiveJson, live) {
+  const archive = archiveJson ? archiveFromJson(archiveJson) : { points: [] };
   // Archive wins on any overlap — it is the City's own count, not an estimate.
   const byDate = new Map();
   for (const point of [...live, ...archive.points]) {
     byDate.set(point.datetime.split('T')[0], point);
   }
   return [...byDate.values()];
+}
+
+export async function loadBikeshareData() {
+  let archiveJson = null;
+  try {
+    const response = await fetch('/bikeshare-daily.json');
+    if (!response.ok) throw new Error('Failed to fetch archived bikeshare data');
+    archiveJson = await response.json();
+  } catch (error) {
+    console.error('Error loading archived bikeshare data:', error);
+  }
+  const live = await fetchLiveBikeshare(archiveJson?.cutoff ?? null);
+  return mergeBikeshare(archiveJson, live);
 }
 
 export function processBikeshareCounter(rawData, userType = 'all', bikeType = 'all') {

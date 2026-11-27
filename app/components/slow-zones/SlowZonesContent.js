@@ -277,10 +277,15 @@ function ChartBlock({ title, subtitle, children }) {
   );
 }
 
-export default function SlowZonesContent() {
-  const [history, setHistory] = useState(null);
+// `initialHistory` comes from the server (app/slow-zones/page.js) so the
+// page's HTML already has the zones in it. It is null only if the database
+// was unreachable when the page was rendered; the client then fetches instead.
+export default function SlowZonesContent({ initialHistory = null }) {
+  const [history, setHistory] = useState(initialHistory);
   const [error, setError] = useState(null);
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(
+    () => initialHistory?.days?.[initialHistory.days.length - 1]?.day ?? null
+  );
   const [mapReady, setMapReady] = useState(false);
   const [sort, setSort] = useState({ key: 'delay_min', dir: -1 });
   const [chartTab, setChartTab] = useState('delay');
@@ -289,6 +294,7 @@ export default function SlowZonesContent() {
   const overlayRef = useRef(null);
 
   useEffect(() => {
+    if (initialHistory) return;
     fetch('/api/slow-zones/data')
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((data) => {
@@ -296,7 +302,7 @@ export default function SlowZonesContent() {
         if (data.days.length > 0) setSelectedDay(data.days[data.days.length - 1].day);
       })
       .catch((err) => setError(err.message));
-  }, []);
+  }, [initialHistory]);
 
   const days = history?.days || [];
   const zones = history?.zones || [];

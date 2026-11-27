@@ -1,6 +1,28 @@
-import { Suspense } from 'react';
 import SiteHeader from '../components/site-header';
 import ElectionsContent from '../components/elections/ElectionsContent';
+import mayor2026 from '../../public/elections/mayor-2026.json';
+import wards from '../../public/elections/wards.json';
+import needleBaseline from '../../public/elections/needle-baseline.json';
+import night2026 from '../../public/elections/night-2026.json';
+
+// The default race's results and the needle's files, built into the page so
+// its HTML has the results in it. Poll and ward shapes are dropped (only the
+// map draws them, and it fetches the full files), which keeps the page small;
+// `partial` tells the client to still fetch those files.
+const preview = {
+  'mayor-2026': {
+    ...mayor2026,
+    partial: true,
+    wardOutlines: null,
+    polls: {
+      ...mayor2026.polls,
+      features: mayor2026.polls.features.map((f) => ({ ...f, geometry: null })),
+    },
+  },
+  wards: { ...wards, partial: true, wardOutlines: null },
+  'needle-baseline': needleBaseline,
+  'night-2026': night2026,
+};
 
 const TITLE = '2026 Toronto Election Results: Mayor and Council Map, Poll by Poll';
 const DESCRIPTION =
@@ -26,25 +48,7 @@ export default function ElectionsPage() {
   return (
     <>
       <SiteHeader current="elections" width="max-w-7xl" />
-      {/* The results are drawn in the browser; until then (and for crawlers
-          and link previews that don't run scripts) this says what the page is. */}
-      <Suspense fallback={
-        <div className="min-h-screen pt-4 pb-10" style={{ background: 'var(--paper)' }}>
-          <div className="container mx-auto px-4 max-w-7xl">
-            <h1 className="dd-title text-4xl sm:text-5xl mb-2" style={{ color: 'var(--ink)' }}>
-              2026 Toronto Election Results
-            </h1>
-            <p className="max-w-2xl" style={{ color: 'var(--ink-2)' }}>
-              Official results for the 2026 Toronto mayor and council races, poll by poll and ward by ward,
-              with vote share, swing from 2023, turnout, and advance and mail-in votes. Plus every mayor and
-              council race since 2006.
-            </p>
-            <p className="mt-6 text-xl font-sans" style={{ color: 'var(--ink-3)' }}>Loading election results…</p>
-          </div>
-        </div>
-      }>
-        <ElectionsContent />
-      </Suspense>
+      <ElectionsContent preview={preview} />
     </>
   );
 }

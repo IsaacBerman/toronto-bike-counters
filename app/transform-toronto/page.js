@@ -1,5 +1,7 @@
 import SiteHeader from '../components/site-header';
 import TravelExplorer from '../components/toronto-travel/TravelExplorer';
+// Read at build time so the page's HTML carries the mode-share numbers.
+import modeShare from '../../public/tts/mode-share.json';
 
 export const metadata = {
   title: 'TransformTO Tracking — Travel Modes by Ward',
@@ -11,7 +13,7 @@ export default function TransformTorontoPage() {
   return (
     <>
       <SiteHeader current="transform-toronto" />
-      <TravelExplorer />
+      <TravelExplorer initialData={modeShare} />
     </>
   );
 }

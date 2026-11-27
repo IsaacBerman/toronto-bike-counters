@@ -46,8 +46,11 @@ const COLOR_OPTIONS = [
   ...MODE_GROUPS.map((g) => ({ id: g.id, label: g.label, color: g.color })),
 ];
 
-export default function TravelExplorer() {
-  const [json, setJson] = useState(null);
+// `initialData` is mode-share.json, loaded on the server (see
+// app/transform-toronto/page.js) so the page's HTML has the numbers. The ward
+// outlines only matter to the map, which draws in the browser anyway.
+export default function TravelExplorer({ initialData = null }) {
+  const [json, setJson] = useState(initialData);
   const [geo, setGeo] = useState(null);
   const [cityBoundary, setCityBoundary] = useState(null);
   const [err, setErr] = useState(null);
@@ -76,7 +79,7 @@ export default function TravelExplorer() {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      fetch('/tts/mode-share.json').then((r) => r.json()),
+      initialData ?? fetch('/tts/mode-share.json').then((r) => r.json()),
       fetch('/tts/wards25.geojson').then((r) => r.json()),
       fetch('/tts/city-boundary.geojson').then((r) => r.json()),
     ])
@@ -90,7 +93,7 @@ export default function TravelExplorer() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [initialData]);
 
   const meta = json?.meta;
   const commute = json?.datasets?.commute;
@@ -143,8 +146,10 @@ export default function TravelExplorer() {
 
   // ---- Map fill styling ----
   const wardStyles = useMemo(() => {
-    if (!dataset || !geo) return {};
-    const wardIds = geo.features.map((f) => f.properties.ward);
+    if (!dataset) return {};
+    const wardIds = geo
+      ? geo.features.map((f) => f.properties.ward)
+      : Object.keys(wardNames).map(Number);
     const styles = {};
     if (colorBy === 'sustainable') {
       for (const w of wardIds) {
@@ -243,7 +248,7 @@ export default function TravelExplorer() {
         <p style={{ color: INK2 }}>Could not load the data ({err}).</p>
       </div>
     );
-  if (!json || !geo)
+  if (!json)
     return (
       <div className="container mx-auto px-4 max-w-6xl py-24 text-center">
         <p className="dd-title text-xl" style={{ color: INK2 }}>

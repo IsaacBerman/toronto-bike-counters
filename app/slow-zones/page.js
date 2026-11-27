@@ -1,5 +1,20 @@
 import SiteHeader from '../components/site-header';
 import SlowZonesContent from '../components/slow-zones/SlowZonesContent';
+import { getHistory } from '../lib/slow-zones/db';
+
+// Rendered with the zone history in its HTML. The ingest route revalidates
+// this path after each snapshot, so the DB is read about twice a day; the
+// timer is only a backstop in case a revalidation is missed.
+export const revalidate = 43200;
+
+async function loadHistory() {
+  try {
+    return await getHistory();
+  } catch (error) {
+    console.error('Slow-zone history unavailable at render; client will fetch:', error);
+    return null;
+  }
+}
 
 const URL = 'https://www.observingthecity.ca/slow-zones';
 const TTC_SOURCE = 'https://www.ttc.ca/riding-the-ttc/Updates/Reduced-Speed-Zones';
@@ -85,7 +100,8 @@ const structuredData = {
   ],
 };
 
-export default function SlowZonesPage() {
+export default async function SlowZonesPage() {
+  const history = await loadHistory();
   return (
     <>
       <script
@@ -93,7 +109,7 @@ export default function SlowZonesPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
       <SiteHeader current="slow-zones" width="max-w-5xl" />
-      <SlowZonesContent />
+      <SlowZonesContent initialHistory={history} />
     </>
   );
 }

@@ -382,9 +382,10 @@ function KsiMap({ people, places }) {
 
 // ---------- page ----------
 
-export default function VisionZeroContent() {
-  const [raw, setRaw] = useState(null);
-  const [error, setError] = useState(null);
+// `data` is loaded on the server (see app/vision-zero/page.js) so the first
+// render already has every number in it, rather than a loading state.
+export default function VisionZeroContent({ data: raw }) {
+  const dataYear = Number(raw.lastDate.slice(0, 4));
 
   const [severity, setSeverity] = useState('ksi');
   const [users, setUsers] = useState(() => new Set(USERS.map((_, i) => i)));
@@ -396,19 +397,12 @@ export default function VisionZeroContent() {
   const [showTable, setShowTable] = useState(false);
 
   const [compareMode, setCompareMode] = useState('cumulative');
-  const [compareYears, setCompareYears] = useState(null);
+  const [compareYears, setCompareYears] = useState(() => [dataYear, dataYear - 1]);
   const [showBaseline, setShowBaseline] = useState(true);
 
-  const [fromYear, setFromYear] = useState(null);
-  const [toYear, setToYear] = useState(null);
+  const [fromYear, setFromYear] = useState(dataYear - 4);
+  const [toYear, setToYear] = useState(dataYear);
   const [hoverCell, setHoverCell] = useState(null);
-
-  useEffect(() => {
-    fetch('/vision-zero-ksi.json')
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
-      .then(setRaw)
-      .catch((e) => setError(String(e.message || e)));
-  }, []);
 
   const people = useMemo(() => (raw ? decode(raw) : []), [raw]);
   const lastDate = raw?.lastDate;
@@ -418,13 +412,6 @@ export default function VisionZeroContent() {
   const years = useMemo(() => {
     if (!curYear) return [];
     return Array.from({ length: curYear - 2006 + 1 }, (_, i) => 2006 + i);
-  }, [curYear]);
-
-  useEffect(() => {
-    if (!curYear) return;
-    setCompareYears((v) => v ?? [curYear, curYear - 1]);
-    setFromYear((v) => v ?? curYear - 4);
-    setToYear((v) => v ?? curYear);
   }, [curYear]);
 
   const sevOk = (p) => (severity === 'fatal' ? p.fatal : severity === 'serious' ? !p.fatal : true);
@@ -580,10 +567,6 @@ export default function VisionZeroContent() {
     const n = inPeriod.filter((p) => p.flags & (1 << i)).length;
     return { label, i, n, share: inPeriod.length ? n / inPeriod.length : 0 };
   }), [inPeriod]);
-
-  if (error) {
-    return <p className="py-20 text-center" style={{ color: INK2 }}>Could not load data ({error}).</p>;
-  }
 
   const toggleUser = (i) => {
     setUsers((prev) => {

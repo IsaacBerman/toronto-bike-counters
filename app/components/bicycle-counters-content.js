@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import BikeLoader from './bikeLoader';
-import { loadCounterSeries, loadBikeshareData, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime, bikeshareMonthlyBreakdown, USER_TYPES, BIKE_TYPES } from '../lib/dataUtils';
+import { loadCounterSeries, fetchLiveBikeshare, mergeBikeshare, processBikeshareCounter, loadBikeshareHourlyData, processBikeshareHourlyData, getCurrentESTTime, bikeshareMonthlyBreakdown, USER_TYPES, BIKE_TYPES } from '../lib/dataUtils';
 import CounterChart from './counterChart';
 import HourlyBarChart from './hourlyBarChart';
 import StationMap from './stationMap';
@@ -33,10 +33,37 @@ const BikeShareWards = dynamic(() => import('./bike-share-wards/BikeShareWards')
 
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
-export default function BicycleCountersContent() {
-  const [counters, setCounters] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedCounter, setSelectedCounter] = useState('');
+// Bike Share first, then working counters, then retired ones, by name.
+function sortCounters(list) {
+  return [...list].sort((a, b) => {
+    if (a.location === "Bike Share Toronto") return -1;
+    if (b.location === "Bike Share Toronto") return 1;
+
+    if (a.isOperational && !b.isOperational) return -1;
+    if (!a.isOperational && b.isOperational) return 1;
+
+    return a.location.localeCompare(b.location);
+  });
+}
+
+// Same daily series, so swapping one for the other would only redraw the chart.
+const sameSeries = (a, b) => a.length === b.length
+  && a[a.length - 1]?.datetime === b[b.length - 1]?.datetime
+  && a[a.length - 1]?.trips === b[b.length - 1]?.trips;
+
+// The server (app/bike-counters/page.js) passes the Bike Share archive, the
+// live days after it, and the permanent counters' names, so the page's HTML
+// already shows the default Bike Share view. Each counter's daily data loads
+// here after the page appears; until then a counter is a name-only stub.
+export default function BicycleCountersContent({ archive = null, live = [], counterList = [] }) {
+  const [initial] = useState(() => {
+    const raw = mergeBikeshare(archive, live);
+    const stubs = counterList.map((c) => ({ ...c, data: [], stub: true }));
+    return { raw, counters: sortCounters([processBikeshareCounter(raw), ...stubs]) };
+  });
+  const [counters, setCounters] = useState(initial.counters);
+  const loading = false;
+  const [selectedCounter, setSelectedCounter] = useState('Bike Share Toronto');
   const [hourlyData, setHourlyData] = useState(null);
   const [viewMode, setViewMode] = useState('daily'); // 'daily' or 'hourly'
   const [currentEST, setCurrentEST] = useState(null);
@@ -51,100 +78,82 @@ export default function BicycleCountersContent() {
   const [showMap, setShowMap] = useState(true); // New state to control map visibility
 
   // Bike Share trip-type filters, and which of its two tabs is showing.
-  const [rawBikeshare, setRawBikeshare] = useState([]);
+  const [rawBikeshare, setRawBikeshare] = useState(initial.raw);
   const [userType, setUserType] = useState('all');
   const [bikeType, setBikeType] = useState('all');
   const [bikeshareTab, setBikeshareTab] = useState('trends'); // 'trends' | 'breakdown' | 'wards'
   const [wardSel, setWardSel] = useState('city'); // ward number, or 'city'
 
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  // The URL as it stood when the page opened. Held in a ref so the load below
-  // can read it without listing searchParams as a dependency: it used to, and
-  // the ?counter= this page writes for itself the moment it picks a default
-  // then kicked off a second full load — archive, live API and all.
-  const initialSearchParams = useRef(searchParams);
 
   useEffect(() => {
     // Get current EST time on mount
     setCurrentEST(getCurrentESTTime());
-    
+
+    // A shared link's tab, ward and counter. Read here rather than with
+    // useSearchParams, which would stop the page rendering on the server; a
+    // linked counter shows once its data is in. This runs before the effect
+    // below that writes the URL, so it sees the link first.
+    const params = new URLSearchParams(window.location.search);
+    const urlTab = params.get('tab');
+    if (['trends', 'breakdown', 'wards'].includes(urlTab)) setBikeshareTab(urlTab);
+    const urlWard = Number(params.get('ward'));
+    if (Number.isInteger(urlWard) && urlWard >= 1 && urlWard <= 25) setWardSel(urlWard);
+
+    let cancelled = false;
     async function fetchData() {
       try {
-        // Load the counter series and bikeshare data in parallel
-        const [processedCSVData, rawBikeshareData] = await Promise.all([
+        // Every counter's series, and the live Bike Share days again in case
+        // one has finished since the server rendered the page. The archive
+        // came with the page, so it isn't downloaded twice.
+        const [processedCSVData, freshLive] = await Promise.all([
           loadCounterSeries(),
-          loadBikeshareData()
+          fetchLiveBikeshare(archive?.cutoff ?? null)
         ]);
+        if (cancelled) return;
+        const freshRaw = mergeBikeshare(archive, freshLive);
 
-        // Each step below blocks the main thread, which is also what draws the
-        // loading animation. Letting a frame paint between them keeps the bike
-        // moving instead of freezing for the whole stretch.
+        // Each step below blocks the main thread. Letting a frame paint
+        // between them keeps the page responsive.
         await nextFrame();
-        const processedBikeshareData = processBikeshareCounter(rawBikeshareData);
+        const raw = sameSeries(freshRaw, initial.raw) ? initial.raw : freshRaw;
+        const processedBikeshareData = processBikeshareCounter(raw);
         await nextFrame();
+        if (cancelled) return;
 
-        // Kept raw so the trip-type filters can re-derive the series without refetching.
-        setRawBikeshare(rawBikeshareData);
-
-        // Combine both data sources
-        const allCounters = [processedBikeshareData, ...processedCSVData];
-        
-        const sortedCounters = allCounters.sort((a, b) => {
-          if (a.location === "Bike Share Toronto") return -1;
-          if (b.location === "Bike Share Toronto") return 1;
-          
-          if (a.isOperational && !b.isOperational) return -1;
-          if (!a.isOperational && b.isOperational) return 1;
-          
-          return a.location.localeCompare(b.location);
-        });
-        
+        if (raw !== initial.raw) setRawBikeshare(raw);
+        const sortedCounters = sortCounters([processedBikeshareData, ...processedCSVData]);
         setCounters(sortedCounters);
-        setLoading(false);
-        
-        const params = initialSearchParams.current;
-
-        const urlTab = params.get('tab');
-        if (['trends', 'breakdown', 'wards'].includes(urlTab)) setBikeshareTab(urlTab);
-        const urlWard = Number(params.get('ward'));
-        if (Number.isInteger(urlWard) && urlWard >= 1 && urlWard <= 25) setWardSel(urlWard);
 
         const urlCounter = params.get('counter');
-        const isValidCounter = sortedCounters.some(counter => counter.location === urlCounter);
-        
-        if (urlCounter && isValidCounter) {
+        if (urlCounter && sortedCounters.some(counter => counter.location === urlCounter)) {
           setSelectedCounter(urlCounter);
-        } else if (sortedCounters.length > 0) {
-          const defaultCounter = sortedCounters.find(c => c.location === "Bike Share Toronto") || sortedCounters[0];
-          setSelectedCounter(defaultCounter.location);
         }
       } catch (error) {
         console.error('Error loading data:', error);
-        setLoading(false);
       }
     }
 
     fetchData();
-  }, []);
+    return () => { cancelled = true; };
+  }, [initial, archive]);
 
-  // Later URL changes — the back and forward buttons — still move the page,
-  // they just no longer reload anything.
+  // The back and forward buttons still move the page.
   useEffect(() => {
-    if (counters.length === 0) return;
-
-    const urlTab = searchParams.get('tab');
-    if (['trends', 'breakdown', 'wards'].includes(urlTab)) setBikeshareTab(urlTab);
-
-    const urlWard = Number(searchParams.get('ward'));
-    if (Number.isInteger(urlWard) && urlWard >= 1 && urlWard <= 25) setWardSel(urlWard);
-
-    const urlCounter = searchParams.get('counter');
-    if (urlCounter && counters.some(counter => counter.location === urlCounter)) {
-      setSelectedCounter(urlCounter);
-    }
-  }, [counters, searchParams]);
+    const onPop = () => {
+      const q = new URLSearchParams(window.location.search);
+      const urlTab = q.get('tab');
+      if (['trends', 'breakdown', 'wards'].includes(urlTab)) setBikeshareTab(urlTab);
+      const urlWard = Number(q.get('ward'));
+      if (Number.isInteger(urlWard) && urlWard >= 1 && urlWard <= 25) setWardSel(urlWard);
+      const urlCounter = q.get('counter');
+      if (urlCounter && counters.some(counter => counter.location === urlCounter)) {
+        setSelectedCounter(urlCounter);
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [counters]);
 
   useEffect(() => {
     async function fetchHourlyData() {
@@ -472,6 +481,8 @@ export default function BicycleCountersContent() {
           <div className="text-center py-16 dd-panel">
             <p className="text-xl" style={{ color: 'var(--ink-3)' }}>Please select a counter to view data.</p>
           </div>
+        ) : selectedCounterData.stub ? (
+          <BikeLoader label="Loading bicycle counter data..." />
         ) : viewMode === 'hourly' && isBikeShare ? (
           <div className="dd-panel overflow-hidden">
             <div className="p-4" style={{ borderBottom: '1px solid var(--line)' }}>

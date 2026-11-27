@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { fetchSlowZones } from '../../../lib/slow-zones/scrape';
 import { saveSnapshot, logIngestRun } from '../../../lib/slow-zones/db';
 
@@ -39,6 +40,9 @@ export async function GET(request) {
     await logIngestRun({
       source, ok: true, day, asOf, rowCount: zones.length, zoneTotal, durationMs,
     });
+    // The page is rendered with the history baked in; rebuild it now that
+    // there's a new snapshot.
+    revalidatePath('/slow-zones');
     return NextResponse.json({ ok: true, day, asOf, rows: zones.length, zoneTotal });
   } catch (error) {
     const durationMs = Date.now() - startedAt;

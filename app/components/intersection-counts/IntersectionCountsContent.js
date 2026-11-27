@@ -1,20 +1,24 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import IntersectionModeChart from './IntersectionModeChart';
 import { MODES, peakTotals, fullTotals, sum, fmt, fmtDate, isModeOn, describeModes } from './modes';
+
+function MapPlaceholder() {
+  return (
+    <div className="w-full rounded flex items-center justify-center" style={{ height: 560, background: 'var(--paper)' }}>
+      <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Loading map…</p>
+    </div>
+  );
+}
 
 // Leaflet plus six thousand pies is the heaviest thing on the page; keep it out
 // of the bundle until the browser is actually drawing it.
 const IntersectionMap = dynamic(() => import('./IntersectionMap'), {
   ssr: false,
-  loading: () => (
-    <div className="w-full rounded flex items-center justify-center" style={{ height: 560, background: 'var(--paper)' }}>
-      <p className="text-sm" style={{ color: 'var(--ink-3)' }}>Loading map…</p>
-    </div>
-  ),
+  loading: () => <MapPlaceholder />,
 });
 
 const SINCE_OPTIONS = [
@@ -24,7 +28,11 @@ const SINCE_OPTIONS = [
   { value: 0, label: 'All counts since 1984' },
 ];
 
-export default function IntersectionCountsContent() {
+// `preview` is built on the server (app/intersection-counts/page.js): the
+// default intersection plus the dataset totals, so the page's HTML has the
+// same first view as the browser. The full 2.4 MB file still loads here for
+// the map and every other intersection.
+export default function IntersectionCountsContent({ preview }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [since, setSince] = useState(2020);
@@ -33,11 +41,9 @@ export default function IntersectionCountsContent() {
   // Which modes the map and chart are showing. Empty means all of them — see
   // isModeOn — so the default state needs no special case.
   const [pickedModes, setPickedModes] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(preview.intersections[0]?.id ?? null);
 
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialId = useRef(searchParams.get('at'));
   const chartRef = useRef(null);
   // Only a click on the map should pull the page down to the chart; restoring a
   // shared link or a back-button hop should not.
@@ -53,16 +59,21 @@ export default function IntersectionCountsContent() {
       .then((d) => {
         if (cancelled) return;
         setData(d);
-        const wanted = d.intersections.find((i) => i.id === initialId.current);
+        // A shared ?at= link. Read here rather than with useSearchParams,
+        // which would stop the page rendering on the server at all.
+        const at = new URLSearchParams(window.location.search).get('at');
+        const wanted = d.intersections.find((i) => i.id === at);
         setSelectedId(wanted ? wanted.id : d.intersections[0]?.id ?? null);
       })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
   }, []);
 
+  // Not before the full data is in, or the default would overwrite a shared
+  // link before it has been read.
   useEffect(() => {
-    if (selectedId) router.replace(`?at=${encodeURIComponent(selectedId)}`, { scroll: false });
-  }, [selectedId, router]);
+    if (data && selectedId) router.replace(`?at=${encodeURIComponent(selectedId)}`, { scroll: false });
+  }, [data, selectedId, router]);
 
   const shown = useMemo(() => {
     if (!data) return [];
@@ -71,8 +82,8 @@ export default function IntersectionCountsContent() {
   }, [data, since]);
 
   const selected = useMemo(
-    () => data?.intersections.find((i) => i.id === selectedId) ?? null,
-    [data, selectedId]
+    () => (data ?? preview).intersections.find((i) => i.id === selectedId) ?? null,
+    [data, preview, selectedId]
   );
 
   const handleSelect = useCallback((id) => {
@@ -109,17 +120,14 @@ export default function IntersectionCountsContent() {
     );
   }
 
-  if (!data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--paper)' }}>
-        <p className="text-xl font-sans" style={{ color: 'var(--ink-2)' }}>
-          Loading intersection counts…
-        </p>
-      </div>
-    );
-  }
-
-  const totalCounts = data.intersections.reduce((s, i) => s + i.counts.length, 0);
+  const { totalCounts, intersectionCount, latestYear, peakWindow } = data
+    ? {
+      totalCounts: data.intersections.reduce((s, i) => s + i.counts.length, 0),
+      intersectionCount: data.intersections.length,
+      latestYear: data.intersections[0]?.counts[0][0].slice(0, 4),
+      peakWindow: data.peakWindow,
+    }
+    : preview;
 
   return (
     <div className="min-h-screen pt-4 pb-10" style={{ background: 'var(--paper)' }}>
@@ -149,14 +157,16 @@ export default function IntersectionCountsContent() {
         </div>
 
         <div className="dd-panel-ruled p-4 sm:p-6">
-          <IntersectionMap
-            intersections={shown}
-            selectedId={selectedId}
-            onSelect={handleSelect}
-            pickedModes={pickedModes}
-            onToggleMode={handleToggleMode}
-            onShowAllModes={handleShowAllModes}
-          />
+          {data ? (
+            <IntersectionMap
+              intersections={shown}
+              selectedId={selectedId}
+              onSelect={handleSelect}
+              pickedModes={pickedModes}
+              onToggleMode={handleToggleMode}
+              onShowAllModes={handleShowAllModes}
+            />
+          ) : <MapPlaceholder />}
         </div>
 
         <div ref={chartRef} className="mt-6 scroll-mt-4">
@@ -217,7 +227,7 @@ export default function IntersectionCountsContent() {
                 <p className="text-xs mt-4 leading-relaxed" style={{ color: 'var(--ink-3)' }}>
                   {win === 'peak' ? (
                     <>
-                      Bars cover {data.peakWindow.label}, the {data.peakWindow.hours} hours that
+                      Bars cover {peakWindow.label}, the {peakWindow.hours} hours that
                       every count in the City&rsquo;s export includes, so counts from different
                       years can be compared. Most counts run 8 hours and the rest run 14. Switch
                       to <b>Whole count</b> to see each count&rsquo;s full total.
@@ -258,8 +268,8 @@ export default function IntersectionCountsContent() {
             >
               City of Toronto Open Data Portal
             </a>
-            . {fmt(totalCounts)} counts at {fmt(data.intersections.length)} intersections,
-            1984 to {data.intersections[0]?.counts[0][0].slice(0, 4)}. Counts are one-off
+            . {fmt(totalCounts)} counts at {fmt(intersectionCount)} intersections,
+            1984 to {latestYear}. Counts are one-off
             surveys.
           </p>
         </div>

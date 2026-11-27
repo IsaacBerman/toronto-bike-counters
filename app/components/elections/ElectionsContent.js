@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { ChevronDown } from 'lucide-react';
 import {
@@ -141,25 +141,37 @@ function prepare(data) {
 
 const colorOfSlot = (slot, palette = SLOT_COLORS) => (slot >= 0 ? palette[slot] : OTHER_COLOR);
 
-export default function ElectionsContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  // The 2026 mayoral race leads unless a link asks for another.
-  const initialRace = RACES.some((r) => r.id === searchParams.get('race'))
-    ? searchParams.get('race')
-    : 'mayor-2026';
-  const initialWard = Number(searchParams.get('ward'));
-  const initialWards = RACES.find((r) => r.id === initialRace).wards;
-  const initialVotes = VOTE_TYPES.some((t) => t.value === searchParams.get('votes')) ? searchParams.get('votes') : 'day';
-  const initialWardLevel = searchParams.get('by') === 'ward';
+// A race file as it arrives, readied for the page: colours and the derived
+// meta. Run on fetched files and on the server's preview alike.
+function readyFile(d) {
+  if (d.id) {
+    applyIncumbents(d, INCUMBENT_COLORS);
+    applyRaceColors(d);
+    d.meta = prepare(d);
+  }
+  return d;
+}
 
-  const [raceId, setRaceId] = useState(initialRace);
+// The default race (2026 mayor) opens the page.
+const DEFAULT_RACE = 'mayor-2026';
+
+// `preview` comes from the server (app/elections/page.js): the default race's
+// results without its poll shapes, plus the needle's files, so the page's HTML
+// has the results in it. Entries marked `partial` are still fetched in full,
+// since the map needs the shapes.
+export default function ElectionsContent({ preview = {} }) {
+  const router = useRouter();
+
+  const [raceId, setRaceId] = useState(DEFAULT_RACE);
   const race = RACES.find((r) => r.id === raceId);
   const isMayor = race.office === 'mayor';
-  const [cache, setCache] = useState({});
+  // Cloned so readying a file never touches the props object.
+  const [cache, setCache] = useState(() => Object.fromEntries(
+    Object.entries(preview).map(([k, v]) => [k, readyFile(structuredClone(v))])
+  ));
   const [error, setError] = useState(null);
   const [viewPick, setView] = useState('leader'); // 'leader' | 'share' | 'swing' | 'turnout' | 'gap'
-  const [votesPick, setVotes] = useState(initialVotes);
+  const [votesPick, setVotes] = useState('day');
   // A race marked live reads the City's election-night feed: ward totals
   // only, with no split by how people voted. None is live between elections.
   const isLive = Boolean(race.live);
@@ -172,7 +184,7 @@ export default function ElectionsContent() {
     return sets;
   }, [live.feed, outlines]);
   // Past races can be shown ward by ward instead of poll by poll.
-  const [wardLevel, setWardLevel] = useState(initialWardLevel);
+  const [wardLevel, setWardLevel] = useState(false);
   const data = isLive ? liveData?.[raceId] : cache[raceId];
   // Swing only exists for 2026's mayor, which has a 2023 to swing from;
   // turnout only where the City gave each ward's electors (2026, from its
@@ -190,8 +202,27 @@ export default function ElectionsContent() {
   // Mayor: a candidate index, per race (each has its own candidate list).
   // Council: a finishing position in each ward.
   const [shareTarget, setShareTarget] = useState({ council: 0 });
-  const [selectedWard, setSelectedWard] = useState(Number.isInteger(initialWard) && initialWard >= 1 && initialWard <= initialWards ? initialWard : null);
-  const [focusWard, setFocusWard] = useState(selectedWard ? { ward: selectedWard } : null);
+  const [selectedWard, setSelectedWard] = useState(null);
+  const [focusWard, setFocusWard] = useState(null);
+
+  // A shared link's race, ward and votes. Read after the first render rather
+  // than with useSearchParams, which would stop the page rendering on the
+  // server; a shared link shows the default race for a moment first. This
+  // must stay above the effect that writes the URL, so it reads the link
+  // before that effect replaces it.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const linkRace = RACES.find((r) => r.id === q.get('race'));
+    if (linkRace) setRaceId(linkRace.id);
+    const wards = (linkRace ?? RACES.find((r) => r.id === DEFAULT_RACE)).wards;
+    const ward = Number(q.get('ward'));
+    if (Number.isInteger(ward) && ward >= 1 && ward <= wards) {
+      setSelectedWard(ward);
+      setFocusWard({ ward });
+    }
+    if (VOTE_TYPES.some((t) => t.value === q.get('votes'))) setVotes(q.get('votes'));
+    if (q.get('by') === 'ward') setWardLevel(true);
+  }, []);
   const [selectedPoll, setSelectedPoll] = useState(null);
   // A poll to select once the next race's file is in: switching between mayor
   // and council in one election keeps the same poll, with that race's votes.
@@ -206,7 +237,7 @@ export default function ElectionsContent() {
   const night = isLive ? live.feed : cache['night-2026'];
   useEffect(() => {
     if (!showNeedle) return undefined;
-    const wanted = ['needle-baseline', ...(isLive ? [] : ['night-2026', 'wards'])].filter((f) => !cache[f]);
+    const wanted = ['needle-baseline', ...(isLive ? [] : ['night-2026', 'wards'])].filter((f) => !cache[f] || cache[f].partial);
     if (!wanted.length) return undefined;
     let cancelled = false;
     for (const f of wanted) {
@@ -236,21 +267,14 @@ export default function ElectionsContent() {
   const loading = useRef(new Set());
   useEffect(() => {
     for (const f of fileKey.split(',')) {
-      if (cache[f] || loading.current.has(f)) continue;
+      if ((cache[f] && !cache[f].partial) || loading.current.has(f)) continue;
       loading.current.add(f);
       fetch(`/elections/${f}.json`)
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.json();
         })
-        .then((d) => {
-          if (d.id) {
-            applyIncumbents(d, INCUMBENT_COLORS);
-            applyRaceColors(d);
-            d.meta = prepare(d);
-          }
-          setCache((c) => ({ ...c, [f]: d }));
-        })
+        .then((d) => setCache((c) => ({ ...c, [f]: readyFile(d) })))
         .catch((e) => setError(e.message))
         .finally(() => loading.current.delete(f));
     }
@@ -712,7 +736,7 @@ export default function ElectionsContent() {
             {/* The key floats over the map's top-left corner, beside the zoom
                 buttons. */}
             <div className="relative">
-            {data ? (
+            {data && !data.partial ? (
               <ElectionMap
                 data={data}
                 styleFor={styleFor}
@@ -734,7 +758,7 @@ export default function ElectionsContent() {
                 <p className="text-sm" style={{ color: 'var(--ink-3)' }}>
                   {isLive && live.error && !live.feed
                     ? 'Couldn\u2019t reach the City\u2019s results feed. Trying again in a minute.'
-                    : `Loading ${race.label} results…`}
+                    : data ? 'Loading map…' : `Loading ${race.label} results…`}
                 </p>
               </div>
             )}

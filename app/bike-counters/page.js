@@ -1,23 +1,34 @@
-import { Suspense } from 'react';
 import SiteHeader from '../components/site-header';
 import BicycleCountersContent from '../components/bicycle-counters-content';
+import { fetchLiveBikeshare } from '../lib/dataUtils';
+import bikeshareDaily from '../../public/bikeshare-daily.json';
+import cyclingCounts from '../../public/cycling-counts.json';
 
 export const metadata = {
   title: 'Toronto Bicycle Counters',
   description: 'Dashboard of Toronto permanent bicycle counter data and Bike Share ridership.',
 };
 
-export default function BikeCountersPage() {
+// Rendered with the Bike Share series in its HTML. The live days after the
+// City's archive come from bikeraccoon, so the page is rebuilt hourly; the
+// browser also refreshes them, so a visitor never sees an older day than before.
+export const revalidate = 3600;
+
+// The dropdown's names. Each counter's daily data loads in the browser.
+// Counters with no recorded days are left out, as loadCounterSeries does.
+const counterList = cyclingCounts.counters
+  .filter((c) => c.volumes.some(Boolean))
+  .map(({ location }) => ({
+    location,
+    isOperational: !location.toLowerCase().includes('retired'),
+  }));
+
+export default async function BikeCountersPage() {
+  const live = await fetchLiveBikeshare(bikeshareDaily.cutoff);
   return (
     <>
       <SiteHeader current="bike-counters" width="max-w-7xl" />
-      <Suspense fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-xl font-sans ">Loading bicycle counter data...</div>
-        </div>
-      }>
-        <BicycleCountersContent />
-      </Suspense>
+      <BicycleCountersContent archive={bikeshareDaily} live={live} counterList={counterList} />
     </>
   );
 }
