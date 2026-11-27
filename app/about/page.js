@@ -23,42 +23,6 @@ export default function AboutPage() {
             </p>
 
             <p className="text-sm leading-relaxed">
-              The cycling numbers come from the City of Toronto&rsquo;s{' '}
-              <a
-                href="https://open.toronto.ca/dataset/permanent-bicycle-counters/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="dd-link-accent"
-              >
-                permanent bicycle counters
-              </a>
-              , which also supplies the ward boundaries used on the maps. The mode-share figures are
-              from the{' '}
-              <a
-                href="http://www.transportationtomorrow.on.ca/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="dd-link-accent"
-              >
-                Transportation Tomorrow Survey
-              </a>
-              , a regional travel survey run by the Data Management Group at the University of
-              Toronto. Bike Share trip activity comes from the system&rsquo;s public{' '}
-              <a
-                href="https://gbfs.org/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="dd-link-accent"
-              >
-                GBFS feed
-              </a>
-              . Each tool notes its own sources and whatever processing was involved. Older survey
-              wards get mapped onto the current 25-ward model, for instance. None of this is
-              affiliated with or endorsed by the City of Toronto, the University of Toronto, or
-              anyone else who publishes the data.
-            </p>
-
-            <p className="text-sm leading-relaxed">
               I run the site myself and pay for the hosting, with some help from readers. If you
               spot a mistake or know a dataset that should be on here, email me. The{' '}
               <a href="/contact" className="dd-link-accent">

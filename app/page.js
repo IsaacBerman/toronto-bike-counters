@@ -5,18 +5,15 @@ export const metadata = {
   description: 'Toronto transportation data dashboards and mapping tools',
 };
 
-function ProjectCard({ href, title, blurb }) {
+function ProjectCard({ href, title }) {
   return (
     <Link
       href={href}
       className="group block dd-panel-ruled p-6 transition-transform hover:-translate-y-0.5"
     >
-      <h2 className="dd-title text-2xl mb-2" style={{ color: 'var(--ink)' }}>
+      <h2 className="dd-title text-2xl mb-4" style={{ color: 'var(--ink)' }}>
         {title}
       </h2>
-      <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--ink-2)' }}>
-        {blurb}
-      </p>
       <span
         className="inline-flex items-center gap-1 text-sm font-bold group-hover:gap-2 transition-all"
         style={{ color: 'var(--accent)' }}
@@ -51,52 +48,42 @@ export default function Home() {
           <ProjectCard
             href="/elections"
             title="Toronto Election Results"
-            blurb="Poll-by-poll maps of Toronto elections since 2018, and live 2026 results."
           />
           <ProjectCard
             href="/bike-counters"
             title="Toronto Bicycle Counters"
-            blurb="Dashboard of Toronto permanent bicycle counter data and Bike Share ridership."
           />
           <ProjectCard
             href="/intersection-counts"
             title="Toronto Intersection Counts"
-            blurb="Map of all intersections in Toronto that have ever had a modal count taken, and charts showing splits over time."
           />
           <ProjectCard
             href="/transform-toronto"
             title="TransformTO Tracking"
-            blurb="Toronto travel mode share by ward, trip distance and year, from the Transportation Tomorrow Survey."
           />
           <ProjectCard
             href="/slow-zones"
             title="TTC Slow Zones"
-            blurb="Daily tracking of TTC subway reduced speed zones."
           />
           <ProjectCard
             href="/vision-zero"
             title="Toronto Vision Zero Dashboard"
-            blurb="Traffic deaths and serious injuries since 2006, by road user, ward, age and time of day."
           />
           <ProjectCard
             href="/council-boards"
             title="Toronto Council Appointments"
-            blurb="Who sits on each City Council committee and board for 2026."
           />
           <ProjectCard
             href="/downtown-definer"
             title="Where is Downtown?"
-            blurb="Map tool for drawing your definition of downtown, aggregated into a heatmap of all submissions."
           />
           <ProjectCard
             href="/where-would-you-live"
             title="Where Would You Live?"
-            blurb="Map tool for drawing the parts of a city you'd want to live in, filtered by whether people live inside the city or outside it."
           />
           <ProjectCard
             href="/video-counter"
             title="Video Traffic Counter"
-            blurb="Upload a street video, draw a counting line, and tally the vehicles, bikes and pedestrians that cross it."
           />
         </div>
       </div>
